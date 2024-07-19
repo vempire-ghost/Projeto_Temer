@@ -1203,10 +1203,30 @@ class OMRManagerDialog:
 
         self.top.protocol("WM_DELETE_WINDOW", self.on_close)
 
-    def editar_arquivo_ajuda (self):
-        caminho_arquivo_ajuda = r"J:\Dropbox Compartilhado\AmazonWS\Auto Iniciar meus VPS\pitao\Ajuda.hnd"
-        if os.path.exists(caminho_arquivo_ajuda):
-            ctypes.windll.shell32.ShellExecuteW(None, "open", caminho_arquivo_ajuda, None, None, 1)
+    def get_drive_letter(self):
+        """Retorna a letra da unidade onde o script está sendo executado."""
+        if getattr(sys, 'frozen', False):  # Verifica se o código está congelado/compilado
+            script_path = os.path.abspath(sys.executable)
+        else:
+            script_path = os.path.abspath(__file__)
+        drive_letter = os.path.splitdrive(script_path)[0]
+        return drive_letter
+
+    def os_letter(self, relative_path):
+        """Constrói o caminho absoluto a partir de um caminho relativo."""
+        drive_letter = self.get_drive_letter()
+        # Se o caminho relativo já inclui uma unidade (letra de drive), não substituímos
+        if os.path.splitdrive(relative_path)[0]:
+            return os.path.abspath(relative_path)
+        else:
+            # Garantir que a barra invertida seja adicionada após a letra da unidade
+            return os.path.join(drive_letter + os.sep, relative_path)
+
+    def editar_arquivo_ajuda(self):
+        relative_path = r"Dropbox Compartilhado\AmazonWS\Auto Iniciar meus VPS\pitao\Ajuda.hnd"
+        absolute_path = self.os_letter(relative_path)
+        if os.path.exists(absolute_path):
+            ctypes.windll.shell32.ShellExecuteW(None, "open", absolute_path, None, None, 1)
         else:
             print("Arquivo de ajuda não encontrado.")
 
