@@ -1,0 +1,22 @@
+# Ignorar todos os arquivos
+*
+
+# Não ignorar o próprio arquivo .gitignore
+!.gitignore
+
+# Não ignorar diretórios
+!*/
+
+# Não ignorar arquivos específicos
+!arquivo_que_quero_monitorar.txt
+!beta52.py
+
+# Não ignorar diretórios específicos e seus conteúdos
+!diretorio_que_quero_monitorar/
+!diretorio_que_quero_monitorar/**
+
+# Não ignorar diretórios específicos e seus conteúdos (com espaços no nome)
+!Scripts Locais/
+!Scripts Locais/**
+!Sobre/
+!Sobre/**
