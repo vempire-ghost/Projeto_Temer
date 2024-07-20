@@ -1,4 +1,5 @@
 @echo off
+echo INICIO DO SCRIPT
 echo teste
 echo vbox.exe machin gun
 echo vbox.exe machin gumer

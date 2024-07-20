@@ -19,6 +19,7 @@ from PIL import Image, ImageTk
 class ButtonManager:
     def __init__(self, master):
         self.master = master
+        self.script_finished = False  # Inicializa a variável de controle para o término do script
         self.buttons = []
         self.button_frame = None
         self.second_tab_button_frame = None
@@ -363,12 +364,20 @@ class ButtonManager:
             if all("ON" in status for status in statuses):
                 self.general_status_frame.config(bg="green")
                 self.general_status_label.config(text="Conectado", bg="green", fg="black")
+                self.script_finished = False
             else:
                 self.general_status_frame.config(bg="yellow")
                 self.general_status_label.config(text="Conectando", bg="yellow", fg="black")
+                self.script_finished = False
         else:
             self.general_status_frame.config(bg="red")
             self.general_status_label.config(text="Desconectado", bg="red", fg="black")
+            self.script_finished = False
+
+        # Verifica se o script terminou e atualiza o status para "Conectando" se necessário
+        if self.script_finished:
+            self.general_status_frame.config(bg="yellow")
+            self.general_status_label.config(text="Conectando", bg="yellow", fg="black")
 
     def add_new_button_tab2(self):
         dialog = AddButtonDialog(self.master, self.top)
@@ -830,6 +839,10 @@ class ButtonManager:
 
                         for line in new_text.splitlines():
                             tag_found = False
+                            if "INICIO DO SCRIPT" in line:
+                                self.script_finished = True
+                                self.update_general_status()
+                    
                             for value, color in self.color_map.items():
                                 if line.startswith(value):
                                     colored_widget.insert(tk.END, line + '\n', value)
@@ -857,7 +870,7 @@ class ButtonManager:
                             uncolored_widget.insert(tk.END, "\nLoop terminou devido à inatividade.\n", 'inactivity')
                             uncolored_widget.config(state=tk.DISABLED)
                             uncolored_widget.see(tk.END)
-                        
+                
                             break  # Sai do loop após o tempo de inatividade
 
                 colored_widget.update_idletasks()
@@ -1663,7 +1676,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 54", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 56", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
