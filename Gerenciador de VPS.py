@@ -1603,7 +1603,7 @@ class about:
         self.master = master
         self.load_window_position()
         self.top.title("Sobre")
-        self.top.geometry("540x480")
+        self.top.geometry("540x495")
 
         # Bloqueia a interação com a janela master
         self.top.grab_set()
@@ -1624,16 +1624,17 @@ class about:
             self.img = img
         
         # Frame para os botões e textos descritivos
-        button_frame = tk.Frame(self.top, borderwidth=1, relief=tk.RIDGE, width=500, height=140, bg="white")
+        button_frame = tk.Frame(self.top, borderwidth=1, relief=tk.RIDGE, width=500, height=170, bg="white")
         button_frame.pack(side="top", padx=10, pady=1, anchor='n')
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 52", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 54", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
         self.add_text_with_image(button_frame, "Liferuler: CAOS", "chora.png")
+        self.add_text_with_image(button_frame, "Gerente e Ouvinte: Naminha Pixu", "mimo.png")
 
     def add_text_with_image(self, parent, text, image_path):
         frame = tk.Frame(parent, bg="white")
