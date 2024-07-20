@@ -12,6 +12,8 @@
 !beta52.py
 !Ajuda.hnd
 !Gerenciador de VPS.py
+!Compilar.bat
+!Compilar.ps1
 
 # Não ignorar diretórios específicos e seus conteúdos
 !diretorio_que_quero_monitorar/
