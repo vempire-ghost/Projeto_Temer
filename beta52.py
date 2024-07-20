@@ -283,8 +283,8 @@ class ButtonManager:
             socket_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
             socket.create_connection(socket_info[0][4], timeout=timeout).close()
             end_time = time.time()
-            response_time = (end_time - start_time) * 1000  # Converte para milissegundos
-            return f"ON ({response_time:.2f} ms)", "green"
+            response_time = int((end_time - start_time) * 1000)  # Converte para milissegundos e arredonda para inteiro
+            return f"ON ({response_time} ms)", "green"
         except (socket.timeout, socket.error):
             return "OFF", "red"
 
@@ -308,11 +308,11 @@ class ButtonManager:
             
             conn.close()
             end_time = time.time()
-            response_time = (end_time - start_time) * 1000  # Converte para milissegundos
+            response_time = int((end_time - start_time) * 1000)  # Converte para milissegundos e arredonda para inteiro
             
             # Verifica se a resposta é válida
             if response:
-                return f"ON ({response_time:.2f} ms)", "green"
+                return f"ON ({response_time} ms)", "green"
             else:
                 return "OFF", "red"
         except (socket.timeout, socket.error):
