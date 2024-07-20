@@ -10,6 +10,7 @@
 # Não ignorar arquivos específicos
 !arquivo_que_quero_monitorar.txt
 !beta52.py
+!Ajuda.hnd
 
 # Não ignorar diretórios específicos e seus conteúdos
 !diretorio_que_quero_monitorar/
