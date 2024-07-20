@@ -11,6 +11,7 @@
 !arquivo_que_quero_monitorar.txt
 !beta52.py
 !Ajuda.hnd
+!Gerenciador de VPS.py
 
 # Não ignorar diretórios específicos e seus conteúdos
 !diretorio_que_quero_monitorar/
