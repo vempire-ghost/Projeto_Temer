@@ -164,6 +164,15 @@ class ButtonManager:
         self.top_frame = tk.Frame(self.master, bg='lightgray', borderwidth=1, relief=tk.RAISED)
         self.top_frame.pack(side=tk.TOP, fill=tk.X)
 
+        # Frame superior que irá conter o label de status geral
+        self.general_status_frame = tk.Frame(self.master, bg='red', borderwidth=1, relief=tk.RAISED)
+        self.general_status_frame.pack(side=tk.TOP, fill=tk.X)
+        self.general_status_label = tk.Label(self.general_status_frame, text="Desconectado", bg='red', fg='black', justify=tk.CENTER)
+        self.general_status_label.pack()
+
+        self.top_frame = tk.Frame(self.master, bg='lightgray', borderwidth=1, relief=tk.RAISED)
+        self.top_frame.pack(side=tk.TOP, fill=tk.X)
+
         # Configura o peso das colunas para expandir uniformemente
         self.top_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
 
@@ -326,15 +335,40 @@ class ButtonManager:
 
     def update_status_vps_jogo(self, status, color):
         self.status_label_vps_jogo.config(text=status, fg=color)
+        self.update_general_status()
 
     def update_status_vps_vpn(self, status, color):
         self.status_label_vps_vpn.config(text=status, fg=color)
+        self.update_general_status()
 
     def update_status_omr_vpn(self, status, color):
         self.status_label_omr_vpn.config(text=status, fg=color)
+        self.update_general_status()
 
     def update_status_omr_jogo(self, status, color):
         self.status_label_omr_jogo.config(text=status, fg=color)
+        self.update_general_status()
+
+    def update_general_status(self):
+        statuses = [
+            self.status_label_vps_vpn.cget("text"),
+            self.status_label_vps_jogo.cget("text"),
+            self.status_label_omr_vpn.cget("text"),
+            self.status_label_omr_jogo.cget("text")
+        ]
+        if all("OFF" in status for status in statuses):
+            self.general_status_frame.config(bg="red")
+            self.general_status_label.config(text="Desconectado", bg="red", fg="black")
+        elif any("ON" in status for status in statuses):
+            if all("ON" in status for status in statuses):
+                self.general_status_frame.config(bg="green")
+                self.general_status_label.config(text="Conectado", bg="green", fg="black")
+            else:
+                self.general_status_frame.config(bg="yellow")
+                self.general_status_label.config(text="Conectando", bg="yellow", fg="black")
+        else:
+            self.general_status_frame.config(bg="red")
+            self.general_status_label.config(text="Desconectado", bg="red", fg="black")
 
     def add_new_button_tab2(self):
         dialog = AddButtonDialog(self.master, self.top)
