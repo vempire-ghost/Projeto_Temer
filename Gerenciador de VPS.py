@@ -358,8 +358,12 @@ class ButtonManager:
             self.status_label_omr_jogo.cget("text")
         ]
         if all("OFF" in status for status in statuses):
-            self.general_status_frame.config(bg="red")
-            self.general_status_label.config(text="Desconectado", bg="red", fg="black")
+            if self.script_finished:
+                self.general_status_frame.config(bg="yellow")
+                self.general_status_label.config(text="Conectando", bg="yellow", fg="black")
+            else:
+                self.general_status_frame.config(bg="red")
+                self.general_status_label.config(text="Desconectado", bg="red", fg="black")
         elif any("ON" in status for status in statuses):
             if all("ON" in status for status in statuses):
                 self.general_status_frame.config(bg="green")
@@ -1676,7 +1680,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 56", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 57", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
