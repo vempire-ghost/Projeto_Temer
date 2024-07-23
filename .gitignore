@@ -10,10 +10,13 @@
 # Não ignorar arquivos específicos
 !arquivo_que_quero_monitorar.txt
 !beta52.py
+<<<<<<< HEAD
 !Gerenciador de VPS.py
 !Compilar.bat
 !Compilar.ps1
 !LICENSE
+=======
+>>>>>>> parent of a259c2f (Adicionado arquivo de ajuda)
 
 # Não ignorar diretórios específicos e seus conteúdos
 !diretorio_que_quero_monitorar/
