@@ -10,7 +10,6 @@
 # Não ignorar arquivos específicos
 !arquivo_que_quero_monitorar.txt
 !beta52.py
-!Ajuda.hnd
 !Gerenciador de VPS.py
 !Compilar.bat
 !Compilar.ps1

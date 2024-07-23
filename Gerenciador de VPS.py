@@ -158,11 +158,11 @@ class ButtonManager:
             print(f"Arquivo não encontrado: {filepath}")
 
     def open_OMR_VPN(self, event=None):
-        window = webview.create_window('OpenWRT', 'http://192.168.101.1', width=1045, height=787)
+        window = webview.create_window('OMR VPN', 'http://192.168.101.1', width=1045, height=787)
         webview.start(self.submit_login, window)
 
     def open_OMR_JOGO(self, event=None):
-        window = webview.create_window('OpenWRT', 'http://192.168.100.1', width=1045, height=787)
+        window = webview.create_window('OMR JOGO', 'http://192.168.100.1', width=1045, height=787)
         webview.start(self.submit_login, window)
 
     def submit_login(self, window):
