@@ -13,6 +13,7 @@ import zipfile
 import ctypes
 import socket
 import sys
+import webview
 from datetime import datetime
 from PIL import Image, ImageTk
 
@@ -156,6 +157,25 @@ class ButtonManager:
         else:
             print(f"Arquivo não encontrado: {filepath}")
 
+    def open_OMR_VPN(self, event=None):
+        window = webview.create_window('OpenWRT', 'http://192.168.101.1', width=1045, height=787)
+        webview.start(self.submit_login, window)
+
+    def open_OMR_JOGO(self, event=None):
+        window = webview.create_window('OpenWRT', 'http://192.168.100.1', width=1045, height=787)
+        webview.start(self.submit_login, window)
+
+    def submit_login(self, window):
+        js_code = """
+        window.addEventListener('load', function() {
+            var form = document.querySelector('form'); // Seleciona o primeiro formulário na página
+            if (form) {
+                form.submit(); // Submete o formulário
+            }
+        });
+        """
+        window.evaluate_js(js_code)
+
     def create_widgets(self):
         # Cria o frame superior
         #baixo relevo
@@ -194,16 +214,16 @@ class ButtonManager:
         # Label (aparência de botão) para OMR VPN
         frame_omr_vpn = tk.Frame(self.top_frame, bg='lightgray')
         frame_omr_vpn.grid(row=1, column=1, padx=5, pady=5, sticky=tk.E+tk.W)
-        lbl_omr_vpn = tk.Label(frame_omr_vpn, text="OMR VPN:", bg='lightgray', fg='black', justify=tk.CENTER, relief='raised', bd=2, padx=5, pady=5)
-        lbl_omr_vpn.pack(side=tk.LEFT)
+        btn_omr_vpn = tk.Button(frame_omr_vpn, text="OMR VPN:", bg='lightgray', justify=tk.CENTER, command=self.open_OMR_VPN)
+        btn_omr_vpn.pack(side=tk.LEFT)
         self.status_label_omr_vpn = tk.Label(frame_omr_vpn, text="Unknown", bg='lightgray', fg='black', justify=tk.CENTER)
         self.status_label_omr_vpn.pack(side=tk.LEFT)
 
         # Label (aparência de botão) para OMR JOGO
         frame_omr_jogo = tk.Frame(self.top_frame, bg='lightgray')
         frame_omr_jogo.grid(row=1, column=2, padx=5, pady=5, sticky=tk.E+tk.W)
-        lbl_omr_jogo = tk.Label(frame_omr_jogo, text="OMR JOGO:", bg='lightgray', fg='black', justify=tk.CENTER, relief='raised', bd=2, padx=5, pady=5)
-        lbl_omr_jogo.pack(side=tk.LEFT)
+        btn_omr_jogo = tk.Button(frame_omr_jogo, text="OMR JOGO:", bg='lightgray', justify=tk.CENTER, command=self.open_OMR_JOGO)
+        btn_omr_jogo.pack(side=tk.LEFT)
         self.status_label_omr_jogo = tk.Label(frame_omr_jogo, text="Unknown", bg='lightgray', fg='black', justify=tk.CENTER)
         self.status_label_omr_jogo.pack(side=tk.LEFT)
 
@@ -1680,7 +1700,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 57", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 58", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
