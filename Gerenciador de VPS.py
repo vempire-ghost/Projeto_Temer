@@ -338,7 +338,7 @@ class ButtonManager:
             
             conn.close()
             end_time = time.time()
-            response_time = int((end_time - start_time) * 1000)  # Converte para milissegundos e arredonda para inteiro
+            response_time = int((end_time - start_time) * 1000/2)  # Converte para milissegundos e arredonda para inteiro
             
             # Verifica se a resposta é válida
             if response:
