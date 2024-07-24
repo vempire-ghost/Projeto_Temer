@@ -288,10 +288,10 @@ class ButtonManager:
 
     def start_pinging_threads(self):
         interval = 2  # Define o intervalo de 2 segundos para os pings
-        threading.Thread(target=self.ping_forever, args=(self.url_to_ping_vps_vpn, self.update_status_vps_vpn), daemon=True).start()
-        threading.Thread(target=self.ping_forever, args=(self.url_to_ping_vps_jogo, self.update_status_vps_jogo), daemon=True).start()
-        threading.Thread(target=self.ping_forever80, args=(self.url_to_ping_omr_vpn, self.update_status_omr_vpn), daemon=True).start()
-        threading.Thread(target=self.ping_forever, args=(self.url_to_ping_omr_jogo, self.update_status_omr_jogo), daemon=True).start()
+        threading.Thread(target=self.ping_forever_direto, args=(self.url_to_ping_vps_vpn, self.update_status_vps_vpn), daemon=True).start()
+        threading.Thread(target=self.ping_forever_direto, args=(self.url_to_ping_vps_jogo, self.update_status_vps_jogo), daemon=True).start()
+        threading.Thread(target=self.ping_forever_omr_vpn, args=(self.url_to_ping_omr_vpn, self.update_status_omr_vpn), daemon=True).start()
+        threading.Thread(target=self.ping_forever_omr_jogo, args=(self.url_to_ping_omr_jogo, self.update_status_omr_jogo), daemon=True).start()
 
     def load_addresses(self):
         try:
@@ -307,7 +307,21 @@ class ButtonManager:
             self.url_to_ping_omr_vpn = None
             self.url_to_ping_omr_jogo = None
 
-    def ping80(self, host, port=80, timeout=1):
+    def ping_omr_vpn(self, host, port=80, timeout=1):
+        def test_connection(ip, port, timeout):
+            try:
+                socket_info = socket.getaddrinfo(ip, port, socket.AF_INET, socket.SOCK_STREAM)
+                conn = socket.create_connection(socket_info[0][4], timeout=timeout)
+                conn.close()
+                return True
+            except (socket.timeout, socket.error):
+                return False
+
+        # Teste inicial de conexão ao endereço 192.168.101.1 na porta 80
+        if not test_connection('192.168.101.1', 80, timeout):
+            return "OFF", "red"
+
+        # Teste de conexão ao host fornecido na porta 80
         try:
             start_time = time.time()
             socket_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
@@ -318,13 +332,57 @@ class ButtonManager:
         except (socket.timeout, socket.error):
             return "OFF", "red"
 
-    def ping_forever80(self, url, update_func, interval=1):
+    def ping_forever_omr_vpn(self, url, update_func, interval=1):
         while True:
-            status, color = self.ping80(url)
+            status, color = self.ping_omr_vpn(url)
             update_func(status, color)
             time.sleep(interval)
 
-    def ping(self, host, port=65222, timeout=1):
+    def ping_omr_jogo(self, host, port=65222, timeout=1):
+        def test_connection(ip, port, timeout):
+            try:
+                socket_info = socket.getaddrinfo(ip, port, socket.AF_INET, socket.SOCK_STREAM)
+                conn = socket.create_connection(socket_info[0][4], timeout=timeout)
+                conn.close()
+                return True
+            except (socket.timeout, socket.error):
+                return False
+
+        # Teste inicial de conexão ao endereço 192.168.100.1 na porta 80
+        if not test_connection('192.168.100.1', 80, timeout):
+            return "OFF", "red"
+
+        # Teste de conexão ao host fornecido na porta 65222
+        try:
+            start_time = time.time()
+            socket_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+            conn = socket.create_connection(socket_info[0][4], timeout=timeout)
+        
+            # Envia alguns bytes de dados
+            conn.sendall(b'PING')
+        
+            # Recebe alguns bytes de dados
+            response = conn.recv(1024)
+        
+            conn.close()
+            end_time = time.time()
+            response_time = int((end_time - start_time) * 1000 / 2)  # Converte para milissegundos e arredonda para inteiro
+
+            # Verifica se a resposta é válida
+            if response:
+                return f"ON ({response_time} ms)", "green"
+            else:
+                return "OFF", "blue"
+        except (socket.timeout, socket.error):
+            return "OFF", "blue"
+
+    def ping_forever_omr_jogo(self, url, update_func, interval=1):
+        while True:
+            status, color = self.ping_omr_jogo(url)
+            update_func(status, color)
+            time.sleep(interval)
+
+    def ping_direto(self, host, port=65222, timeout=1):
         try:
             start_time = time.time()
             socket_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
@@ -348,9 +406,9 @@ class ButtonManager:
         except (socket.timeout, socket.error):
             return "OFF", "red"
 
-    def ping_forever(self, url, update_func, interval=1):
+    def ping_forever_direto(self, url, update_func, interval=1):
         while True:
-            status, color = self.ping(url)
+            status, color = self.ping_direto(url)
             update_func(status, color)
             time.sleep(interval)
 
@@ -1700,7 +1758,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 58", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 59", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
