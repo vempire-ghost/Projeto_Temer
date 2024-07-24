@@ -330,7 +330,7 @@ class ButtonManager:
             response_time = int((end_time - start_time) * 1000)  # Converte para milissegundos e arredonda para inteiro
             return f"ON ({response_time} ms)", "green"
         except (socket.timeout, socket.error):
-            return "OFF", "red"
+            return "OFF", "blue"
 
     def ping_forever_omr_vpn(self, url, update_func, interval=1):
         while True:
