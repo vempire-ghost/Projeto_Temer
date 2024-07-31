@@ -21,6 +21,7 @@ class ButtonManager:
     def __init__(self, master):
         self.master = master
         self.script_finished = False  # Inicializa a variável de controle para o término do script
+        self.omr_restarted = False  # Variável de estado para rastrear se o omr jogo já foi reiniciado
         self.buttons = []
         self.button_frame = None
         self.second_tab_button_frame = None
@@ -328,6 +329,10 @@ class ButtonManager:
             socket.create_connection(socket_info[0][4], timeout=timeout).close()
             end_time = time.time()
             response_time = int((end_time - start_time) * 1000)  # Converte para milissegundos e arredonda para inteiro
+            if not self.omr_restarted:  # Verifica se o omr jogo já foi reiniciado
+                self.omr_restarted = True  # Define como True para garantir execução única
+                time.sleep(5)  # Aguarda 5 segundos
+                subprocess.Popen(["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"], shell=True)
             return f"ON ({response_time} ms)", "green"
         except (socket.timeout, socket.error):
             return "OFF", "blue"
@@ -1758,7 +1763,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 59", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 60", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
