@@ -99,7 +99,7 @@ class SchedulerApp:
         except Exception as e:
             return f"Erro: {str(e)}"
 
-    def truncar_texto(self, texto, limite=100):
+    def truncar_texto(self, texto, limite=12):
         """Trunca o texto se exceder o limite e adiciona '...' ao final."""
         if len(texto) > limite:
             return texto[:limite] + "..."
