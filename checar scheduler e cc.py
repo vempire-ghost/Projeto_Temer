@@ -78,11 +78,15 @@ class SchedulerApp:
 
         # Botão para Reiniciar omr-tracker VPN
         self.botao_reiniciar_vpn = tk.Button(self.frame_inferior, text="Reiniciar omr-tracker VPN", command=self.reiniciar_omr_tracker_vpn)
-        self.botao_reiniciar_vpn.pack(side=tk.LEFT, padx=10, pady=5)
+        self.botao_reiniciar_vpn.grid(row=0, column=0, padx=10, pady=5, sticky='w')
 
         # Botão para Reiniciar omr-tracker JOGO
         self.botao_reiniciar_jogo = tk.Button(self.frame_inferior, text="Reiniciar omr-tracker JOGO", command=self.reiniciar_omr_tracker_jogo)
-        self.botao_reiniciar_jogo.pack(side=tk.LEFT, padx=10, pady=5)
+        self.botao_reiniciar_jogo.grid(row=0, column=1, padx=10, pady=5, sticky='w')
+
+        # Adiciona o label de versão dentro do frame_inferior, alinhado à esquerda e com tamanho de fonte configurável
+        self.label_versao = tk.Label(self.frame_inferior, text="Versão: beta 2", font=("Arial", 7))
+        self.label_versao.grid(row=1, column=0, columnspan=2, sticky='w', pady=(0, 0))
 
         # Define o evento de fechamento para salvar a posição da janela
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
