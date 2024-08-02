@@ -85,7 +85,7 @@ class SchedulerApp:
         self.botao_reiniciar_jogo.grid(row=0, column=1, padx=10, pady=5, sticky='w')
 
         # Adiciona o label de versão dentro do frame_inferior, alinhado à esquerda e com tamanho de fonte configurável
-        self.label_versao = tk.Label(self.frame_inferior, text="Versão: beta 2", font=("Arial", 7))
+        self.label_versao = tk.Label(self.frame_inferior, text="Projeto Pastilha - ©VempirE_GhosT - Versão: beta 2.1", font=("Arial", 7))
         self.label_versao.grid(row=1, column=0, columnspan=2, sticky='w', pady=(0, 0))
 
         # Define o evento de fechamento para salvar a posição da janela
