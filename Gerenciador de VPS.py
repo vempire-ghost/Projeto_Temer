@@ -202,14 +202,14 @@ class ButtonManager:
         frame_vps_vpn = tk.Frame(self.top_frame, bg='lightgray')
         frame_vps_vpn.grid(row=0, column=1, padx=5, pady=5, sticky=tk.E+tk.W)
         btn_vps_vpn = tk.Button(frame_vps_vpn, text=" VPS  VPN: ", bg='lightgray', justify=tk.CENTER, command=self.abrir_arquivo_vps_vpn).pack(side=tk.LEFT)
-        self.status_label_vps_vpn = tk.Label(frame_vps_vpn, text="Unknown", bg='lightgray', justify=tk.CENTER)
+        self.status_label_vps_vpn = tk.Label(frame_vps_vpn, text="Aguarde...", bg='lightgray', justify=tk.CENTER)
         self.status_label_vps_vpn.pack(side=tk.LEFT)
 
         # Label e valor para VPS JOGO
         frame_vps_jogo = tk.Frame(self.top_frame, bg='lightgray')
         frame_vps_jogo.grid(row=0, column=2, padx=5, pady=5, sticky=tk.E+tk.W)
         btn_vps_jogo = tk.Button(frame_vps_jogo, text=" VPS  JOGO: ", bg='lightgray', justify=tk.CENTER, command=self.abrir_arquivo_vps_jogo).pack(side=tk.LEFT)
-        self.status_label_vps_jogo = tk.Label(frame_vps_jogo, text="Unknown", bg='lightgray', justify=tk.CENTER)
+        self.status_label_vps_jogo = tk.Label(frame_vps_jogo, text="Aguarde...", bg='lightgray', justify=tk.CENTER)
         self.status_label_vps_jogo.pack(side=tk.LEFT)
 
         # Label (aparência de botão) para OMR VPN
@@ -217,7 +217,7 @@ class ButtonManager:
         frame_omr_vpn.grid(row=1, column=1, padx=5, pady=5, sticky=tk.E+tk.W)
         btn_omr_vpn = tk.Button(frame_omr_vpn, text="OMR VPN:", bg='lightgray', justify=tk.CENTER, command=self.open_OMR_VPN)
         btn_omr_vpn.pack(side=tk.LEFT)
-        self.status_label_omr_vpn = tk.Label(frame_omr_vpn, text="Unknown", bg='lightgray', fg='black', justify=tk.CENTER)
+        self.status_label_omr_vpn = tk.Label(frame_omr_vpn, text="Aguarde...", bg='lightgray', fg='black', justify=tk.CENTER)
         self.status_label_omr_vpn.pack(side=tk.LEFT)
 
         # Label (aparência de botão) para OMR JOGO
@@ -225,7 +225,7 @@ class ButtonManager:
         frame_omr_jogo.grid(row=1, column=2, padx=5, pady=5, sticky=tk.E+tk.W)
         btn_omr_jogo = tk.Button(frame_omr_jogo, text="OMR JOGO:", bg='lightgray', justify=tk.CENTER, command=self.open_OMR_JOGO)
         btn_omr_jogo.pack(side=tk.LEFT)
-        self.status_label_omr_jogo = tk.Label(frame_omr_jogo, text="Unknown", bg='lightgray', fg='black', justify=tk.CENTER)
+        self.status_label_omr_jogo = tk.Label(frame_omr_jogo, text="Aguarde...", bg='lightgray', fg='black', justify=tk.CENTER)
         self.status_label_omr_jogo.pack(side=tk.LEFT)
 
         # Cria o Notebook
@@ -1763,7 +1763,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 60", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 60.1", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
