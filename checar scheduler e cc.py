@@ -100,10 +100,11 @@ class SchedulerApp:
             return f"Erro: {str(e)}"
 
     def truncar_texto(self, texto, limite=12):
-        """Trunca o texto se exceder o limite e adiciona '...' ao final."""
+        """Retorna 'Indisponível' se o texto exceder o limite, caso contrário retorna o texto."""
         if len(texto) > limite:
-            return texto[:limite] + "..."
+            return "Indisponível"
         return texto
+
 
     def atualizar_label(self, label_scheduler, label_cc, comando_scheduler, comando_cc):
         resultado_scheduler = self.executar_comando(comando_scheduler)
