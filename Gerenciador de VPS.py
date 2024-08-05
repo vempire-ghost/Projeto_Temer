@@ -58,8 +58,8 @@ class ButtonManager:
         # Menu de Configurações
         config_menu = tk.Menu(menu_bar, tearoff=0)
         menu_bar.add_cascade(label="Configurações", menu=config_menu)
-        config_menu.add_command(label="Configurações de Cores", command=self.open_color_config)
         config_menu.add_command(label="Configurações e Gerenciador de Arquivos", command=self.open_omr_manager)
+        config_menu.add_command(label="Configurações de Cores", command=self.open_color_config)
         config_menu.add_command(label="Configuração de Endereços", command=self.options_address)
         config_menu.add_command(label="Ajuda", command=self.abrir_arquivo_ajuda)
         config_menu.add_command(label="Sobre", command=self.about)
@@ -292,7 +292,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 61.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 61.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
     def start_pinging_threads(self):
@@ -1771,7 +1771,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 61.1", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 61.2", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
