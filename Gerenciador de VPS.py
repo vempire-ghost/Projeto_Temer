@@ -179,10 +179,6 @@ class ButtonManager:
 
     def create_widgets(self):
         # Cria o frame superior
-        #baixo relevo
-        #self.top_frame = tk.Frame(self.master, bg='lightgray')
-        #self.top_frame.pack(side=tk.TOP, fill=tk.X)
-        #alto relevo
         self.top_frame = tk.Frame(self.master, bg='lightgray', borderwidth=1, relief=tk.RAISED)
         self.top_frame.pack(side=tk.TOP, fill=tk.X)
 
