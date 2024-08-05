@@ -1792,38 +1792,6 @@ class about:
             label_img.pack(side=tk.LEFT, padx=5)
 
         # Botões na parte inferior da janela
-        #button_frame_bottom = tk.Frame(self.top)
-        #button_frame_bottom.pack(side="bottom", pady=10)
-        # tk.Button(button_frame_bottom, text="Cancelar", command=self.save).pack(side=tk.LEFT, padx=10)
-        
-        # Espaço entre o primeiro botão e o segundo texto
-        #tk.Label(button_frame).pack(side=tk.TOP, pady=6)  # Espaço de 6 pixels entre os widgets
-
-        # Segundo texto descritivo e botão
-        #tk.Label(button_frame, text="Copia, renomeia, compacta e move arquivos .vdi do OMR:").pack(side=tk.TOP, anchor='w')
-        #tk.Label(button_frame, text="Para ser usado ao atualizar ambos OMR.").pack(side=tk.TOP, anchor='w')
-
-        # Espaço entre os botões
-        #tk.Label(button_frame).pack(side=tk.TOP, pady=6)  # Espaço de 6 pixels entre os widgets
-
-        # Terceiro texto descritivo e botão
-        #tk.Label(button_frame, text="Extrai arquivo, renomeia e copia para OMR OCI:").pack(side=tk.TOP, anchor='w')
-        #tk.Label(button_frame, text="Para ser usado apenas para atualizar OMR OCI").pack(side=tk.TOP, anchor='w')
-
-        # Frame para os botões e textos descritivos a direita
-        #button_frame_right = tk.Frame(self.top, borderwidth=1, relief=tk.RIDGE)
-        #button_frame_right.pack(side="top", padx=10, pady=10, anchor='w')
-
-        #Primeiro botão
-        #tk.Label(button_frame_right, text="Edita scritp de alteração de UUID:").pack(side=tk.TOP, anchor='w')
-
-        # Espaço entre o primeiro botão e o segundo texto
-        #tk.Label(button_frame_right).pack(side=tk.TOP, pady=6)  # Espaço de 6 pixels entre os widgets
-
-        #Segundo botão
-        #tk.Label(button_frame_right, text="Backup das Maquinas Virtuais:").pack(side=tk.TOP, anchor='w')
-
-        # Botões na parte inferior da janela
         button_frame_bottom = tk.Frame(self.top)
         button_frame_bottom.pack(side="bottom", pady=10)
         #tk.Button(button_frame_bottom, text="Cancelar", command=self.save).pack(side=tk.LEFT, padx=10)
