@@ -38,7 +38,7 @@ class ButtonManager:
         self.url_to_ping_vps_vpn = None
         self.load_addresses()
         
-        # Bind the notebook's tab change event to the method
+        # Executa a checagem de scheduler ao selecionar a aba.
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_change)
         
         # Inicia as threads de ping se os endereços estiverem configurados
@@ -64,8 +64,8 @@ class ButtonManager:
         config_menu = tk.Menu(menu_bar, tearoff=0)
         menu_bar.add_cascade(label="Configurações", menu=config_menu)
         config_menu.add_command(label="Configurações e Gerenciador de Arquivos", command=self.open_omr_manager)
-        config_menu.add_command(label="Configurações de Cores", command=self.open_color_config)
         config_menu.add_command(label="Configuração de Endereços", command=self.options_address)
+        config_menu.add_command(label="Configurações de Cores", command=self.open_color_config)
         config_menu.add_command(label="Ajuda", command=self.abrir_arquivo_ajuda)
         config_menu.add_command(label="Sobre", command=self.about)
 
@@ -188,7 +188,7 @@ class ButtonManager:
     
         if self.notebook.tab(current_tab, "text") == "Scheduler":
             # Executa os comandos apenas quando a aba Scheduler é selecionada
-            self.executar_comandos()
+            self.executar_comandos_scheduler()
 
     def create_widgets(self):
         # Cria o frame superior
@@ -380,10 +380,10 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 62.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 62.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
-    def executar_comando(self, comando):
+    def executar_comando_scheduler(self, comando):
         try:
             resultado = subprocess.run(comando, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if resultado.returncode != 0:
@@ -399,9 +399,9 @@ class ButtonManager:
         return texto
 
 
-    def atualizar_label(self, label_scheduler, label_cc, comando_scheduler, comando_cc):
-        resultado_scheduler = self.executar_comando(comando_scheduler)
-        resultado_cc = self.executar_comando(comando_cc)
+    def atualizar_label_scheduler(self, label_scheduler, label_cc, comando_scheduler, comando_cc):
+        resultado_scheduler = self.executar_comando_scheduler(comando_scheduler)
+        resultado_cc = self.executar_comando_scheduler(comando_cc)
     
         # Trunca os resultados se necessário
         resultado_scheduler_truncado = self.truncar_texto(resultado_scheduler)
@@ -411,7 +411,7 @@ class ButtonManager:
         self.master.after(0, lambda: label_scheduler.config(text=f"Scheduler: {resultado_scheduler_truncado}"))
         self.master.after(0, lambda: label_cc.config(text=f"CC: {resultado_cc_truncado}"))
 
-    def executar_comandos(self):
+    def executar_comandos_scheduler(self):
         # Define os comandos a serem executados
         comandos = {
             (self.label_vps_vpn_scheduler, self.label_vps_vpn_cc): (
@@ -434,20 +434,19 @@ class ButtonManager:
 
         def processar_comandos():
             for (label_scheduler, label_cc), (comando_scheduler, comando_cc) in comandos.items():
-                self.atualizar_label(label_scheduler, label_cc, comando_scheduler, comando_cc)
+                self.atualizar_label_scheduler(label_scheduler, label_cc, comando_scheduler, comando_cc)
 
         # Executar os comandos em uma thread separada para não bloquear a interface
         threading.Thread(target=processar_comandos).start()
 
     def atualizar_scheduler (self):
-        self.executar_comandos()
+        self.executar_comandos_scheduler()
 
     def reiniciar_omr_tracker_vpn(self):
         subprocess.Popen(["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"], shell=True)
 
     def reiniciar_omr_tracker_jogo(self):
         subprocess.Popen(["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"], shell=True)
-
 
     def start_pinging_threads(self):
         interval = 2  # Define o intervalo de 2 segundos para os pings
@@ -1925,7 +1924,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 62.1", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 62.2", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
