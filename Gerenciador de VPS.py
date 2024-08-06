@@ -31,13 +31,16 @@ class ButtonManager:
         self.load_buttons()
         self.load_color_map()  # Carrega o mapeamento de cores
         self.top = None
+        
         # Cria menu
         self.create_menu_button()
         self.url_to_ping_vps_jogo = None
         self.url_to_ping_vps_vpn = None
         self.load_addresses()
+        
         # Bind the notebook's tab change event to the method
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_change)
+        
         # Inicia as threads de ping se os endereços estiverem configurados
         if (self.url_to_ping_vps_jogo and self.url_to_ping_vps_vpn and 
             self.url_to_ping_omr_vpn and self.url_to_ping_omr_jogo):
@@ -313,6 +316,9 @@ class ButtonManager:
         self.frame_omr = tk.Frame(self.frame_geral, borderwidth=2, relief=tk.RAISED)
         self.frame_omr.pack(pady=10)
 
+        self.frame_atualizar = tk.Frame(self.frame_geral, borderwidth=2, relief=tk.RAISED)
+        self.frame_atualizar.pack(pady=10)
+
         # Labels e resultados para VPS VPN
         self.frame_vps_vpn = tk.Frame(self.frame_vps, borderwidth=1, relief=tk.SOLID)
         self.frame_vps_vpn.grid(row=0, column=0, padx=10, pady=5, sticky=tk.W)
@@ -353,6 +359,10 @@ class ButtonManager:
         self.label_omr_jogo_cc = tk.Label(self.frame_omr_jogo, text="CC: Aguarde...")
         self.label_omr_jogo_cc.pack(anchor=tk.W)
 
+        # Botão para reiniciar o omr-tracker VPN
+        self.botao_atualizar_scheduler = tk.Button(self.frame_atualizar, text="Atualizar Scheduler e CC", command=self.atualizar_scheduler)
+        self.botao_atualizar_scheduler.pack(side=tk.LEFT, padx=10, pady=5)
+
         # Frame inferior com borda e botões
         self.frame_inferior_scheduler = tk.Frame(self.tab3, borderwidth=2, relief=tk.RAISED)
         self.frame_inferior_scheduler.pack(pady=10, fill=tk.X, side=tk.BOTTOM)
@@ -370,7 +380,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 62", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 62.1", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
     def executar_comando(self, comando):
@@ -428,6 +438,9 @@ class ButtonManager:
 
         # Executar os comandos em uma thread separada para não bloquear a interface
         threading.Thread(target=processar_comandos).start()
+
+    def atualizar_scheduler (self):
+        self.executar_comandos()
 
     def reiniciar_omr_tracker_vpn(self):
         subprocess.Popen(["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"], shell=True)
@@ -1912,7 +1925,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 62", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 62.1", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
