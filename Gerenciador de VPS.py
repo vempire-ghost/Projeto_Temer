@@ -380,7 +380,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 62.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 62.3", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
     def executar_comando_scheduler(self, comando):
@@ -439,7 +439,14 @@ class ButtonManager:
         # Executar os comandos em uma thread separada para não bloquear a interface
         threading.Thread(target=processar_comandos).start()
 
-    def atualizar_scheduler (self):
+    def atualizar_scheduler(self):
+        # Finaliza o processo sexec.exe
+        os.system('taskkill /f /im sexec.exe /t')
+
+        # Aguarda 5 segundos
+        time.sleep(5)
+
+        # Executa os comandos do scheduler
         self.executar_comandos_scheduler()
 
     def reiniciar_omr_tracker_vpn(self):
@@ -1924,7 +1931,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 62.2", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 62.3", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
