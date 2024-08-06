@@ -36,6 +36,8 @@ class ButtonManager:
         self.url_to_ping_vps_jogo = None
         self.url_to_ping_vps_vpn = None
         self.load_addresses()
+        # Bind the notebook's tab change event to the method
+        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_change)
         # Inicia as threads de ping se os endereços estiverem configurados
         if (self.url_to_ping_vps_jogo and self.url_to_ping_vps_vpn and 
             self.url_to_ping_omr_vpn and self.url_to_ping_omr_jogo):
@@ -177,6 +179,14 @@ class ButtonManager:
         """
         window.evaluate_js(js_code)
 
+    def on_tab_change(self, event):
+        # Obtemos a aba selecionada
+        current_tab = self.notebook.select()
+    
+        if self.notebook.tab(current_tab, "text") == "Scheduler":
+            # Executa os comandos apenas quando a aba Scheduler é selecionada
+            self.executar_comandos()
+
     def create_widgets(self):
         # Cria o frame superior
         self.top_frame = tk.Frame(self.master, bg='lightgray', borderwidth=1, relief=tk.RAISED)
@@ -236,6 +246,10 @@ class ButtonManager:
         self.tab2 = tk.Frame(self.notebook)
         self.notebook.add(self.tab2, text="OMR")
 
+        # Adicionar a terceira aba ao Notebook
+        self.tab3 = tk.Frame(self.notebook)
+        self.notebook.add(self.tab3, text="Scheduler")
+
         # Configuração da primeira aba (botões existentes)
         self.button_frame = tk.Frame(self.tab1)
         self.button_frame.pack(side=tk.TOP)
@@ -283,13 +297,144 @@ class ButtonManager:
         self.add_button_button_tab2 = tk.Button(self.bottom_frame2, text="Adicionar OMR", command=self.add_new_button_tab2)
         self.add_button_button_tab2.pack(side=tk.LEFT, padx=5, pady=5)
 
+        # Configuração da terceira aba (Scheduler)
+        self.frame_topo = tk.Frame(self.tab3, borderwidth=2, relief=tk.RAISED)
+        self.frame_topo.pack(pady=0, fill=tk.X)
+
+        self.frame_geral = tk.Frame(self.tab3, borderwidth=2, relief=tk.SUNKEN)
+        self.frame_geral.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+
+        self.label_topo = tk.Label(self.frame_topo, text="SCHEDULER E CC", font=("Arial", 16))
+        self.label_topo.pack()
+
+        self.frame_vps = tk.Frame(self.frame_geral, borderwidth=2, relief=tk.RAISED)
+        self.frame_vps.pack(pady=10)
+
+        self.frame_omr = tk.Frame(self.frame_geral, borderwidth=2, relief=tk.RAISED)
+        self.frame_omr.pack(pady=10)
+
+        # Labels e resultados para VPS VPN
+        self.frame_vps_vpn = tk.Frame(self.frame_vps, borderwidth=1, relief=tk.SOLID)
+        self.frame_vps_vpn.grid(row=0, column=0, padx=10, pady=5, sticky=tk.W)
+        self.label_vps_vpn = tk.Label(self.frame_vps_vpn, text="VPS VPN:")
+        self.label_vps_vpn.pack(anchor=tk.W)
+        self.label_vps_vpn_scheduler = tk.Label(self.frame_vps_vpn, text="Scheduler: Aguarde...")
+        self.label_vps_vpn_scheduler.pack(anchor=tk.W)
+        self.label_vps_vpn_cc = tk.Label(self.frame_vps_vpn, text="CC: Aguarde...")
+        self.label_vps_vpn_cc.pack(anchor=tk.W)
+
+        # Labels e resultados para VPS JOGO
+        self.frame_vps_jogo = tk.Frame(self.frame_vps, borderwidth=1, relief=tk.SOLID)
+        self.frame_vps_jogo.grid(row=0, column=1, padx=10, pady=5, sticky=tk.W)
+        self.label_vps_jogo = tk.Label(self.frame_vps_jogo, text="VPS JOGO:")
+        self.label_vps_jogo.pack(anchor=tk.W)
+        self.label_vps_jogo_scheduler = tk.Label(self.frame_vps_jogo, text="Scheduler: Aguarde...")
+        self.label_vps_jogo_scheduler.pack(anchor=tk.W)
+        self.label_vps_jogo_cc = tk.Label(self.frame_vps_jogo, text="CC: Aguarde...")
+        self.label_vps_jogo_cc.pack(anchor=tk.W)
+
+        # Labels e resultados para OMR VPN
+        self.frame_omr_vpn = tk.Frame(self.frame_omr, borderwidth=1, relief=tk.SOLID)
+        self.frame_omr_vpn.grid(row=0, column=0, padx=10, pady=5, sticky=tk.W)
+        self.label_omr_vpn = tk.Label(self.frame_omr_vpn, text="OMR VPN:")
+        self.label_omr_vpn.pack(anchor=tk.W)
+        self.label_omr_vpn_scheduler = tk.Label(self.frame_omr_vpn, text="Scheduler: Aguarde...")
+        self.label_omr_vpn_scheduler.pack(anchor=tk.W)
+        self.label_omr_vpn_cc = tk.Label(self.frame_omr_vpn, text="CC: Aguarde...")
+        self.label_omr_vpn_cc.pack(anchor=tk.W)
+
+        # Labels e resultados para OMR JOGO
+        self.frame_omr_jogo = tk.Frame(self.frame_omr, borderwidth=1, relief=tk.SOLID)
+        self.frame_omr_jogo.grid(row=0, column=1, padx=10, pady=5, sticky=tk.W)
+        self.label_omr_jogo = tk.Label(self.frame_omr_jogo, text="OMR JOGO:")
+        self.label_omr_jogo.pack(anchor=tk.W)
+        self.label_omr_jogo_scheduler = tk.Label(self.frame_omr_jogo, text="Scheduler: Aguarde...")
+        self.label_omr_jogo_scheduler.pack(anchor=tk.W)
+        self.label_omr_jogo_cc = tk.Label(self.frame_omr_jogo, text="CC: Aguarde...")
+        self.label_omr_jogo_cc.pack(anchor=tk.W)
+
+        # Frame inferior com borda e botões
+        self.frame_inferior_scheduler = tk.Frame(self.tab3, borderwidth=2, relief=tk.RAISED)
+        self.frame_inferior_scheduler.pack(pady=10, fill=tk.X, side=tk.BOTTOM)
+
+        # Botão para reiniciar o omr-tracker VPN
+        self.botao_reiniciar_vpn_scheduler = tk.Button(self.frame_inferior_scheduler, text="Reiniciar omr-tracker VPN", command=self.reiniciar_omr_tracker_vpn)
+        self.botao_reiniciar_vpn_scheduler.pack(side=tk.LEFT, padx=10, pady=5)
+
+        # Botão para reiniciar o omr-tracker JOGO
+        self.botao_reiniciar_jogo_scheduler = tk.Button(self.frame_inferior_scheduler, text="Reiniciar omr-tracker JOGO", command=self.reiniciar_omr_tracker_jogo)
+        self.botao_reiniciar_jogo_scheduler.pack(side=tk.LEFT, padx=10, pady=5)
+
         # Cria o frame para o rodapé da janela
         self.footer_frame = tk.Frame(self.master, bg='lightgray', borderwidth=1, relief=tk.RAISED)
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 61.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 62", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
+
+    def executar_comando(self, comando):
+        try:
+            resultado = subprocess.run(comando, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if resultado.returncode != 0:
+                return f"Erro: {resultado.stderr.strip()}"
+            return resultado.stdout.strip()
+        except Exception as e:
+            return f"Erro: {str(e)}"
+
+    def truncar_texto(self, texto, limite=12):
+        """Retorna 'Indisponível' se o texto exceder o limite, caso contrário retorna o texto."""
+        if len(texto) > limite:
+            return "Indisponível"
+        return texto
+
+
+    def atualizar_label(self, label_scheduler, label_cc, comando_scheduler, comando_cc):
+        resultado_scheduler = self.executar_comando(comando_scheduler)
+        resultado_cc = self.executar_comando(comando_cc)
+    
+        # Trunca os resultados se necessário
+        resultado_scheduler_truncado = self.truncar_texto(resultado_scheduler)
+        resultado_cc_truncado = self.truncar_texto(resultado_cc)
+    
+        # Atualiza as labels usando self.master
+        self.master.after(0, lambda: label_scheduler.config(text=f"Scheduler: {resultado_scheduler_truncado}"))
+        self.master.after(0, lambda: label_cc.config(text=f"CC: {resultado_cc_truncado}"))
+
+    def executar_comandos(self):
+        # Define os comandos a serem executados
+        comandos = {
+            (self.label_vps_vpn_scheduler, self.label_vps_vpn_cc): (
+                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP.tlp", "--", "cat", "/proc/sys/net/mptcp/mptcp_scheduler"],
+                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP.tlp", "--", "cat", "/proc/sys/net/ipv4/tcp_congestion_control"]
+            ),
+            (self.label_vps_jogo_scheduler, self.label_vps_jogo_cc): (
+                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP.tlp", "--", "cat", "/proc/sys/net/mptcp/mptcp_scheduler"],
+                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP.tlp", "--", "cat", "/proc/sys/net/ipv4/tcp_congestion_control"]
+            ),
+            (self.label_omr_vpn_scheduler, self.label_omr_vpn_cc): (
+                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "cat", "/proc/sys/net/mptcp/mptcp_scheduler"],
+                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "cat", "/proc/sys/net/ipv4/tcp_congestion_control"]
+            ),
+            (self.label_omr_jogo_scheduler, self.label_omr_jogo_cc): (
+                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "cat", "/proc/sys/net/mptcp/mptcp_scheduler"],
+                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "cat", "/proc/sys/net/ipv4/tcp_congestion_control"]
+            ),
+        }
+
+        def processar_comandos():
+            for (label_scheduler, label_cc), (comando_scheduler, comando_cc) in comandos.items():
+                self.atualizar_label(label_scheduler, label_cc, comando_scheduler, comando_cc)
+
+        # Executar os comandos em uma thread separada para não bloquear a interface
+        threading.Thread(target=processar_comandos).start()
+
+    def reiniciar_omr_tracker_vpn(self):
+        subprocess.Popen(["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"], shell=True)
+
+    def reiniciar_omr_tracker_jogo(self):
+        subprocess.Popen(["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"], shell=True)
+
 
     def start_pinging_threads(self):
         interval = 2  # Define o intervalo de 2 segundos para os pings
@@ -1767,7 +1912,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 61.2", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 62", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
