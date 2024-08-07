@@ -368,11 +368,11 @@ class ButtonManager:
         self.frame_inferior_scheduler.pack(pady=10, fill=tk.X, side=tk.BOTTOM)
 
         # Botão para reiniciar o omr-tracker VPN
-        self.botao_reiniciar_vpn_scheduler = tk.Button(self.frame_inferior_scheduler, text="Reiniciar omr-tracker VPN", command=self.reiniciar_omr_tracker_vpn)
+        self.botao_reiniciar_vpn_scheduler = tk.Button(self.frame_inferior_scheduler, text="Reiniciar Glorytun VPN", command=self.reiniciar_omr_tracker_vpn)
         self.botao_reiniciar_vpn_scheduler.pack(side=tk.LEFT, padx=10, pady=5)
 
         # Botão para reiniciar o omr-tracker JOGO
-        self.botao_reiniciar_jogo_scheduler = tk.Button(self.frame_inferior_scheduler, text="Reiniciar omr-tracker JOGO", command=self.reiniciar_omr_tracker_jogo)
+        self.botao_reiniciar_jogo_scheduler = tk.Button(self.frame_inferior_scheduler, text="Reiniciar Xray JOGO", command=self.reiniciar_omr_tracker_jogo)
         self.botao_reiniciar_jogo_scheduler.pack(side=tk.LEFT, padx=10, pady=5)
 
         # Cria o frame para o rodapé da janela
@@ -380,7 +380,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 62.3", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 62.4", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
     def executar_comando_scheduler(self, comando):
@@ -450,10 +450,25 @@ class ButtonManager:
         self.executar_comandos_scheduler()
 
     def reiniciar_omr_tracker_vpn(self):
-        subprocess.Popen(["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"], shell=True)
+        subprocess.Popen(["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/glorytun", "restart"], shell=True)
 
     def reiniciar_omr_tracker_jogo(self):
-        subprocess.Popen(["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"], shell=True)
+        # Função para exibir a caixa de diálogo de confirmação
+        def confirmar_reiniciar():
+            resposta = ctypes.windll.user32.MessageBoxW(
+                0,
+                "Você realmente deseja reiniciar o Xray?",
+                "Confirmar",
+                4  # MB_YESNO
+            )
+            if resposta == 6:  # IDYES
+                # Executa o comando se o usuário clicar em "Sim"
+                subprocess.Popen(
+                    ["cmd", "/c", "start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/xray", "restart"],
+                   shell=True
+                )
+
+        confirmar_reiniciar()
 
     def start_pinging_threads(self):
         interval = 2  # Define o intervalo de 2 segundos para os pings
@@ -1931,7 +1946,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 62.3", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 62.4", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
