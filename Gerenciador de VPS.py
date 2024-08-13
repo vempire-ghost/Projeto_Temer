@@ -17,8 +17,8 @@ import webview
 import logging
 from datetime import datetime
 from PIL import Image, ImageTk
-# Configuração básica do logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Configuração básica do logging para salvar em arquivo
+logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class ButtonManager:
     def __init__(self, master):
@@ -59,6 +59,8 @@ class ButtonManager:
         # Cria a pasta de imagens se não existir
         if not os.path.exists('imagens'):
             os.makedirs('imagens')
+
+        self.clear_log_file()  # Limpa o arquivo de log ao iniciar o programa
             
     # Cria um botão de menu no canto superior esquerdo
     def create_menu_button(self):
@@ -374,29 +376,120 @@ class ButtonManager:
         self.botao_atualizar_scheduler = tk.Button(self.frame_atualizar, text="Atualizar Scheduler e CC", command=self.atualizar_scheduler)
         self.botao_atualizar_scheduler.grid(row=0, column=0, padx=10, pady=5, sticky='n')
 
+        # Botão para abrir a visualização do log
+        self.botao_abrir_logs = tk.Button(self.frame_atualizar, text="Visualizar Logs", command=self.abrir_janela_logs)
+        self.botao_abrir_logs.grid(row=2, column=0, padx=10, pady=5, sticky='n')
+
         # Botão único que alterna entre iniciar e parar
         self.botao_alternar = tk.Button(self.frame_atualizar, text="Iniciar Monitoramento OMR JOGO", command=self.alternar_monitoramento)
-        self.botao_alternar.grid(row=1, column=0, padx=10, pady=5, sticky='w')
+        self.botao_alternar.grid(row=1, column=0, padx=10, pady=5, sticky='n')
 
         # Frame inferior com borda e botões
         self.frame_inferior_scheduler = tk.Frame(self.tab3, borderwidth=2, relief=tk.RAISED)
-        self.frame_inferior_scheduler.pack(pady=10, fill=tk.X, side=tk.BOTTOM)
+        self.frame_inferior_scheduler.pack(pady=0, fill=tk.X, side=tk.BOTTOM)
+
+        # Configurar o frame para que a coluna e a linha sejam ajustadas de acordo com o conteúdo
+        self.frame_inferior_scheduler.grid_columnconfigure(0, weight=1)
+        self.frame_inferior_scheduler.grid_columnconfigure(1, weight=1)
+        self.frame_inferior_scheduler.grid_rowconfigure(0, weight=1)
 
         # Botão para reiniciar o omr-tracker VPN
         self.botao_reiniciar_vpn_scheduler = tk.Button(self.frame_inferior_scheduler, text="Reiniciar Glorytun VPN", command=self.reiniciar_omr_tracker_vpn)
-        self.botao_reiniciar_vpn_scheduler.pack(side=tk.LEFT, padx=10, pady=5)
+        self.botao_reiniciar_vpn_scheduler.grid(row=0, column=0, padx=10, pady=5, sticky='ew')
 
         # Botão para reiniciar o omr-tracker JOGO
         self.botao_reiniciar_jogo_scheduler = tk.Button(self.frame_inferior_scheduler, text="Reiniciar Xray JOGO", command=self.reiniciar_omr_tracker_jogo)
-        self.botao_reiniciar_jogo_scheduler.pack(side=tk.LEFT, padx=10, pady=5)
+        self.botao_reiniciar_jogo_scheduler.grid(row=0, column=1, padx=10, pady=5, sticky='ew')
+
+        # Adicionar uma coluna extra para garantir que os botões fiquem centralizados
+        self.frame_inferior_scheduler.grid_columnconfigure(2, weight=1)
 
         # Cria o frame para o rodapé da janela
         self.footer_frame = tk.Frame(self.master, bg='lightgray', borderwidth=1, relief=tk.RAISED)
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 63.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
+
+#LOGICA PARA SALVAMENTO E EXIBIÇÃO DE LOGS EM TEMPO REAL.
+    def abrir_janela_logs(self):
+        log_window = tk.Toplevel(self.master)
+        log_window.title("Visualização de Logs")
+
+        # Definir o tamanho da janela
+        log_window.geometry("877x656")  # Largura de 600 pixels e altura de 400 pixels
+
+        # Carregar a posição salva
+        self.load_log_position(log_window)
+    
+        # Configuração do widget de rolagem
+        log_text = scrolledtext.ScrolledText(log_window, wrap=tk.WORD, state=tk.NORMAL)
+        log_text.pack(expand=1, fill=tk.BOTH)
+
+        # Variável para controlar o scroll automático
+        self.auto_scroll = True
+        self.update_logs_id = None
+
+        # Função para atualizar o widget de texto com novas entradas de log
+        def update_logs():
+            if self.auto_scroll:  # Atualiza apenas se o scroll automático estiver ativo
+                with open('app.log', 'r') as file:
+                    logs = file.read()
+                log_text.delete(1.0, tk.END)
+                log_text.insert(tk.END, logs)
+                log_text.see(tk.END)
+            # Agendar a próxima atualização
+            self.update_logs_id = log_window.after(1, update_logs)
+
+        # Função para parar o scroll automático
+        def stop_auto_scroll():
+            self.auto_scroll = False
+            if self.update_logs_id:
+                log_window.after_cancel(self.update_logs_id)
+
+        # Função para continuar o scroll automático
+        def start_auto_scroll():
+            self.auto_scroll = True
+            update_logs()  # Atualiza imediatamente e reinicia o loop
+
+        # Botões para pausar e retomar o scroll automático
+        button_frame = tk.Frame(log_window)
+        button_frame.pack(fill=tk.X, pady=5)
+    
+        stop_button = tk.Button(button_frame, text="Parar Scroll", command=stop_auto_scroll)
+        stop_button.pack(side=tk.LEFT, padx=5)
+    
+        start_button = tk.Button(button_frame, text="Continuar Scroll", command=start_auto_scroll)
+        start_button.pack(side=tk.LEFT, padx=5)
+
+        # Inicia o loop de atualização dos logs
+        update_logs()
+
+        # Adiciona a lógica para salvar a posição da janela quando ela for fechada
+        log_window.protocol("WM_DELETE_WINDOW", lambda: self.on_close_log(log_window))
+
+    def load_log_position(self, window):
+        if os.path.isfile("log_position.json"):
+            with open("log_position.json", "r") as f:
+                position = json.load(f)
+                window.geometry("+{}+{}".format(position["x"], position["y"]))
+
+    def save_log_position(self, window):
+        position = {
+            "x": window.winfo_x(),
+            "y": window.winfo_y()
+        }
+        with open("log_position.json", "w") as f:
+            json.dump(position, f)
+
+    def on_close_log(self, window):
+        self.save_log_position(window)
+        window.destroy()
+
+    def clear_log_file(self):
+        log_file_path = 'app.log'
+        open(log_file_path, 'w').close()  # Abre o arquivo no modo de escrita e o fecha imediatamente, efetivamente limpando-o
 
 #LOGICA PARA MONITORAMENTO DA CONEXÃO DO OMR JOGO E REINICIO DO XRAY CASO NECESSARIO.
     def ping_glorytun_vpn(self, host, port=80, timeout=1):
@@ -487,8 +580,8 @@ class ButtonManager:
             else:
                 logging.error("Falha na conexão com o Glorytun VPN.")
         
-            # Pausa de 1 segundo antes da próxima verificação
-            time.sleep(1)
+            # Pausa de 5 segundo antes da próxima verificação
+            time.sleep(5)
 
     def start_monitoring(self):
         if not self.monitor_xray:
@@ -496,8 +589,8 @@ class ButtonManager:
             self.monitor_xray = True
             self.thread = threading.Thread(target=self.monitor_loop)
             self.thread.start()
-            self.botao_alternar.config(text="Parar Monitoramento")
-            messagebox.showinfo("Info", "Monitoramento iniciado.")
+            self.botao_alternar.config(text="Parar Monitoramento OMR JOGO")
+            #messagebox.showinfo("Info", "Monitoramento iniciado.")
 
     def stop_monitoring(self):
         if self.monitor_xray:
@@ -505,9 +598,9 @@ class ButtonManager:
             self.monitor_xray = False
             if self.thread is not None:
                 self.thread.join()
-            self.botao_alternar.config(text="Iniciar Monitoramento")
+            self.botao_alternar.config(text="Iniciar Monitoramento OMR JOGO")
             logging.info("Monitoramento parado.")
-            messagebox.showinfo("Info", "Monitoramento parado.")
+            #messagebox.showinfo("Info", "Monitoramento parado.")
 
     def reiniciar_omr_tracker_jogo(self):
         # Implementar a lógica para reiniciar o Xray JOGO
@@ -2093,7 +2186,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 63.2 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 64 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
