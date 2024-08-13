@@ -372,10 +372,10 @@ class ButtonManager:
 
         # Botão para reiniciar o omr-tracker VPN
         self.botao_atualizar_scheduler = tk.Button(self.frame_atualizar, text="Atualizar Scheduler e CC", command=self.atualizar_scheduler)
-        self.botao_atualizar_scheduler.grid(row=0, column=0, padx=10, pady=5, sticky='w')
+        self.botao_atualizar_scheduler.grid(row=0, column=0, padx=10, pady=5, sticky='n')
 
         # Botão único que alterna entre iniciar e parar
-        self.botao_alternar = tk.Button(self.frame_atualizar, text="Iniciar Monitoramento", command=self.alternar_monitoramento)
+        self.botao_alternar = tk.Button(self.frame_atualizar, text="Iniciar Monitoramento OMR JOGO", command=self.alternar_monitoramento)
         self.botao_alternar.grid(row=1, column=0, padx=10, pady=5, sticky='w')
 
         # Frame inferior com borda e botões
@@ -395,9 +395,10 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 63.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 63.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
+#LOGICA PARA MONITORAMENTO DA CONEXÃO DO OMR JOGO E REINICIO DO XRAY CASO NECESSARIO.
     def ping_glorytun_vpn(self, host, port=80, timeout=1):
         def test_connection(ip, port, timeout):
             try:
@@ -585,7 +586,7 @@ class ButtonManager:
         # Executa os comandos do scheduler
         self.executar_comandos_scheduler()
 
-#LOGICA PARA BOTÕES DE REINICIAS GLORYTUN E XRAY NA 3° ABA.
+#LOGICA PARA BOTÕES DE REINICIAR GLORYTUN E XRAY NA 3° ABA.
     def reiniciar_omr_tracker_vpn(self):
         subprocess.Popen(["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/glorytun", "restart"], shell=True)
 
@@ -2092,7 +2093,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 63.1 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 63.2 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
