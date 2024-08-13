@@ -14,13 +14,19 @@ import ctypes
 import socket
 import sys
 import webview
+import logging
 from datetime import datetime
 from PIL import Image, ImageTk
+# Configuração básica do logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class ButtonManager:
     def __init__(self, master):
         self.master = master
         self.script_finished = False  # Inicializa a variável de controle para o término do script
+        self.monitor_xray = False # Variável para rastrear o estado do monitoramento do Xray JOGO
+        self.botao_monitorar_xray = True  # Variável para rastrear o estado do botão monitoramento do Xray JOGO
+        self.thread = None
         self.buttons = []
         self.button_frame = None
         self.second_tab_button_frame = None
@@ -189,6 +195,12 @@ class ButtonManager:
             # Executa os comandos apenas quando a aba Scheduler é selecionada
             self.executar_comandos_scheduler()
 
+    def alternar_monitoramento(self):
+        if self.monitor_xray:
+            self.stop_monitoring()
+        else:
+            self.start_monitoring()
+
     def create_widgets(self):
         # Cria o frame superior
         self.top_frame = tk.Frame(self.master, bg='lightgray', borderwidth=1, relief=tk.RAISED)
@@ -300,14 +312,14 @@ class ButtonManager:
         self.add_button_button_tab2.pack(side=tk.LEFT, padx=5, pady=5)
 
         # Configuração da terceira aba (Scheduler)
-        self.frame_topo = tk.Frame(self.tab3, borderwidth=2, relief=tk.RAISED)
-        self.frame_topo.pack(pady=0, fill=tk.X)
+        #self.frame_topo = tk.Frame(self.tab3, borderwidth=2, relief=tk.RAISED)
+        #self.frame_topo.pack(pady=0, fill=tk.X)
 
         self.frame_geral = tk.Frame(self.tab3, borderwidth=2, relief=tk.SUNKEN)
         self.frame_geral.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
-        self.label_topo = tk.Label(self.frame_topo, text="SCHEDULER E CC", font=("Arial", 16))
-        self.label_topo.pack()
+        #self.label_topo = tk.Label(self.frame_topo, text="SCHEDULER E CC", font=("Arial", 16))
+        #self.label_topo.pack()
 
         self.frame_vps = tk.Frame(self.frame_geral, borderwidth=2, relief=tk.RAISED)
         self.frame_vps.pack(pady=10)
@@ -360,7 +372,11 @@ class ButtonManager:
 
         # Botão para reiniciar o omr-tracker VPN
         self.botao_atualizar_scheduler = tk.Button(self.frame_atualizar, text="Atualizar Scheduler e CC", command=self.atualizar_scheduler)
-        self.botao_atualizar_scheduler.pack(side=tk.LEFT, padx=10, pady=5)
+        self.botao_atualizar_scheduler.grid(row=0, column=0, padx=10, pady=5, sticky='w')
+
+        # Botão único que alterna entre iniciar e parar
+        self.botao_alternar = tk.Button(self.frame_atualizar, text="Iniciar Monitoramento", command=self.alternar_monitoramento)
+        self.botao_alternar.grid(row=1, column=0, padx=10, pady=5, sticky='w')
 
         # Frame inferior com borda e botões
         self.frame_inferior_scheduler = tk.Frame(self.tab3, borderwidth=2, relief=tk.RAISED)
@@ -379,8 +395,128 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 62.5", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 63", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
+
+    def ping_glorytun_vpn(self, host, port=80, timeout=1):
+        def test_connection(ip, port, timeout):
+            try:
+                socket_info = socket.getaddrinfo(ip, port, socket.AF_INET, socket.SOCK_STREAM)
+                conn = socket.create_connection(socket_info[0][4], timeout=timeout)
+                conn.close()
+                return True
+            except (socket.timeout, socket.error):
+                return False
+
+        # Teste inicial de conexão ao endereço 192.168.101.1 na porta 80
+        logging.info("Iniciando teste de conexão com o IP 192.168.101.1...")
+        if not test_connection('192.168.101.1', 80, timeout):
+            logging.error("Falha na conexão com o IP 192.168.101.1.")
+            return "OFF", "red"
+
+        # Teste de conexão ao host fornecido na porta 80
+        logging.info(f"Verificando conexão com o host {host} na porta {port}...")
+        if test_connection(host, port, timeout):
+            logging.info(f"Conexão com o host {host} bem-sucedida.")
+            return "ON", "green"
+        else:
+            logging.error(f"Falha na conexão com o host {host}.")
+            return "OFF", "blue"
+
+    def ping_xray_jogo(self, host, port=65222, timeout=1):
+        def test_connection(ip, port, timeout):
+            try:
+                socket_info = socket.getaddrinfo(ip, port, socket.AF_INET, socket.SOCK_STREAM)
+                conn = socket.create_connection(socket_info[0][4], timeout=timeout)
+                conn.close()
+                return True
+            except (socket.timeout, socket.error):
+                return False
+
+        # Teste inicial de conexão ao endereço 192.168.100.1 na porta 80
+        logging.info("Iniciando teste de conexão com o IP 192.168.100.1...")
+        if not test_connection('192.168.100.1', 80, timeout):
+            logging.error("Falha na conexão com o IP 192.168.100.1.")
+            return "OFF", "red"
+
+        # Teste de conexão ao host fornecido na porta 65222
+        logging.info(f"Verificando conexão com o host {host} na porta {port}...")
+        try:
+            start_time = time.time()
+            socket_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+            conn = socket.create_connection(socket_info[0][4], timeout=timeout)
+            conn.sendall(b'PING')
+            response = conn.recv(1024)
+            conn.close()
+            end_time = time.time()
+            response_time = int((end_time - start_time) * 1000 / 2)  # Converte para milissegundos e arredonda para inteiro
+
+            if response:
+                logging.info(f"Conexão com o host {host} bem-sucedida. Tempo de resposta: {response_time} ms")
+                return f"ON ({response_time} ms)", "green"
+            else:
+                logging.warning(f"Falha na conexão com o host {host} (sem resposta).")
+                return "OFF", "blue"
+        except (socket.timeout, socket.error):
+            logging.error(f"Falha na conexão com o host {host} (exceção).")
+            return "OFF", "blue"
+
+    def monitor_loop(self):
+        while self.monitor_xray:
+            logging.info("Verificando conexão com o Glorytun VPN...")
+            status_vpn, _ = self.ping_glorytun_vpn(self.url_to_ping_omr_vpn)
+            if status_vpn == "ON":
+                logging.info("Conexão com o Glorytun VPN bem-sucedida. Verificando conexão com o Xray Jogo...")
+                status_xray, color = self.ping_xray_jogo(self.url_to_ping_omr_jogo)
+                if status_xray == "OFF":
+                    logging.error("Falha na conexão com o Xray Jogo. Executando o comando de reinício do Xray...")
+                    try:
+                        subprocess.Popen(
+                            ["cmd", "/c", "start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/xray", "restart"],
+                            shell=True
+                        )
+                        logging.info("Comando de reinício do Xray executado.")
+                    except Exception as e:
+                        logging.error(f"Erro ao executar o comando de reinício do Xray: {e}")
+                    
+                    logging.info("Aguardando 20 segundos antes de continuar...")
+                    time.sleep(20)
+                else:
+                    logging.info(f"Conexão com o Xray Jogo está OK. Status: {status_xray}")
+            else:
+                logging.error("Falha na conexão com o Glorytun VPN.")
+        
+            # Pausa de 1 segundo antes da próxima verificação
+            time.sleep(1)
+
+    def start_monitoring(self):
+        if not self.monitor_xray:
+            logging.info("Iniciando monitoramento...")
+            self.monitor_xray = True
+            self.thread = threading.Thread(target=self.monitor_loop)
+            self.thread.start()
+            self.botao_alternar.config(text="Parar Monitoramento")
+            messagebox.showinfo("Info", "Monitoramento iniciado.")
+
+    def stop_monitoring(self):
+        if self.monitor_xray:
+            logging.info("Parando monitoramento...")
+            self.monitor_xray = False
+            if self.thread is not None:
+                self.thread.join()
+            self.botao_alternar.config(text="Iniciar Monitoramento")
+            logging.info("Monitoramento parado.")
+            messagebox.showinfo("Info", "Monitoramento parado.")
+
+    def reiniciar_omr_tracker_jogo(self):
+        # Implementar a lógica para reiniciar o Xray JOGO
+        print("Reiniciando Xray JOGO...")
+        subprocess.Popen(
+            ["cmd", "/c", "start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/xray", "restart"],
+            shell=True
+        )
+        print("Xray JOGO reiniciado.")
+        messagebox.showinfo("Info", "Xray JOGO reiniciado.")
 
     def executar_comando_scheduler(self, comando):
         try:
@@ -1941,7 +2077,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 62.5 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 63 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
