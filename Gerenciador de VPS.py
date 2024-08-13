@@ -395,7 +395,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 63", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 63.1", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
     def ping_glorytun_vpn(self, host, port=80, timeout=1):
@@ -518,6 +518,7 @@ class ButtonManager:
         print("Xray JOGO reiniciado.")
         messagebox.showinfo("Info", "Xray JOGO reiniciado.")
 
+#lOGICA PARA FUNÇÃO DE ATUALIZAÇÃO DO SCHEDULER NA 3° ABA.
     def executar_comando_scheduler(self, comando):
         try:
             resultado = subprocess.run(comando, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -584,6 +585,7 @@ class ButtonManager:
         # Executa os comandos do scheduler
         self.executar_comandos_scheduler()
 
+#LOGICA PARA BOTÕES DE REINICIAS GLORYTUN E XRAY NA 3° ABA.
     def reiniciar_omr_tracker_vpn(self):
         subprocess.Popen(["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/glorytun", "restart"], shell=True)
 
@@ -605,6 +607,7 @@ class ButtonManager:
 
         confirmar_reiniciar()
 
+#LOGICA PARA MONITORAMENTO DE VPS E OMR, E ATUALIZAR AS DEVIDAS LABELS NO TOPO DA JANELA PRINCIPAL DA APLICAÇÃO.
     def start_pinging_threads(self):
         interval = 2  # Define o intervalo de 2 segundos para os pings
         threading.Thread(target=self.ping_forever_direto, args=(self.url_to_ping_vps_vpn, self.update_status_vps_vpn), daemon=True).start()
@@ -780,6 +783,7 @@ class ButtonManager:
             self.general_status_frame.config(bg="yellow")
             self.general_status_label.config(text="Conectando", bg="yellow", fg="black")
 
+#LOGICA PARA ADICIONAR BOTÕES A SEGUNDA ABA.
     def add_new_button_tab2(self):
         dialog = AddButtonDialog(self.master, self.top)
         self.master.wait_window(dialog.top)
@@ -892,6 +896,7 @@ class ButtonManager:
         self.reorder_buttons_by_id()
         self.update_button_widths()
 
+#LOGICA PARA OS BOTÕES DA PARTE INFERIOR DAS ABAS 1 E 2.
     def open_folder(self, path):
         os.startfile(path)
 
@@ -917,6 +922,7 @@ class ButtonManager:
                 self.reorder_buttons_by_id()  # Ordena os botões após carregá-los
                 self.update_button_widths()  # Atualiza a largura dos botões após carregá-los
 
+#LOGICA PARA SALVAR BOTÕES EM AMBAS AS ABAS 1 E 2.
     def save_buttons(self):
         # Lista para armazenar os dados dos botões a serem salvos
         buttons_data = []
@@ -957,6 +963,7 @@ class ButtonManager:
         with open("buttons.json", "w") as f:
             json.dump(buttons_data, f, indent=4)  # indent para formatação legível
 
+#LOGICA PARA ADICIONAR BOTÕES A PRIMEIRA ABA.
     def add_new_button(self):
         dialog = AddButtonDialog(self.master, self.top)
         self.master.wait_window(dialog.top)
@@ -1071,6 +1078,7 @@ class ButtonManager:
         self.reorder_buttons_by_id()
         self.update_button_widths()
 
+#LOGICA PARA ATUALIZAR LARGURA, EDITAR LINKS, ABRIR PASTAS, DELETAR E ATUALIZAR BOTÕES DAS ABAS 1 E 2.
     def update_button_widths(self):
         if self.buttons:  # Verifica se a lista de botões não está vazia
             max_chars = max(len(button.cget("text")) for button in self.buttons)
@@ -1176,6 +1184,7 @@ class ButtonManager:
         # Salva os botões atualizados
         self.load_buttons()
 
+#LOGICA PARA FUNÇÃO QUE EXECUTA OS LINKS DOS BOTÕES ADICIONADOS NAS ABAS 1 E 2.
     def run_as_admin(self, file_path):
         # Verifica se o arquivo é um .bat
         if not file_path.lower().endswith('.bat'):
@@ -1298,6 +1307,7 @@ class ButtonManager:
             else:
                 text_widget.insert(tk.END, line + '\n')
 
+#LOGICA PARA MUDAR ID DOS BOTÕES DE ABAS 1 E 2.
     def change_button_id(self, button):
         new_id = simpledialog.askinteger("Alterar ID", "Digite o novo ID para o botão:")
         if new_id is not None:
@@ -1387,6 +1397,7 @@ class ButtonManager:
             button.pack_forget()  # Remove o botão da interface gráfica
             button.pack(side=tk.LEFT, padx=5, pady=5)  # Reinsere o botão ordenadamente
 
+#JANELA DE CONFIGURAÇÃO DE CORES.
 class ConfigDialog:
     def __init__(self, master, color_map, top):
         self.master = master
@@ -1584,6 +1595,7 @@ class ConfigDialog:
         else:
             self.canvas.config(height=current_height)
 
+#JANELA DE CONFIGURAÇÕES E GERENCIADOR DE ARQUIVOS.
 class OMRManagerDialog:
     def __init__(self, master):
         top = self.top = tk.Toplevel(master)
@@ -1831,6 +1843,7 @@ class OMRManagerDialog:
         self.save_window_position()
         self.top.destroy()
 
+#JANELA DE CONFIGURAÇÃO DE ENDEREÇOS PARA FUNÇÃO DE PING.
 class open_options_address:
     def __init__(self, master):
         top = self.top = tk.Toplevel(master)
@@ -1932,6 +1945,7 @@ class open_options_address:
         self.save_window_position()
         self.top.destroy()
 
+#JANELA PARA ADICIONAR SERVIDOR/OMR AS ABAS 1 E 2.
 class AddButtonDialog:
     def __init__(self, parent, top):
         self.top = tk.Toplevel(parent)
@@ -2045,6 +2059,7 @@ class AddButtonDialog:
         else:
             messagebox.showerror("Erro", "Preencha todos os campos obrigatórios!")
 
+#JANELA SOBRE
 class about:
     def __init__(self, master):
         top = self.top = tk.Toplevel(master)
@@ -2077,7 +2092,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 63 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 63.1 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
@@ -2128,6 +2143,7 @@ class about:
         self.save_window_position()
         self.top.destroy()
 
+#LOGICA PARA FUNCIONAÇÃO DAS TOOLTIPS.
 class ToolTip:
     def __init__(self, widget, text):
         self.widget = widget
