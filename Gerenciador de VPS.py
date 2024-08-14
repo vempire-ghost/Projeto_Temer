@@ -409,7 +409,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 #LOGICA PARA SALVAMENTO E EXIBIÇÃO DE LOGS EM TEMPO REAL.
@@ -572,16 +572,25 @@ class ButtonManager:
                         logging.info("Comando de reinício do Xray executado.")
                     except Exception as e:
                         logging.error(f"Erro ao executar o comando de reinício do Xray: {e}")
-                    
+                
                     logging.info("Aguardando 20 segundos antes de continuar...")
                     time.sleep(20)
                 else:
                     logging.info(f"Conexão com o Xray Jogo está OK. Status: {status_xray}")
+                    logging.info("Ambos os testes foram bem-sucedidos. Encerrando o monitoramento...")
+                    self.botao_alternar.after(0, self.stop_monitoring)  # Use after para garantir que a UI seja atualizada
+                    return  # Saia da função
             else:
                 logging.error("Falha na conexão com o Glorytun VPN.")
         
-            # Pausa de 5 segundo antes da próxima verificação
-            time.sleep(5)
+            if self.monitor_xray:  # Verifique se o monitoramento ainda está ativo antes de pausar
+                time.sleep(5)
+
+    def start_monitoring_delay(self):
+        if not self.monitor_xray:
+            logging.info("Aguardando 20 segundos antes de iniciar o monitoramento...")
+            # Agendar a execução do restante da função após 20 segundos
+            self.botao_alternar.after(20000, self.start_monitoring)
 
     def start_monitoring(self):
         if not self.monitor_xray:
@@ -1348,7 +1357,7 @@ class ButtonManager:
                                 self.update_general_status()
 
                             if "PROCESSO CONCLUIDO" in line:
-                                self.alternar_monitoramento()
+                                self.start_monitoring_delay()
                     
                             for value, color in self.color_map.items():
                                 if line.startswith(value):
@@ -2189,7 +2198,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 64.1 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 64.2 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
