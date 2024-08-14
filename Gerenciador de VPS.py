@@ -409,7 +409,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.3", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 #LOGICA PARA SALVAMENTO E EXIBIÇÃO DE LOGS EM TEMPO REAL.
@@ -559,30 +559,42 @@ class ButtonManager:
         while self.monitor_xray:
             logging.info("Verificando conexão com o Glorytun VPN...")
             status_vpn, _ = self.ping_glorytun_vpn(self.url_to_ping_omr_vpn)
-            if status_vpn == "ON":
-                logging.info("Conexão com o Glorytun VPN bem-sucedida. Verificando conexão com o Xray Jogo...")
-                status_xray, color = self.ping_xray_jogo(self.url_to_ping_omr_jogo)
-                if status_xray == "OFF":
-                    logging.error("Falha na conexão com o Xray Jogo. Executando o comando de reinício do Xray...")
-                    try:
-                        subprocess.Popen(
-                            ["cmd", "/c", "start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/xray", "restart"],
-                            shell=True
-                        )
-                        logging.info("Comando de reinício do Xray executado.")
-                    except Exception as e:
-                        logging.error(f"Erro ao executar o comando de reinício do Xray: {e}")
-                
-                    logging.info("Aguardando 20 segundos antes de continuar...")
-                    time.sleep(20)
-                else:
-                    logging.info(f"Conexão com o Xray Jogo está OK. Status: {status_xray}")
-                    logging.info("Ambos os testes foram bem-sucedidos. Encerrando o monitoramento...")
-                    self.botao_alternar.after(0, self.stop_monitoring)  # Use after para garantir que a UI seja atualizada
-                    return  # Saia da função
+            if status_vpn == "OFF":
+                logging.error("Falha na conexão com o Glorytun VPN. Executando o comando de reinício do Glorytun...")
+                try:
+                    subprocess.Popen(
+                        ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/glorytun", "restart"],
+                        shell=True
+                    )
+                    logging.info("Comando de reinício do Glorytun VPN executado.")
+                except Exception as e:
+                    logging.error(f"Erro ao executar o comando de reinício do Glorytun VPN: {e}")
+
+                logging.info("Aguardando 20 segundos antes de continuar...")
+                time.sleep(20)
+                continue  # Reinicia o loop após o reinício do Glorytun
+
+            logging.info("Conexão com o Glorytun VPN bem-sucedida. Verificando conexão com o Xray Jogo...")
+            status_xray, color = self.ping_xray_jogo(self.url_to_ping_omr_jogo)
+            if status_xray == "OFF":
+                logging.error("Falha na conexão com o Xray Jogo. Executando o comando de reinício do Xray...")
+                try:
+                    subprocess.Popen(
+                        ["cmd", "/c", "start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/xray", "restart"],
+                        shell=True
+                    )
+                    logging.info("Comando de reinício do Xray executado.")
+                except Exception as e:
+                    logging.error(f"Erro ao executar o comando de reinício do Xray: {e}")
+
+                logging.info("Aguardando 20 segundos antes de continuar...")
+                time.sleep(20)
             else:
-                logging.error("Falha na conexão com o Glorytun VPN.")
-        
+                logging.info(f"Conexão com o Xray Jogo está OK. Status: {status_xray}")
+                logging.info("Ambos os testes foram bem-sucedidos. Encerrando o monitoramento...")
+                self.botao_alternar.after(0, self.stop_monitoring)  # Use after para garantir que a UI seja atualizada
+                return  # Saia da função
+
             if self.monitor_xray:  # Verifique se o monitoramento ainda está ativo antes de pausar
                 time.sleep(5)
 
@@ -2198,7 +2210,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 64.2 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 64.3 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
