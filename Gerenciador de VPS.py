@@ -388,11 +388,11 @@ class ButtonManager:
         self.frame_inferior_scheduler.grid_rowconfigure(0, weight=1)
 
         # Botão para reiniciar o omr-tracker VPN
-        self.botao_reiniciar_vpn_scheduler = tk.Button(self.frame_inferior_scheduler, text="Reiniciar Glorytun VPN", command=self.reiniciar_omr_tracker_vpn)
+        self.botao_reiniciar_vpn_scheduler = tk.Button(self.frame_inferior_scheduler, text="Reiniciar Glorytun VPN", command=self.reiniciar_glorytun_vpn)
         self.botao_reiniciar_vpn_scheduler.grid(row=0, column=0, padx=10, pady=5, sticky='ew')
 
         # Botão para reiniciar o omr-tracker JOGO
-        self.botao_reiniciar_jogo_scheduler = tk.Button(self.frame_inferior_scheduler, text="Reiniciar Xray JOGO", command=self.reiniciar_omr_tracker_jogo)
+        self.botao_reiniciar_jogo_scheduler = tk.Button(self.frame_inferior_scheduler, text="Reiniciar Xray JOGO", command=self.reiniciar_xray_jogo)
         self.botao_reiniciar_jogo_scheduler.grid(row=0, column=1, padx=10, pady=5, sticky='ew')
 
         # Adicionar uma coluna extra para garantir que os botões fiquem centralizados
@@ -403,7 +403,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.4", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.5", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 #LOGICA PARA SALVAMENTO E EXIBIÇÃO DE LOGS EM TEMPO REAL.
@@ -650,16 +650,6 @@ class ButtonManager:
         else:
             self.start_monitoring()
 
-    def reiniciar_omr_tracker_jogo(self):
-        # Implementar a lógica para reiniciar o Xray JOGO
-        print("Reiniciando Xray JOGO...")
-        subprocess.Popen(
-            ["cmd", "/c", "start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/xray", "restart"],
-            shell=True
-        )
-        print("Xray JOGO reiniciado.")
-        messagebox.showinfo("Info", "Xray JOGO reiniciado.")
-
 #lOGICA PARA FUNÇÃO DE ATUALIZAÇÃO DO SCHEDULER NA 3° ABA.
     def executar_comando_scheduler(self, comando):
         try:
@@ -728,10 +718,10 @@ class ButtonManager:
         self.executar_comandos_scheduler()
 
 #LOGICA PARA BOTÕES DE REINICIAR GLORYTUN E XRAY NA 3° ABA.
-    def reiniciar_omr_tracker_vpn(self):
+    def reiniciar_glorytun_vpn(self):
         subprocess.Popen(["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/glorytun", "restart"], shell=True)
 
-    def reiniciar_omr_tracker_jogo(self):
+    def reiniciar_xray_jogo(self):
         # Função para exibir a caixa de diálogo de confirmação
         def confirmar_reiniciar():
             resposta = ctypes.windll.user32.MessageBoxW(
@@ -2237,7 +2227,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 64.4 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 64.5 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
