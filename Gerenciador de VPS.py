@@ -261,10 +261,10 @@ class ButtonManager:
         self.notebook.add(self.tab3, text="Scheduler")
 
         # Configuração da primeira aba (botões existentes)
-        self.button_frame = tk.Frame(self.tab1)
-        self.button_frame.pack(side=tk.TOP)
+        self.button_frame = tk.Frame(self.tab1, borderwidth=2, relief=tk.SUNKEN)
+        self.button_frame.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
-        self.bottom_frame = tk.Frame(self.tab1)
+        self.bottom_frame = tk.Frame(self.tab1, borderwidth=2, relief=tk.RAISED)
         self.bottom_frame.pack(side=tk.BOTTOM)
 
         self.folder_menu_button = tk.Menubutton(self.bottom_frame, text="Abrir Pasta", relief=tk.RAISED)
@@ -283,10 +283,10 @@ class ButtonManager:
         self.add_button_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         # Configuração da segunda aba (novos botões)
-        self.second_tab_button_frame = tk.Frame(self.tab2)
-        self.second_tab_button_frame.pack(side=tk.TOP, padx=5, pady=5)
+        self.second_tab_button_frame = tk.Frame(self.tab2, borderwidth=2, relief=tk.SUNKEN)
+        self.second_tab_button_frame.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
-        self.bottom_frame2 = tk.Frame(self.tab2)
+        self.bottom_frame2 = tk.Frame(self.tab2, borderwidth=2, relief=tk.RAISED)
         self.bottom_frame2.pack(side=tk.BOTTOM)
 
         # Cria o botão de menu na segunda aba
@@ -380,7 +380,7 @@ class ButtonManager:
 
         # Frame inferior com borda e botões
         self.frame_inferior_scheduler = tk.Frame(self.tab3, borderwidth=2, relief=tk.RAISED)
-        self.frame_inferior_scheduler.pack(pady=0, fill=tk.X, side=tk.BOTTOM)
+        self.frame_inferior_scheduler.pack(pady=0, side=tk.BOTTOM)
 
         # Configurar o frame para que a coluna e a linha sejam ajustadas de acordo com o conteúdo
         self.frame_inferior_scheduler.grid_columnconfigure(0, weight=1)
@@ -403,7 +403,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.5", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.6", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 #LOGICA PARA SALVAMENTO E EXIBIÇÃO DE LOGS EM TEMPO REAL.
@@ -1327,6 +1327,12 @@ class ButtonManager:
         # Nova janela para mostrar a saída do script
         output_window = tk.Toplevel(self.master)
         output_window.title("Visualizador de Scripts")
+
+        # Adiciona a lógica para salvar a posição da janela quando ela for fechada
+        output_window.protocol("WM_DELETE_WINDOW", lambda: self.save_output_position(output_window) or output_window.destroy())
+
+        # Carregar a posição salva
+        self.load_output_position(output_window)
     
         # Frames para dividir a tela horizontalmente
         top_frame = tk.Frame(output_window)
@@ -1350,6 +1356,7 @@ class ButtonManager:
 
         # Botão para fechar a janela e executar o script de finalização
         def close_window_and_finalize():
+            self.save_output_position(output_window)
             output_window.destroy()
             self.finaliza_cmd()
 
@@ -1441,6 +1448,24 @@ class ButtonManager:
                 text_widget.insert(tk.END, line + '\n', tag)
             else:
                 text_widget.insert(tk.END, line + '\n')
+
+    def load_output_position(self, window):
+        if os.path.isfile("output_position.json"):
+            with open("output_position.json", "r") as f:
+                position = json.load(f)
+                window.geometry("+{}+{}".format(position["x"], position["y"]))
+
+    def save_output_position(self, window):
+        position = {
+            "x": window.winfo_x(),
+            "y": window.winfo_y()
+        }
+        with open("output_position.json", "w") as f:
+            json.dump(position, f)
+
+    def on_close_output(self, window):
+        self.save_output_position(window)
+        window.destroy()
 
 #LOGICA PARA MUDAR ID DOS BOTÕES DE ABAS 1 E 2.
     def change_button_id(self, button):
@@ -2227,7 +2252,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 64.5 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 64.6 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
