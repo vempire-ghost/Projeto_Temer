@@ -197,12 +197,6 @@ class ButtonManager:
             # Executa os comandos apenas quando a aba Scheduler é selecionada
             self.executar_comandos_scheduler()
 
-    def alternar_monitoramento(self):
-        if self.monitor_xray:
-            self.stop_monitoring()
-        else:
-            self.start_monitoring()
-
     def create_widgets(self):
         # Cria o frame superior
         self.top_frame = tk.Frame(self.master, bg='lightgray', borderwidth=1, relief=tk.RAISED)
@@ -409,7 +403,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.3", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.4", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 #LOGICA PARA SALVAMENTO E EXIBIÇÃO DE LOGS EM TEMPO REAL.
@@ -505,8 +499,13 @@ class ButtonManager:
         # Teste inicial de conexão ao endereço 192.168.101.1 na porta 80
         logging.info("Iniciando teste de conexão com o IP 192.168.101.1...")
         if not test_connection('192.168.101.1', 80, timeout):
-            logging.error("Falha na conexão com o IP 192.168.101.1.")
-            return "OFF", "red"
+            logging.error("Falha na conexão com o IP 192.168.101.1. Aguardando 5 segundos e reiniciando o teste...")
+            for _ in range(5):  # Divida a espera em intervalos de 1 segundo
+                if not self.monitor_xray:
+                    logging.info("Monitoramento interrompido durante a espera.")
+                    return "OFF", "red"
+                time.sleep(1)  # Aguarde 1 segundo
+            return self.ping_glorytun_vpn(host, port, timeout)
 
         # Teste de conexão ao host fornecido na porta 80
         logging.info(f"Verificando conexão com o host {host} na porta {port}...")
@@ -530,8 +529,13 @@ class ButtonManager:
         # Teste inicial de conexão ao endereço 192.168.100.1 na porta 80
         logging.info("Iniciando teste de conexão com o IP 192.168.100.1...")
         if not test_connection('192.168.100.1', 80, timeout):
-            logging.error("Falha na conexão com o IP 192.168.100.1.")
-            return "OFF", "red"
+            logging.error("Falha na conexão com o IP 192.168.100.1. Aguardando 5 segundos e reiniciando o teste...")
+            for _ in range(5):  # Divida a espera em intervalos de 1 segundo
+                if not self.monitor_xray:
+                    logging.info("Monitoramento interrompido durante a espera.")
+                    return "OFF", "red"
+                time.sleep(1)  # Aguarde 1 segundo
+            return self.ping_xray_jogo(host, port, timeout)
 
         # Teste de conexão ao host fornecido na porta 65222
         logging.info(f"Verificando conexão com o host {host} na porta {port}...")
@@ -559,11 +563,14 @@ class ButtonManager:
         while self.monitor_xray:
             logging.info("Verificando conexão com o Glorytun VPN...")
             status_vpn, _ = self.ping_glorytun_vpn(self.url_to_ping_omr_vpn)
+            if not self.monitor_xray:
+                logging.info("Monitoramento interrompido durante a verificação do Glorytun VPN.")
+                return
             if status_vpn == "OFF":
                 logging.error("Falha na conexão com o Glorytun VPN. Executando o comando de reinício do Glorytun...")
                 try:
                     subprocess.Popen(
-                        ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/glorytun", "restart"],
+                       ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/glorytun", "restart"],
                         shell=True
                     )
                     logging.info("Comando de reinício do Glorytun VPN executado.")
@@ -571,11 +578,18 @@ class ButtonManager:
                     logging.error(f"Erro ao executar o comando de reinício do Glorytun VPN: {e}")
 
                 logging.info("Aguardando 20 segundos antes de continuar...")
-                time.sleep(20)
-                continue  # Reinicia o loop após o reinício do Glorytun
+                for _ in range(20):
+                    if not self.monitor_xray:
+                        logging.info("Monitoramento interrompido durante a espera.")
+                        return
+                    time.sleep(1)
+                continue
 
             logging.info("Conexão com o Glorytun VPN bem-sucedida. Verificando conexão com o Xray Jogo...")
             status_xray, color = self.ping_xray_jogo(self.url_to_ping_omr_jogo)
+            if not self.monitor_xray:
+                logging.info("Monitoramento interrompido durante a verificação do Xray Jogo.")
+                return
             if status_xray == "OFF":
                 logging.error("Falha na conexão com o Xray Jogo. Executando o comando de reinício do Xray...")
                 try:
@@ -588,15 +602,23 @@ class ButtonManager:
                     logging.error(f"Erro ao executar o comando de reinício do Xray: {e}")
 
                 logging.info("Aguardando 20 segundos antes de continuar...")
-                time.sleep(20)
+                for _ in range(20):
+                    if not self.monitor_xray:
+                        logging.info("Monitoramento interrompido durante a espera.")
+                        return
+                    time.sleep(1)
             else:
                 logging.info(f"Conexão com o Xray Jogo está OK. Status: {status_xray}")
                 logging.info("Ambos os testes foram bem-sucedidos. Encerrando o monitoramento...")
                 self.botao_alternar.after(0, self.stop_monitoring)  # Use after para garantir que a UI seja atualizada
-                return  # Saia da função
+                return
 
-            if self.monitor_xray:  # Verifique se o monitoramento ainda está ativo antes de pausar
-                time.sleep(5)
+            if self.monitor_xray:
+                for _ in range(5):
+                    if not self.monitor_xray:
+                        logging.info("Monitoramento interrompido durante a pausa final.")
+                        return
+                    time.sleep(1)
 
     def start_monitoring_delay(self):
         if not self.monitor_xray:
@@ -618,10 +640,15 @@ class ButtonManager:
             logging.info("Parando monitoramento...")
             self.monitor_xray = False
             if self.thread is not None:
-                self.thread.join()
+                self.thread.join()  # Aguarda a thread terminar
             self.botao_alternar.config(text="Iniciar Monitoramento OMR JOGO")
             logging.info("Monitoramento parado.")
-            #messagebox.showinfo("Info", "Monitoramento parado.")
+
+    def alternar_monitoramento(self):
+        if self.monitor_xray:
+            self.stop_monitoring()
+        else:
+            self.start_monitoring()
 
     def reiniciar_omr_tracker_jogo(self):
         # Implementar a lógica para reiniciar o Xray JOGO
@@ -2210,7 +2237,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 64.3 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 64.4 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
