@@ -375,7 +375,7 @@ class ButtonManager:
         self.botao_abrir_logs.grid(row=2, column=0, padx=10, pady=5, sticky='n')
 
         # Botão único que alterna entre iniciar e parar
-        self.botao_alternar = tk.Button(self.frame_atualizar, text="Iniciar Monitoramento OMR", command=self.alternar_monitoramento)
+        self.botao_alternar = tk.Button(self.frame_atualizar, text="Iniciar Monitoramento do OMR", command=self.alternar_monitoramento)
         self.botao_alternar.grid(row=1, column=0, padx=10, pady=5, sticky='n')
 
         # Frame inferior com borda e botões
@@ -403,7 +403,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.8", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.9", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 #LOGICA PARA SALVAMENTO E EXIBIÇÃO DE LOGS EM TEMPO REAL.
@@ -644,7 +644,7 @@ class ButtonManager:
             logging.info("Aguardando 20 segundos antes de iniciar o monitoramento...")
             self.monitor_xray = True  # Use a variável existente
             # Agendar a execução do restante da função após 20 segundos
-            self.botao_alternar.config(text="Parar Monitoramento OMR")
+            self.botao_alternar.config(text="Parar Monitoramento do OMR")
             self.botao_alternar.after(20000, self.start_ping_direto_monitoring)
 
     def start_ping_direto_monitoring(self):
@@ -653,7 +653,7 @@ class ButtonManager:
             #self.monitor_xray = True  # Use a variável existente
             self.thread_ping_direto = threading.Thread(target=self.monitor_ping_direto)
             self.thread_ping_direto.start()
-            self.botao_alternar.config(text="Parar Monitoramento OMR")
+            self.botao_alternar.config(text="Parar Monitoramento do OMR")
 
     def start_monitoring(self):
         if not self.monitor_xray:
@@ -661,7 +661,7 @@ class ButtonManager:
             self.monitor_xray = True
             self.thread = threading.Thread(target=self.monitor_loop)
             self.thread.start()
-            self.botao_alternar.config(text="Parar Monitoramento OMR")
+            self.botao_alternar.config(text="Parar Monitoramento do OMR")
 
     def stop_monitoring(self):
         if self.monitor_xray:
@@ -669,7 +669,7 @@ class ButtonManager:
             self.monitor_xray = False
             if self.thread is not None:
                 self.thread.join()  # Aguarda a thread terminar
-            self.botao_alternar.config(text="Iniciar Monitoramento OMR")
+            self.botao_alternar.config(text="Iniciar Monitoramento do OMR")
             logging.info("Monitoramento parado.")
 
     def alternar_monitoramento(self):
@@ -2076,7 +2076,7 @@ class open_options_address:
         vps_vpn_entry.grid(row=0, column=1, padx=5, pady=5)
         vps_vpn_entry.insert(0, self.url_to_ping_vps_vpn or '')
         
-        tk.Label(frame, text="Endereço VPS Jogo:").grid(row=1, column=0, sticky=tk.W)
+        tk.Label(frame, text="Endereço VPS JOGO:").grid(row=1, column=0, sticky=tk.W)
         vps_jogo_entry = tk.Entry(frame, width=30)  # Aumente o valor de width conforme necessário
         vps_jogo_entry.grid(row=1, column=1, padx=5, pady=5)
         vps_jogo_entry.insert(0, self.url_to_ping_vps_jogo or '')
@@ -2086,7 +2086,7 @@ class open_options_address:
         omr_vpn_entry.grid(row=2, column=1, padx=5, pady=5)
         omr_vpn_entry.insert(0, self.url_to_ping_omr_vpn or '')
 
-        tk.Label(frame, text="Endereço OMR Jogo:").grid(row=3, column=0, sticky=tk.W)
+        tk.Label(frame, text="Endereço OMR JOGO:").grid(row=3, column=0, sticky=tk.W)
         omr_jogo_entry = tk.Entry(frame, width=30)
         omr_jogo_entry.grid(row=3, column=1, padx=5, pady=5)
         omr_jogo_entry.insert(0, self.url_to_ping_omr_jogo or '')
@@ -2296,7 +2296,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 64.8 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 64.9 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
