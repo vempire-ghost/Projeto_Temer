@@ -403,7 +403,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.7", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.8", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 #LOGICA PARA SALVAMENTO E EXIBIÇÃO DE LOGS EM TEMPO REAL.
@@ -969,7 +969,11 @@ class ButtonManager:
         button_frame.pack(side=tk.TOP, padx=5, pady=5)
 
         icon_label = tk.Label(button_frame)  # Label para exibir a imagem
-        icon_label.icon = tk.PhotoImage(file=dest_path)
+        with Image.open(dest_path) as img:
+            img = img.resize((40, 40), Image.LANCZOS)
+            icon = ImageTk.PhotoImage(img)
+
+        icon_label.icon = icon
         icon_label.config(image=icon_label.icon)
         icon_label.pack(side=tk.LEFT)
 
@@ -1019,7 +1023,11 @@ class ButtonManager:
         button_frame.pack(side=tk.TOP, padx=5, pady=5)
 
         icon_label = tk.Label(button_frame)  # Label para exibir a imagem
-        icon_label.icon = tk.PhotoImage(file=dest_path)
+        with Image.open(dest_path) as img:
+            img = img.resize((40, 40), Image.LANCZOS)
+            icon = ImageTk.PhotoImage(img)
+
+        icon_label.icon = icon
         icon_label.config(image=icon_label.icon)
         icon_label.pack(side=tk.LEFT)
 
@@ -1149,7 +1157,11 @@ class ButtonManager:
         button_frame.pack(side=tk.TOP, padx=5, pady=5)
 
         icon_label = tk.Label(button_frame)  # Label para exibir a imagem
-        icon_label.icon = tk.PhotoImage(file=dest_path)
+        with Image.open(dest_path) as img:
+            img = img.resize((40, 40), Image.LANCZOS)
+            icon = ImageTk.PhotoImage(img)
+
+        icon_label.icon = icon
         icon_label.config(image=icon_label.icon)
         icon_label.pack(side=tk.LEFT)
 
@@ -1200,7 +1212,11 @@ class ButtonManager:
         button_frame.pack(side=tk.TOP, padx=5, pady=5)
 
         icon_label = tk.Label(button_frame)  # Label para exibir a imagem
-        icon_label.icon = tk.PhotoImage(file=dest_path)
+        with Image.open(dest_path) as img:
+            img = img.resize((40, 40), Image.LANCZOS)
+            icon = ImageTk.PhotoImage(img)
+
+        icon_label.icon = icon
         icon_label.config(image=icon_label.icon)
         icon_label.pack(side=tk.LEFT)
 
@@ -2280,7 +2296,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 64.7 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 64.8 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
