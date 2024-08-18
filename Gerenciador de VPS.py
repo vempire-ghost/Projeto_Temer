@@ -403,7 +403,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.11", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.12", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 #LOGICA PARA SALVAMENTO E EXIBIÇÃO DE LOGS EM TEMPO REAL.
@@ -579,38 +579,81 @@ class ButtonManager:
             return "OFF", "blue"
 
     def monitor_loop(self):
+        first_failure_vpn = True
+        first_failure_xray = True
         while self.monitor_xray:
-            logging.info("Verificando conexão com o Glorytun VPN...")
-            status_vpn, _ = self.ping_glorytun_vpn(self.url_to_ping_omr_vpn)
-            if not self.monitor_xray:
-                logging.info("Monitoramento interrompido durante a verificação do Glorytun VPN.")
-                return
+            # Inicialize flags e contadores fora do loop interno
+            consecutive_failures_vpn = 0
+            consecutive_failures_xray = 0
+
+            # Verificação do Glorytun VPN
+            while consecutive_failures_vpn < 6 and self.monitor_xray:
+                logging.info("Verificando conexão com o Glorytun VPN...")
+                status_vpn, _ = self.ping_glorytun_vpn(self.url_to_ping_omr_vpn)
+                if status_vpn == "OFF":
+                    if first_failure_vpn:
+                        logging.error("Primeira falha na conexão com o Glorytun VPN. Reiniciando imediatamente...")
+                        first_failure_vpn = False
+                        try:
+                            subprocess.Popen(
+                                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/glorytun", "restart"],
+                                shell=True
+                            )
+                            logging.info("Comando de reinício do Glorytun VPN executado.")
+                        except Exception as e:
+                            logging.error(f"Erro ao executar o comando de reinício do Glorytun VPN: {e}")
+                    else:
+                        consecutive_failures_vpn += 1
+                        logging.error(f"Falha {consecutive_failures_vpn}/6 na conexão com o Glorytun VPN. Aguardando 5 segundos para testar novamente...")
+                        for _ in range(5):
+                            if not self.monitor_xray:
+                                return
+                            time.sleep(1)
+                else:
+                    logging.info("Conexão com o Glorytun VPN bem-sucedida.")
+                    break  # Sai do loop do Glorytun VPN
+
             if status_vpn == "OFF":
-                logging.error("Falha na conexão com o Glorytun VPN. Executando o comando de reinício do Glorytun...")
+                logging.error("Falha na conexão com o Glorytun VPN após 6 tentativas. Executando o comando de reinício do Glorytun novamente...")
                 try:
                     subprocess.Popen(
-                       ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/glorytun", "restart"],
+                        ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/glorytun", "restart"],
                         shell=True
                     )
                     logging.info("Comando de reinício do Glorytun VPN executado.")
                 except Exception as e:
                     logging.error(f"Erro ao executar o comando de reinício do Glorytun VPN: {e}")
+                continue  # Reinicia o loop para testar o Glorytun novamente
 
-                logging.info("Aguardando 30 segundos para testar novamente...")
-                for _ in range(30):
-                    if not self.monitor_xray:
-                        logging.info("Monitoramento interrompido durante a espera.")
-                        return
-                    time.sleep(1)
-                continue
+            # Verificação do Xray Jogo (só prossegue se a conexão com o Glorytun for bem-sucedida)
+            while consecutive_failures_xray < 4 and self.monitor_xray:
+                logging.info("Verificando conexão com o Xray Jogo...")
+                status_xray, _ = self.ping_xray_jogo(self.url_to_ping_omr_jogo)
+                if status_xray == "OFF":
+                    if first_failure_xray:
+                        logging.error("Primeira falha na conexão com o Xray Jogo. Reiniciando imediatamente...")
+                        first_failure_xray = False
+                        try:
+                            subprocess.Popen(
+                                ["cmd", "/c", "start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/xray", "restart"],
+                                shell=True
+                            )
+                            logging.info("Comando de reinício do Xray executado.")
+                        except Exception as e:
+                            logging.error(f"Erro ao executar o comando de reinício do Xray: {e}")
+                    else:
+                        consecutive_failures_xray += 1
+                        logging.error(f"Falha {consecutive_failures_xray}/4 na conexão com o Xray Jogo. Aguardando 5 segundos para testar novamente...")
+                        for _ in range(5):
+                            if not self.monitor_xray:
+                                return
+                            time.sleep(1)
+                else:
+                    logging.info("Conexão com o Xray Jogo está OK.")
+                    break  # Sai do loop do Xray Jogo
 
-            logging.info("Conexão com o Glorytun VPN bem-sucedida. Verificando conexão com o Xray Jogo...")
-            status_xray, color = self.ping_xray_jogo(self.url_to_ping_omr_jogo)
-            if not self.monitor_xray:
-                logging.info("Monitoramento interrompido durante a verificação do Xray Jogo.")
-                return
             if status_xray == "OFF":
-                logging.error("Falha na conexão com o Xray Jogo. Executando o comando de reinício do Xray...")
+                logging.error("Falha na conexão com o Xray Jogo após 4 tentativas. Executando o comando de reinício do Xray novamente...")
                 try:
                     subprocess.Popen(
                         ["cmd", "/c", "start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/xray", "restart"],
@@ -619,25 +662,11 @@ class ButtonManager:
                     logging.info("Comando de reinício do Xray executado.")
                 except Exception as e:
                     logging.error(f"Erro ao executar o comando de reinício do Xray: {e}")
+                continue  # Reinicia o loop para testar o Xray novamente
 
-                logging.info("Aguardando 20 segundos para testar novamente...")
-                for _ in range(20):
-                    if not self.monitor_xray:
-                        logging.info("Monitoramento interrompido durante a espera.")
-                        return
-                    time.sleep(1)
-            else:
-                logging.info(f"Conexão com o Xray Jogo está OK. Status: {status_xray}")
-                logging.info("Ambos os testes foram bem-sucedidos. Encerrando o monitoramento...")
-                self.botao_alternar.after(0, self.stop_monitoring)  # Use after para garantir que a UI seja atualizada
-                return
-
-            if self.monitor_xray:
-                for _ in range(5):
-                    if not self.monitor_xray:
-                        logging.info("Monitoramento interrompido durante a pausa final.")
-                        return
-                    time.sleep(1)
+            logging.info("Ambos os testes foram bem-sucedidos. Encerrando o monitoramento...")
+            self.botao_alternar.after(0, self.stop_monitoring)
+            return  # Sai do loop principal se ambos os testes forem bem-sucedidos
 
     def start_monitoring_delay(self):
         if not self.monitor_xray:
@@ -2296,7 +2325,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 64.11 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 64.12 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
