@@ -18,7 +18,7 @@ import logging
 from datetime import datetime
 from PIL import Image, ImageTk
 # Configuração básica do logging para salvar em arquivo
-logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%d/%m/%Y %H:%M:%S')
 
 class ButtonManager:
     def __init__(self, master):
