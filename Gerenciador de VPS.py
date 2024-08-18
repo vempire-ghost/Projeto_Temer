@@ -403,7 +403,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.9", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.10", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 #LOGICA PARA SALVAMENTO E EXIBIÇÃO DE LOGS EM TEMPO REAL.
@@ -641,11 +641,11 @@ class ButtonManager:
 
     def start_monitoring_delay(self):
         if not self.monitor_xray:
-            logging.info("Aguardando 20 segundos antes de iniciar o monitoramento...")
+            logging.info("Aguardando 40 segundos antes de iniciar o monitoramento...")
             self.monitor_xray = True  # Use a variável existente
             # Agendar a execução do restante da função após 20 segundos
             self.botao_alternar.config(text="Parar Monitoramento do OMR")
-            self.botao_alternar.after(20000, self.start_ping_direto_monitoring)
+            self.botao_alternar.after(40000, self.start_ping_direto_monitoring)
 
     def start_ping_direto_monitoring(self):
         if self.monitor_xray:
@@ -2296,7 +2296,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 64.9 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 64.10 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
