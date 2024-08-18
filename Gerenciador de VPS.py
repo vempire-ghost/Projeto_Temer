@@ -403,7 +403,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.10", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 64.11", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 #LOGICA PARA SALVAMENTO E EXIBIÇÃO DE LOGS EM TEMPO REAL.
@@ -492,7 +492,7 @@ class ButtonManager:
             status, _ = self.ping_direto(self.url_to_ping_vps_vpn)
         
             if status == "OFF":
-                logging.error(f"Falha na conexão com o VPS VPN ({self.url_to_ping_vps_vpn}). Aguardando 5 segundos e reiniciando o teste...")
+                logging.error(f"Falha na conexão com o VPS VPN ({self.url_to_ping_vps_vpn}). Aguardando 5 segundos para testar novamente...")
                 # Aguardar 5 segundos antes de realizar o próximo teste
                 for _ in range(5):
                     if not self.monitor_xray:
@@ -518,7 +518,7 @@ class ButtonManager:
         # Teste inicial de conexão ao endereço 192.168.101.1 na porta 80
         logging.info("Iniciando teste de conexão com o IP 192.168.101.1...")
         if not test_connection('192.168.101.1', 80, timeout):
-            logging.error("Falha na conexão com o IP 192.168.101.1. Aguardando 5 segundos e reiniciando o teste...")
+            logging.error("Falha na conexão com o IP 192.168.101.1. Aguardando 5 segundos para testar novamente...")
             for _ in range(5):  # Divida a espera em intervalos de 1 segundo
                 if not self.monitor_xray:
                     logging.info("Monitoramento interrompido durante a espera.")
@@ -548,7 +548,7 @@ class ButtonManager:
         # Teste inicial de conexão ao endereço 192.168.100.1 na porta 80
         logging.info("Iniciando teste de conexão com o IP 192.168.100.1...")
         if not test_connection('192.168.100.1', 80, timeout):
-            logging.error("Falha na conexão com o IP 192.168.100.1. Aguardando 5 segundos e reiniciando o teste...")
+            logging.error("Falha na conexão com o IP 192.168.100.1. Aguardando 5 segundos para testar novamente...")
             for _ in range(5):  # Divida a espera em intervalos de 1 segundo
                 if not self.monitor_xray:
                     logging.info("Monitoramento interrompido durante a espera.")
@@ -596,8 +596,8 @@ class ButtonManager:
                 except Exception as e:
                     logging.error(f"Erro ao executar o comando de reinício do Glorytun VPN: {e}")
 
-                logging.info("Aguardando 20 segundos antes de continuar...")
-                for _ in range(20):
+                logging.info("Aguardando 30 segundos para testar novamente...")
+                for _ in range(30):
                     if not self.monitor_xray:
                         logging.info("Monitoramento interrompido durante a espera.")
                         return
@@ -620,7 +620,7 @@ class ButtonManager:
                 except Exception as e:
                     logging.error(f"Erro ao executar o comando de reinício do Xray: {e}")
 
-                logging.info("Aguardando 20 segundos antes de continuar...")
+                logging.info("Aguardando 20 segundos para testar novamente...")
                 for _ in range(20):
                     if not self.monitor_xray:
                         logging.info("Monitoramento interrompido durante a espera.")
@@ -2296,7 +2296,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 64.10 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 64.11 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
