@@ -70,8 +70,8 @@ class ButtonManager:
         # Menu de Configurações
         config_menu = tk.Menu(menu_bar, tearoff=0)
         menu_bar.add_cascade(label="Configurações", menu=config_menu)
-        config_menu.add_command(label="Configurações e Gerenciador de Arquivos", command=self.open_omr_manager)
-        config_menu.add_command(label="Configuração de Endereços", command=self.options_address)
+        config_menu.add_command(label="Configurações do Gerenciador de VPS", command=self.open_omr_manager)
+        #config_menu.add_command(label="Configuração de Endereços", command=self.options_address)
         config_menu.add_command(label="Configurações de Cores", command=self.open_color_config)
         config_menu.add_command(label="Ajuda", command=self.abrir_arquivo_ajuda)
         config_menu.add_command(label="Sobre", command=self.about)
@@ -423,7 +423,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 65.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 65.3", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 #LOGICA PARA EXIBIR STATUS DAS VMS
@@ -1900,8 +1900,7 @@ class OMRManagerDialog:
         top = self.top = tk.Toplevel(master)
         self.master = master
         self.load_window_position()
-        self.top.title("Configurações e Gerenciador de Arquivos")
-        #self.top.geometry("800x800")
+        self.top.title("Configurações do Gerenciador de VPS")
 
         # Bloqueia a interação com a janela master
         self.top.grab_set()
@@ -1909,8 +1908,16 @@ class OMRManagerDialog:
         # Define a janela como ativa
         self.top.focus_set()
         
+        # Inicialização das abas
+        self.tabs = ttk.Notebook(self.top)
+        self.tabs.pack(expand=1, fill='both')
+
+        # Primeira aba (conteúdo original)
+        aba1 = ttk.Frame(self.tabs)
+        self.tabs.add(aba1, text="Gerenciador de Arquivos")
+
         # Frame para os botões e textos descritivos
-        button_frame = tk.Frame(self.top, borderwidth=1, relief=tk.RIDGE)
+        button_frame = tk.Frame(aba1, borderwidth=1, relief=tk.RIDGE)
         button_frame.pack(side="left", padx=10, pady=10, anchor='w')
 
         # Primeiro texto descritivo e botão
@@ -1933,35 +1940,97 @@ class OMRManagerDialog:
         tk.Label(button_frame, text="Para ser usado apenas para atualizar OMR OCI").pack(side=tk.TOP, anchor='w')
         tk.Button(button_frame, text="Executar processos para OCI", command=self.copy_to_oci).pack(side=tk.TOP, anchor='w', padx=5, pady=5)
 
-        # Frame para os botões e textos descritivos a direita
-        button_frame_right = tk.Frame(self.top, borderwidth=1, relief=tk.RIDGE)
+        # Frame para os botões e textos descritivos à direita
+        button_frame_right = tk.Frame(aba1, borderwidth=1, relief=tk.RIDGE)
         button_frame_right.pack(side="top", padx=10, pady=10, anchor='w')
 
-        #Primeiro botão
-        tk.Label(button_frame_right, text="Edita scritp de alteração de UUID:").pack(side=tk.TOP, anchor='w')
+        # Primeiro botão
+        tk.Label(button_frame_right, text="Edita script de alteração de UUID:").pack(side=tk.TOP, anchor='w')
         tk.Button(button_frame_right, text="Editar script", command=self.edit_uuid).pack(side=tk.TOP, anchor='w', padx=5, pady=5)
 
         # Espaço entre o primeiro botão e o segundo texto
         tk.Label(button_frame_right).pack(side=tk.TOP, pady=6)  # Espaço de 6 pixels entre os widgets
 
-        #Segundo botão
-        tk.Label(button_frame_right, text="Backup das Maquinas Virtuais:").pack(side=tk.TOP, anchor='w')
+        # Segundo botão
+        tk.Label(button_frame_right, text="Backup das Máquinas Virtuais:").pack(side=tk.TOP, anchor='w')
         tk.Button(button_frame_right, text="Executar backup", command=self.backup_virtualbox).pack(side=tk.TOP, anchor='w', padx=5, pady=5)
 
         # Espaço entre o segundo botão e o terceiro texto
         tk.Label(button_frame_right).pack(side=tk.TOP, pady=6)  # Espaço de 6 pixels entre os widgets
 
-        #Terceiro botão
+        # Terceiro botão
         tk.Label(button_frame_right, text="Editar arquivo de ajuda:").pack(side=tk.TOP, anchor='w')
         tk.Button(button_frame_right, text="Editar arquivo", command=self.editar_arquivo_ajuda).pack(side=tk.TOP, anchor='w', padx=5, pady=5)
 
         # Botões na parte inferior da janela
-        button_frame_bottom = tk.Frame(self.top)
+        button_frame_bottom = tk.Frame(aba1)
         button_frame_bottom.pack(side="bottom", pady=10)
-        #tk.Button(button_frame_bottom, text="Cancelar", command=self.save).pack(side=tk.LEFT, padx=10)
+
+        # Segunda aba (Configurações de Ping)
+        aba2 = ttk.Frame(self.tabs)
+        self.tabs.add(aba2, text="Configurações de Ping")
+
+        # Frame com borda
+        frame = tk.Frame(aba2, bd=2, relief=tk.RAISED)
+        frame.pack(padx=10, pady=10)
+
+        # Carregar endereços
+        self.load_addresses()
+
+        # Labels e Entries dentro do frame
+        tk.Label(frame, text="Endereço VPS VPN:").grid(row=0, column=0, sticky=tk.W)
+        self.vps_vpn_entry = tk.Entry(frame, width=30)
+        self.vps_vpn_entry.grid(row=0, column=1, padx=5, pady=5)
+        self.vps_vpn_entry.insert(0, self.url_to_ping_vps_vpn or '')
+
+        tk.Label(frame, text="Endereço VPS JOGO:").grid(row=1, column=0, sticky=tk.W)
+        self.vps_jogo_entry = tk.Entry(frame, width=30)
+        self.vps_jogo_entry.grid(row=1, column=1, padx=5, pady=5)
+        self.vps_jogo_entry.insert(0, self.url_to_ping_vps_jogo or '')
+
+        tk.Label(frame, text="Endereço OMR VPN:").grid(row=2, column=0, sticky=tk.W)
+        self.omr_vpn_entry = tk.Entry(frame, width=30)
+        self.omr_vpn_entry.grid(row=2, column=1, padx=5, pady=5)
+        self.omr_vpn_entry.insert(0, self.url_to_ping_omr_vpn or '')
+
+        tk.Label(frame, text="Endereço OMR JOGO:").grid(row=3, column=0, sticky=tk.W)
+        self.omr_jogo_entry = tk.Entry(frame, width=30)
+        self.omr_jogo_entry.grid(row=3, column=1, padx=5, pady=5)
+        self.omr_jogo_entry.insert(0, self.url_to_ping_omr_jogo or '')
+
+        save_button = tk.Button(frame, text="Salvar", command=self.save_addresses)
+        save_button.grid(row=4, column=0, columnspan=2, pady=10)
 
         self.top.protocol("WM_DELETE_WINDOW", self.on_close)
 
+#Métodos para a segunda aba (Configurações de Ping)
+    def load_addresses(self):
+        try:
+            with open('addresses.json', 'r') as f:
+                addresses = json.load(f)
+                self.url_to_ping_vps_jogo = addresses.get("vps_jogo")
+                self.url_to_ping_vps_vpn = addresses.get("vps_vpn")
+                self.url_to_ping_omr_vpn = addresses.get("omr_vpn")
+                self.url_to_ping_omr_jogo = addresses.get("omr_jogo")
+        except (FileNotFoundError, json.JSONDecodeError):
+            self.url_to_ping_vps_jogo = None
+            self.url_to_ping_vps_vpn = None
+            self.url_to_ping_omr_vpn = None
+            self.url_to_ping_omr_jogo = None
+
+    def save_addresses(self):
+        addresses = {
+            "vps_vpn": self.vps_vpn_entry.get(),
+            "vps_jogo": self.vps_jogo_entry.get(),
+            "omr_vpn": self.omr_vpn_entry.get(),
+            "omr_jogo": self.omr_jogo_entry.get()
+        }
+        with open("addresses.json", "w") as f:
+            json.dump(addresses, f)
+        #messagebox.showinfo("Salvar", "Endereços salvos com sucesso!")
+
+
+#FUNÇÃO PARA GERAR LINKS SEM PRECISAR ADICIONAR A LETRA DE UNIDADE.
     def get_drive_letter(self):
         """Retorna a letra da unidade onde o script está sendo executado."""
         if getattr(sys, 'frozen', False):  # Verifica se o código está congelado/compilado
@@ -1981,6 +2050,7 @@ class OMRManagerDialog:
             # Garantir que a barra invertida seja adicionada após a letra da unidade
             return os.path.join(drive_letter + os.sep, relative_path)
 
+#FUNÇÕES DA PRIMEIRA ABA
     def editar_arquivo_ajuda(self):
         relative_path = r"Dropbox Compartilhado\AmazonWS\Auto Iniciar meus VPS\pitao\Ajuda.hnd"
         absolute_path = self.os_letter(relative_path)
@@ -2150,7 +2220,6 @@ class open_options_address:
         self.load_window_position()
         self.top.title("Configurações de Ping")
         self.load_addresses()
-        #self.top.geometry("250x250")
 
         # Bloqueia a interação com a janela master
         self.top.grab_set()
@@ -2391,7 +2460,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 65.2 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 65.3 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
