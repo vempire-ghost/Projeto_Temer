@@ -245,20 +245,20 @@ class ButtonManager:
         self.status_label_omr_jogo.pack(side=tk.LEFT)
 
         # Frame para VM VPN (nova linha) com fundo lightgray
-        self.frame_vm_vpn = tk.Frame(self.top_frame, bg='lightgray', borderwidth=2, relief=tk.RAISED)
-        self.frame_vm_vpn.grid(row=2, column=1, padx=5, pady=5, sticky="nsew")
-        self.label_vm_vpn = tk.Label(self.frame_vm_vpn, text="VM VPN:", bg='lightgray')
-        self.label_vm_vpn.grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        self.value_vm_vpn = tk.Label(self.frame_vm_vpn, text="Aguarde...", bg='lightgray')
-        self.value_vm_vpn.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        frame_vm_vpn = tk.Frame(self.top_frame, bg='lightgray')
+        frame_vm_vpn.grid(row=2, column=1, padx=5, pady=5, sticky=tk.E+tk.W)
+        label_vm_vpn = tk.Label(frame_vm_vpn, text="VM VPN:", bg='lightgray', justify=tk.CENTER, borderwidth=2, relief=tk.RAISED)
+        label_vm_vpn.pack(side=tk.LEFT)
+        self.value_vm_vpn = tk.Label(frame_vm_vpn, text="Aguarde...", bg='lightgray', justify=tk.CENTER)
+        self.value_vm_vpn.pack(side=tk.LEFT)
 
         # Frame para VM JOGO (nova linha) com fundo lightgray
-        self.frame_vm_jogo = tk.Frame(self.top_frame, bg='lightgray', borderwidth=2, relief=tk.RAISED)
-        self.frame_vm_jogo.grid(row=2, column=2, padx=5, pady=5, sticky="nsew")
-        self.label_vm_jogo = tk.Label(self.frame_vm_jogo, text="VM JOGO:", bg='lightgray')
-        self.label_vm_jogo.grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        self.value_vm_jogo = tk.Label(self.frame_vm_jogo, text="Aguarde...", bg='lightgray')
-        self.value_vm_jogo.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        frame_vm_jogo = tk.Frame(self.top_frame, bg='lightgray')
+        frame_vm_jogo.grid(row=2, column=2, padx=5, pady=5, sticky=tk.E+tk.W)
+        label_vm_jogo = tk.Label(frame_vm_jogo, text="VM JOGO:", bg='lightgray', justify=tk.CENTER, borderwidth=2, relief=tk.RAISED)
+        label_vm_jogo.pack(side=tk.LEFT)
+        self.value_vm_jogo = tk.Label(frame_vm_jogo, text="Aguarde...", bg='lightgray', justify=tk.CENTER)
+        self.value_vm_jogo.pack(side=tk.LEFT)
 
         # Iniciar a atualização dos valores das VMs
         self.update_vm_status()
@@ -423,7 +423,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 65.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 65.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 #LOGICA PARA EXIBIR STATUS DAS VMS
@@ -455,8 +455,8 @@ class ButtonManager:
 
         def threaded_update():
             # Nomes das VMs
-            vm_vpn_name = "MPTCP_VPN"
-            vm_jogo_name = "MPTCP"
+            vm_vpn_name = "OpenMPTCP_OCI"
+            vm_jogo_name = "OpenMPTCP"
 
             vpn_state = get_vm_state(vm_vpn_name)
             jogo_state = get_vm_state(vm_jogo_name)
@@ -2391,7 +2391,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 65.1 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 65.2 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
