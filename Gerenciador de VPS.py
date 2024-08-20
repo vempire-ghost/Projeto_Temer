@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox, simpledialog, scrolledtext, colorchooser, ttk
+from tkinter import filedialog, messagebox, simpledialog, scrolledtext, colorchooser, ttk, Menu
 import os
 import json
 import subprocess
@@ -77,7 +77,6 @@ class ButtonManager:
         config_menu = tk.Menu(menu_bar, tearoff=0)
         menu_bar.add_cascade(label="Configurações", menu=config_menu)
         config_menu.add_command(label="Configurações do Gerenciador de VPS", command=self.open_omr_manager)
-        #config_menu.add_command(label="Configuração de Endereços", command=self.options_address)
         config_menu.add_command(label="Configurações de Cores", command=self.open_color_config)
         config_menu.add_command(label="Ajuda", command=self.abrir_arquivo_ajuda)
         config_menu.add_command(label="Sobre", command=self.about)
@@ -223,21 +222,21 @@ class ButtonManager:
         # Label e valor para VPS VPN
         frame_vps_vpn = tk.Frame(self.top_frame, bg='lightgray')
         frame_vps_vpn.grid(row=0, column=1, padx=5, pady=5, sticky=tk.E+tk.W)
-        btn_vps_vpn = tk.Button(frame_vps_vpn, text=" VPS  VPN: ", bg='lightgray', justify=tk.CENTER, command=self.abrir_arquivo_vps_vpn).pack(side=tk.LEFT)
+        btn_vps_vpn = tk.Button(frame_vps_vpn, text=" VPS  VPN: ", bg='lightgray', justify=tk.CENTER, command=self.abrir_arquivo_vps_vpn, width=9, height=1).pack(side=tk.LEFT)
         self.status_label_vps_vpn = tk.Label(frame_vps_vpn, text="Aguarde...", bg='lightgray', justify=tk.CENTER)
         self.status_label_vps_vpn.pack(side=tk.LEFT)
 
         # Label e valor para VPS JOGO
         frame_vps_jogo = tk.Frame(self.top_frame, bg='lightgray')
         frame_vps_jogo.grid(row=0, column=2, padx=5, pady=5, sticky=tk.E+tk.W)
-        btn_vps_jogo = tk.Button(frame_vps_jogo, text=" VPS  JOGO: ", bg='lightgray', justify=tk.CENTER, command=self.abrir_arquivo_vps_jogo).pack(side=tk.LEFT)
+        btn_vps_jogo = tk.Button(frame_vps_jogo, text=" VPS  JOGO: ", bg='lightgray', justify=tk.CENTER, command=self.abrir_arquivo_vps_jogo, width=9, height=1).pack(side=tk.LEFT)
         self.status_label_vps_jogo = tk.Label(frame_vps_jogo, text="Aguarde...", bg='lightgray', justify=tk.CENTER)
         self.status_label_vps_jogo.pack(side=tk.LEFT)
 
         # Label (aparência de botão) para OMR VPN
         frame_omr_vpn = tk.Frame(self.top_frame, bg='lightgray')
         frame_omr_vpn.grid(row=1, column=1, padx=5, pady=5, sticky=tk.E+tk.W)
-        btn_omr_vpn = tk.Button(frame_omr_vpn, text="OMR VPN:", bg='lightgray', justify=tk.CENTER, command=self.open_OMR_VPN)
+        btn_omr_vpn = tk.Button(frame_omr_vpn, text="OMR VPN:", bg='lightgray', justify=tk.CENTER, command=self.open_OMR_VPN, width=9, height=1)
         btn_omr_vpn.pack(side=tk.LEFT)
         self.status_label_omr_vpn = tk.Label(frame_omr_vpn, text="Aguarde...", bg='lightgray', fg='black', justify=tk.CENTER)
         self.status_label_omr_vpn.pack(side=tk.LEFT)
@@ -245,7 +244,7 @@ class ButtonManager:
         # Label (aparência de botão) para OMR JOGO
         frame_omr_jogo = tk.Frame(self.top_frame, bg='lightgray')
         frame_omr_jogo.grid(row=1, column=2, padx=5, pady=5, sticky=tk.E+tk.W)
-        btn_omr_jogo = tk.Button(frame_omr_jogo, text="OMR JOGO:", bg='lightgray', justify=tk.CENTER, command=self.open_OMR_JOGO)
+        btn_omr_jogo = tk.Button(frame_omr_jogo, text="OMR JOGO:", bg='lightgray', justify=tk.CENTER, command=self.open_OMR_JOGO, width=9, height=1)
         btn_omr_jogo.pack(side=tk.LEFT)
         self.status_label_omr_jogo = tk.Label(frame_omr_jogo, text="Aguarde...", bg='lightgray', fg='black', justify=tk.CENTER)
         self.status_label_omr_jogo.pack(side=tk.LEFT)
@@ -253,16 +252,16 @@ class ButtonManager:
         # Frame para VM VPN com fundo lightgray
         frame_vm_vpn = tk.Frame(self.top_frame, bg='lightgray')
         frame_vm_vpn.grid(row=2, column=1, padx=5, pady=5, sticky=tk.E+tk.W)
-        label_vm_vpn = tk.Button(frame_vm_vpn, text="VM VPN:", bg='lightgray', justify=tk.CENTER, borderwidth=2, relief=tk.RAISED)
-        label_vm_vpn.pack(side=tk.LEFT)
+        self.label_vm_vpn = tk.Button(frame_vm_vpn, text="VM VPN:", bg='lightgray', justify=tk.CENTER, borderwidth=2, relief=tk.RAISED, command=self.show_vm_vpn_menu, width=9, height=1)
+        self.label_vm_vpn.pack(side=tk.LEFT)
         self.value_vm_vpn = tk.Label(frame_vm_vpn, text="Aguarde...", bg='lightgray', justify=tk.CENTER)
         self.value_vm_vpn.pack(side=tk.LEFT)
 
         # Frame para VM JOGO com fundo lightgray
         frame_vm_jogo = tk.Frame(self.top_frame, bg='lightgray')
         frame_vm_jogo.grid(row=2, column=2, padx=5, pady=5, sticky=tk.E+tk.W)
-        label_vm_jogo = tk.Button(frame_vm_jogo, text="VM JOGO:", bg='lightgray', justify=tk.CENTER, borderwidth=2, relief=tk.RAISED)
-        label_vm_jogo.pack(side=tk.LEFT)
+        self.label_vm_jogo = tk.Button(frame_vm_jogo, text="VM JOGO:", bg='lightgray', justify=tk.CENTER, borderwidth=2, relief=tk.RAISED, command=self.show_vm_jogo_menu, width=9, height=1)
+        self.label_vm_jogo.pack(side=tk.LEFT)
         self.value_vm_jogo = tk.Label(frame_vm_jogo, text="Aguarde...", bg='lightgray', justify=tk.CENTER)
         self.value_vm_jogo.pack(side=tk.LEFT)
 
@@ -430,10 +429,39 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 65.4", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 65.5", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
-#LOGICA PARA EXIBIR STATUS DAS VMS
+#LOGICA PARA EXIBIR STATUS E MENUS DAS VMS
+    # Configura menus nos botões de VMs
+    def show_vm_vpn_menu(self):
+        self.show_vm_menu(self.vm_names['vpn'])
+
+    def show_vm_jogo_menu(self):
+        self.show_vm_menu(self.vm_names['jogo'])
+
+    def show_vm_menu(self, vm_name):
+        menu = Menu(self.master, tearoff=0)
+        menu.add_command(label="Desligar", command=lambda: self.run_command("acpipowerbutton", vm_name))
+        menu.add_command(label="Forçar Desligamento", command=lambda: self.run_command("poweroff", vm_name))
+        menu.add_command(label="Ligar", command=lambda: self.run_command("startvm", vm_name))
+        menu.post(self.master.winfo_pointerx(), self.master.winfo_pointery())
+
+    def run_command(self, action, vm_name):
+        commands = {
+            "acpipowerbutton": f'"C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe" controlvm "{vm_name}" acpipowerbutton',
+            "poweroff": f'"C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe" controlvm "{vm_name}" poweroff',
+            "startvm": f'"C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe" startvm "{vm_name}" --type headless'
+        }
+        command = commands.get(action)
+        if command:
+            try:
+                subprocess.run(command, shell=True, check=True)
+                logging.info(f"Comando '{command}' executado com sucesso.")
+            except subprocess.CalledProcessError as e:
+                logging.error(f"Erro ao executar o comando: {e}")
+
+    # Carrega os nomes das VMs    
     def load_vm_names(self):
         if os.path.exists(self.vm_config_file):
             with open(self.vm_config_file, 'r') as file:
@@ -443,6 +471,7 @@ class ButtonManager:
         else:
             print(f"Arquivo de configuração '{self.vm_config_file}' não encontrado.")
 
+    # Função que fas o monitoramento das VMs
     def update_vm_status(self):
         # Função que executa o comando para VM VPN e VM JOGO
         def get_vm_state(vm_name):
@@ -1982,8 +2011,8 @@ class OMRManagerDialog:
         self.tabs.add(aba2, text="Configurações de Ping")
 
         # Frame com borda
-        frame = tk.Frame(aba2, bd=2, relief=tk.RAISED)
-        frame.pack(padx=10, pady=10)
+        frame = tk.Frame(aba2, bd=2, borderwidth=1, relief=tk.RAISED)
+        frame.pack(padx=10, pady=10, fill=tk.BOTH)
 
         # Carregar endereços
         self.load_addresses()
@@ -2012,6 +2041,7 @@ class OMRManagerDialog:
         save_button = tk.Button(frame, text="Salvar", command=self.save_addresses)
         save_button.grid(row=4, column=0, columnspan=2, pady=10)
 
+        # Terceira aba Configurações de VMs.
         aba3 = ttk.Frame(self.tabs)
         self.tabs.add(aba3, text="Configurações de VMs")
 
@@ -2425,7 +2455,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 65.4 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 65.5 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
