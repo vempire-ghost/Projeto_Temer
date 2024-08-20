@@ -15,6 +15,7 @@ import socket
 import sys
 import webview
 import logging
+import winreg
 from datetime import datetime
 from PIL import Image, ImageTk
 # Configuração básica do logging para salvar em arquivo
@@ -32,6 +33,10 @@ class ButtonManager:
         self.second_tab_button_frame = None
         self.button_counter = 1  # Inicializa o contador de botões
         self.load_window_position()
+
+        # Verifica se o Bitvise e o VirtualBox estão instalados
+        self.check_software_installation()
+        
         #Carrega nome das VMs
         self.vm_config_file = "vm_config.json"  # Caminho para o arquivo JSON
         self.vm_names = {
@@ -67,7 +72,53 @@ class ButtonManager:
             os.makedirs('imagens')
 
         self.clear_log_file()  # Limpa o arquivo de log ao iniciar o programa
+
+    # Função para verificar instalação de programas necessarios para o funcionamento do sistema
+    def check_software_installation(self):
+        """Verifica se o Bitvise e o VirtualBox estão instalados no sistema."""
+        bitvise_installed = self.is_program_installed("BvSsh.exe")
+        virtualbox_installed = self.is_program_installed("VirtualBox.exe", check_registry=True)
+        
+        if not bitvise_installed or not virtualbox_installed:
+            missing_programs = []
+            if not bitvise_installed:
+                missing_programs.append("Bitvise")
+            if not virtualbox_installed:
+                missing_programs.append("VirtualBox")
             
+            messagebox.showwarning("Programas faltando", f"Os seguintes programas não estão instalados: {', '.join(missing_programs)}. Por favor, instale-os para continuar.")
+
+    def is_program_installed(self, program_name, check_registry=False):
+        """Verifica se um programa está instalado, buscando pelo nome do executável ou no registro."""
+        if check_registry:
+            try:
+                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Oracle\VirtualBox")
+                values = []
+                i = 0
+                while True:
+                    try:
+                        value = winreg.EnumValue(key, i)
+                        values.append(value)
+                        i += 1
+                    except OSError:
+                        break
+                winreg.CloseKey(key)
+                print("Valores na chave de registro do VirtualBox:")
+                for v in values:
+                    print(v)
+                # Retorna verdadeiro se encontrou a chave, o que indica que o VirtualBox está instalado
+                return True
+            except FileNotFoundError:
+                return False
+
+        # Verifica nos diretórios do PATH
+        for path in os.environ["PATH"].split(os.pathsep):
+            full_path = os.path.join(path, program_name)
+            if os.path.isfile(full_path) and os.access(full_path, os.X_OK):
+                return True
+        
+        return False
+         
     # Cria um botão de menu no canto superior esquerdo
     def create_menu_button(self):
         menu_bar = tk.Menu(self.master)
@@ -429,7 +480,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 65.5", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 65.6", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 #LOGICA PARA EXIBIR STATUS E MENUS DAS VMS
@@ -2455,7 +2506,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 65.5 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 65.6 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
