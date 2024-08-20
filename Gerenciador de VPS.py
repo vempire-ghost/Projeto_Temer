@@ -35,7 +35,8 @@ class ButtonManager:
         self.load_window_position()
 
         # Verifica se o Bitvise e o VirtualBox estão instalados
-        self.check_software_installation()
+        if not self.check_software_installation():
+            return  # Interrompe a execução do restante do __init__ se a checagem falhar
         
         #Carrega nome das VMs
         self.vm_config_file = "vm_config.json"  # Caminho para o arquivo JSON
@@ -86,7 +87,13 @@ class ButtonManager:
             if not virtualbox_installed:
                 missing_programs.append("VirtualBox")
             
-            messagebox.showwarning("Programas faltando", f"Os seguintes programas não estão instalados: {', '.join(missing_programs)}. Por favor, instale-os para continuar.")
+            # Exibe a mensagem com opção para fechar o programa
+            msg = f"Os seguintes programas não estão instalados: {', '.join(missing_programs)}. Por favor, instale-os para continuar."
+            if messagebox.askokcancel("Programas faltando", msg, icon="warning"):
+                self.master.destroy()  # Fecha a janela principal, encerrando o programa
+                return False  # Retorna False para indicar falha na checagem
+        
+        return True  # Retorna True para indicar que a checagem foi bem-sucedida
 
     def is_program_installed(self, program_name, check_registry=False):
         """Verifica se um programa está instalado, buscando pelo nome do executável ou no registro."""
@@ -188,6 +195,7 @@ class ButtonManager:
         self.save_window_position()
         self.save_color_map()  # Salva o mapeamento de cores
         self.master.destroy()
+        return
 
     def get_drive_letter(self):
         """Retorna a letra da unidade onde o script está sendo executado."""
@@ -480,7 +488,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 65.6", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 65.7", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 #LOGICA PARA EXIBIR STATUS E MENUS DAS VMS
@@ -2506,7 +2514,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 65.6 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 65.7 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
