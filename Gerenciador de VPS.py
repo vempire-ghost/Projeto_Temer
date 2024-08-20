@@ -32,6 +32,12 @@ class ButtonManager:
         self.second_tab_button_frame = None
         self.button_counter = 1  # Inicializa o contador de botões
         self.load_window_position()
+        #Carrega nome das VMs
+        self.vm_config_file = "vm_config.json"  # Caminho para o arquivo JSON
+        self.vm_names = {
+            "vpn": "OpenMPTCP_OCI",
+            "jogo": "OpenMPTCP"
+        }
         self.create_widgets()
         self.load_buttons()
         self.load_color_map()  # Carrega o mapeamento de cores
@@ -244,23 +250,24 @@ class ButtonManager:
         self.status_label_omr_jogo = tk.Label(frame_omr_jogo, text="Aguarde...", bg='lightgray', fg='black', justify=tk.CENTER)
         self.status_label_omr_jogo.pack(side=tk.LEFT)
 
-        # Frame para VM VPN (nova linha) com fundo lightgray
+        # Frame para VM VPN com fundo lightgray
         frame_vm_vpn = tk.Frame(self.top_frame, bg='lightgray')
         frame_vm_vpn.grid(row=2, column=1, padx=5, pady=5, sticky=tk.E+tk.W)
-        label_vm_vpn = tk.Label(frame_vm_vpn, text="VM VPN:", bg='lightgray', justify=tk.CENTER, borderwidth=2, relief=tk.RAISED)
+        label_vm_vpn = tk.Button(frame_vm_vpn, text="VM VPN:", bg='lightgray', justify=tk.CENTER, borderwidth=2, relief=tk.RAISED)
         label_vm_vpn.pack(side=tk.LEFT)
         self.value_vm_vpn = tk.Label(frame_vm_vpn, text="Aguarde...", bg='lightgray', justify=tk.CENTER)
         self.value_vm_vpn.pack(side=tk.LEFT)
 
-        # Frame para VM JOGO (nova linha) com fundo lightgray
+        # Frame para VM JOGO com fundo lightgray
         frame_vm_jogo = tk.Frame(self.top_frame, bg='lightgray')
         frame_vm_jogo.grid(row=2, column=2, padx=5, pady=5, sticky=tk.E+tk.W)
-        label_vm_jogo = tk.Label(frame_vm_jogo, text="VM JOGO:", bg='lightgray', justify=tk.CENTER, borderwidth=2, relief=tk.RAISED)
+        label_vm_jogo = tk.Button(frame_vm_jogo, text="VM JOGO:", bg='lightgray', justify=tk.CENTER, borderwidth=2, relief=tk.RAISED)
         label_vm_jogo.pack(side=tk.LEFT)
         self.value_vm_jogo = tk.Label(frame_vm_jogo, text="Aguarde...", bg='lightgray', justify=tk.CENTER)
         self.value_vm_jogo.pack(side=tk.LEFT)
 
-        # Iniciar a atualização dos valores das VMs
+        # Carregar os nomes da VMs e iniciar a atualização dos valores das VMs
+        self.load_vm_names()
         self.update_vm_status()
 
         # Cria o Notebook
@@ -423,10 +430,19 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 65.3", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 65.4", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 #LOGICA PARA EXIBIR STATUS DAS VMS
+    def load_vm_names(self):
+        if os.path.exists(self.vm_config_file):
+            with open(self.vm_config_file, 'r') as file:
+                config = json.load(file)
+                self.vm_names['vpn'] = config.get('vm_vpn_name', self.vm_names['vpn'])
+                self.vm_names['jogo'] = config.get('vm_jogo_name', self.vm_names['jogo'])
+        else:
+            print(f"Arquivo de configuração '{self.vm_config_file}' não encontrado.")
+
     def update_vm_status(self):
         # Função que executa o comando para VM VPN e VM JOGO
         def get_vm_state(vm_name):
@@ -454,13 +470,8 @@ class ButtonManager:
                 label.config(text=state, fg="black")
 
         def threaded_update():
-            # Nomes das VMs
-            vm_vpn_name = "OpenMPTCP_OCI"
-            vm_jogo_name = "OpenMPTCP"
-
-            vpn_state = get_vm_state(vm_vpn_name)
-            jogo_state = get_vm_state(vm_jogo_name)
-
+            vpn_state = get_vm_state(self.vm_names['vpn'])
+            jogo_state = get_vm_state(self.vm_names['jogo'])
             # Atualiza as labels na thread principal
             self.master.after(0, lambda: update_label(self.value_vm_vpn, vpn_state))
             self.master.after(0, lambda: update_label(self.value_vm_jogo, jogo_state))
@@ -2001,7 +2012,62 @@ class OMRManagerDialog:
         save_button = tk.Button(frame, text="Salvar", command=self.save_addresses)
         save_button.grid(row=4, column=0, columnspan=2, pady=10)
 
+        aba3 = ttk.Frame(self.tabs)
+        self.tabs.add(aba3, text="Configurações de VMs")
+
+        # Frame para configurações de VMs na aba 3
+        frame_vm_config = tk.Frame(aba3, borderwidth=1, relief=tk.RAISED)
+        frame_vm_config.pack(padx=10, pady=10, fill=tk.BOTH)
+
+        tk.Label(frame_vm_config, text="Nome da VM VPN:").grid(row=0, column=0, sticky=tk.W)
+        self.vm_vpn_name_entry = tk.Entry(frame_vm_config, width=30)
+        self.vm_vpn_name_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        tk.Label(frame_vm_config, text="Nome da VM JOGO:").grid(row=1, column=0, sticky=tk.W)
+        self.vm_jogo_name_entry = tk.Entry(frame_vm_config, width=30)
+        self.vm_jogo_name_entry.grid(row=1, column=1, padx=5, pady=5)
+
+        save_button = tk.Button(frame_vm_config, text="Salvar", command=self.save_vm_names)
+        save_button.grid(row=2, column=0, columnspan=2, pady=10)
+
+        # Carregar nomes das VMs ao inicializar
+        self.load_vm_names()
+
         self.top.protocol("WM_DELETE_WINDOW", self.on_close)
+
+#METODO PARA SALVAR NOME DAS VMS NA TERCEIRA ABA
+    def save_vm_names(self):
+        vm_vpn_name = self.vm_vpn_name_entry.get().strip()
+        vm_jogo_name = self.vm_jogo_name_entry.get().strip()
+
+        if vm_vpn_name and vm_jogo_name:
+            vm_names = {
+                'vm_vpn_name': vm_vpn_name,
+                'vm_jogo_name': vm_jogo_name
+            }
+            with open("vm_config.json", 'w') as file:
+                json.dump(vm_names, file, indent=4)
+            print("Nomes das VMs salvos com sucesso.")
+        else:
+            print("Por favor, insira todos os nomes das VMs.")
+
+    def load_vm_names(self):
+        try:
+            with open("vm_config.json", 'r') as file:
+                vm_names = json.load(file)
+                self.vm_vpn_name_entry.delete(0, tk.END)
+                self.vm_vpn_name_entry.insert(0, vm_names.get('vm_vpn_name', ''))
+                self.vm_jogo_name_entry.delete(0, tk.END)
+                self.vm_jogo_name_entry.insert(0, vm_names.get('vm_jogo_name', ''))
+        except FileNotFoundError:
+            # Arquivo não encontrado, deixar os campos vazios
+            self.vm_vpn_name_entry.delete(0, tk.END)
+            self.vm_jogo_name_entry.delete(0, tk.END)
+        except json.JSONDecodeError:
+            # Arquivo JSON inválido, deixar os campos vazios
+            self.vm_vpn_name_entry.delete(0, tk.END)
+            self.vm_jogo_name_entry.delete(0, tk.END)
+
 
 #Métodos para a segunda aba (Configurações de Ping)
     def load_addresses(self):
@@ -2359,7 +2425,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 65.3 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 65.4 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
