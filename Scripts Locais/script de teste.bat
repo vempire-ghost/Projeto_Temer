@@ -7,6 +7,7 @@ echo vbox.exe machin gun
 echo vbox.exe machin gumer
 echo     "lifecycle"
 echo     "display-name"
+echo Conectando Google US Central
 timeout 5
 timeout 2
 timeout 4

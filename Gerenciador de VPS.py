@@ -488,7 +488,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 65.8", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 65.9", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 #LOGICA PARA EXIBIR STATUS E MENUS DAS VMS
@@ -1167,6 +1167,7 @@ class ButtonManager:
             if self.script_finished:
                 self.general_status_frame.config(bg="yellow")
                 self.general_status_label.config(text="Conectando", bg="yellow", fg="black")
+                self.display_connection_status("Conectando")  # Atualiza para "Conectando"
             else:
                 self.general_status_frame.config(bg="red")
                 self.general_status_label.config(text="Desconectado", bg="red", fg="black")
@@ -1175,6 +1176,7 @@ class ButtonManager:
                 self.general_status_frame.config(bg="green")
                 self.general_status_label.config(text="Conectado", bg="green", fg="black")
                 self.script_finished = False
+                self.display_connection_status("Conectado")  # Atualiza para "Conectado"
             else:
                 self.general_status_frame.config(bg="yellow")
                 self.general_status_label.config(text="Conectando", bg="yellow", fg="black")
@@ -1188,6 +1190,18 @@ class ButtonManager:
         if self.script_finished:
             self.general_status_frame.config(bg="yellow")
             self.general_status_label.config(text="Conectando", bg="yellow", fg="black")
+            self.display_connection_status("Conectando")  # Atualiza para "Conectando"
+
+    def display_connection_status(self, status):
+        try:
+            with open("conection_status.txt", "r") as connection_file:
+                lines = connection_file.readlines()
+                if status == "Conectando":
+                    self.general_status_label.config(text=lines[0].strip())
+                elif status == "Conectado":
+                    self.general_status_label.config(text=lines[1].strip())
+        except FileNotFoundError:
+            pass  # O arquivo não existe, então não há nada para mostrar
 
 #LOGICA PARA ADICIONAR BOTÕES A SEGUNDA ABA.
     def add_new_button_tab2(self):
@@ -1684,6 +1698,13 @@ class ButtonManager:
 
                             if "PROCESSO CONCLUIDO" in line:
                                 self.start_monitoring_delay()
+
+                            # Verifica se a linha começa com "Conectando" e atualizando status da conexão com o servidor correspondente.
+                            if line.startswith("Conectando"):
+                                connection_target = line[len("Conectando"):].strip()
+                                with open("conection_status.txt", "w") as connection_file:
+                                    connection_file.write(f"Conectando a {connection_target}\n")
+                                    connection_file.write(f"Conectado a {connection_target}\n")
                     
                             for value, color in self.color_map.items():
                                 if line.startswith(value):
@@ -2566,7 +2587,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 65.8 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 65.9 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
