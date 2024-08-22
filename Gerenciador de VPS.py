@@ -335,16 +335,26 @@ class ButtonManager:
         # Configura o peso das colunas para expandir uniformemente
         self.status_frame.grid_columnconfigure((0, 1, 2), weight=1)
 
-        # Label para Unifique
-        self.unifique_status = tk.Label(self.status_frame, text="UNIFIQUE: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID)
+        # Funções para os botões de teste
+        def test_unifique():
+            self.run_test_command('eth2', 'UNIFIQUE')
+
+        def test_claro():
+            self.run_test_command('eth4', 'CLARO')
+
+        def test_coopera():
+            self.run_test_command('eth5', 'COOPERA')
+
+        # Botão para Unifique
+        self.unifique_status = tk.Button(self.status_frame, text="UNIFIQUE: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=2, relief=tk.SOLID, command=test_unifique)
         self.unifique_status.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
 
-        # Label para Claro
-        self.claro_status = tk.Label(self.status_frame, text="CLARO: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID)
+        # Botão para Claro
+        self.claro_status = tk.Button(self.status_frame, text="CLARO: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=2, relief=tk.SOLID, command=test_claro)
         self.claro_status.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
 
-        # Label para Coopera
-        self.coopera_status = tk.Label(self.status_frame, text="COOPERA: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID)
+        # Botão para Coopera
+        self.coopera_status = tk.Button(self.status_frame, text="COOPERA: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=2, relief=tk.SOLID, command=test_coopera)
         self.coopera_status.grid(row=0, column=2, padx=5, pady=5, sticky=tk.W)
 
         # Inicia atualização do status das conexões.
@@ -510,31 +520,67 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.1", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
-    def run_test_command(self, interface):
-        # Comando dividido em uma lista com cada parte do comando
-        command = [
-            "start", "/B", "sexec",
-            "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp",
-            "--", "curl", "--interface", interface, "ipinfo.io"
-        ]
-    
-        print(f"Executando comando: {' '.join(command)}")  # Debug: Exibe o comando que está sendo executado
-        process = subprocess.run(command, capture_output=True, text=True, shell=True)
-    
-        print(f"Saída do comando para {interface}: {process.stdout}")  # Debug: Exibe a saída do comando
-        return process.stdout
+    def run_test_command(self, interface, status_label):
+        # Função para executar o comando e atualizar o label
+        def thread_function():
+            command = f'start /B sexec -profile="J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp" -- curl --interface {interface} ipinfo.io'
+            #print(f"Executando comando: {command}")
+            try:
+                # Executa o comando e captura a saída
+                process = subprocess.run(command, capture_output=True, text=True, shell=True)
+                output = process.stdout
+                #print(f"Saída do comando: {output}")
+
+                if output is None:
+                    #print(f"Erro: A saída do comando é None.")
+                    return
+
+                # Atualiza o status com base na saída
+                if status_label == 'UNIFIQUE':
+                    if "UNIFIQUE" in output:
+                        self.unifique_status.config(text="UNIFIQUE: Online", bg='green')
+                    else:
+                        self.unifique_status.config(text="UNIFIQUE: Offline", bg='red')
+                elif status_label == 'CLARO':
+                    if "CLARO" in output:
+                        self.claro_status.config(text="CLARO: Online", bg='green')
+                    else:
+                        self.claro_status.config(text="CLARO: Offline", bg='red')
+                elif status_label == 'COOPERA':
+                    if "COOPERA" in output:
+                        self.coopera_status.config(text="COOPERA: Online", bg='green')
+                    else:
+                        self.coopera_status.config(text="COOPERA: Offline", bg='red')
+            except Exception as e:
+                print(f"Erro ao executar comando: {e}")
+
+        # Cria e inicia a thread
+        test_thread = threading.Thread(target=thread_function)
+        test_thread.start()
 
     def check_status(self):
-        def check_interface_status(interface, label, name):
-            output = self.run_test_command(interface)
-            if name in output:
-                label.config(text=f"{name}: Online", bg='green')
-            else:
-                label.config(text=f"{name}: Offline", bg='red')
+        def check_interface_status(interface, button, name):
+            def thread_function():
+                try:
+                    output = self.run_test_command(interface, name)
+                    if output is None:
+                        #print(f"Erro: A saída do comando é None.")
+                        return
+
+                    if name in output:
+                        button.config(text=f"{name}: Online", bg='green')
+                    else:
+                        button.config(text=f"{name}: Offline", bg='red')
+                except Exception as e:
+                    print(f"Erro ao verificar status: {e}")
+
+            # Cria e inicia a thread
+            check_thread = threading.Thread(target=thread_function)
+            check_thread.start()
 
         # Cria uma thread para cada interface
         threading.Thread(target=check_interface_status, args=('eth2', self.unifique_status, 'UNIFIQUE')).start()
@@ -2649,7 +2695,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 66 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 66.1 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
