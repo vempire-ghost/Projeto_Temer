@@ -328,6 +328,28 @@ class ButtonManager:
         self.load_vm_names()
         self.update_vm_status()
 
+        # Frame de status
+        self.status_frame = tk.Frame(self.master, bg='lightgray', borderwidth=1, relief=tk.RAISED)
+        self.status_frame.pack(side=tk.TOP, fill=tk.X)
+
+        # Configura o peso das colunas para expandir uniformemente
+        self.status_frame.grid_columnconfigure((0, 1, 2), weight=1)
+
+        # Label para Unifique
+        self.unifique_status = tk.Label(self.status_frame, text="UNIFIQUE: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID)
+        self.unifique_status.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
+
+        # Label para Claro
+        self.claro_status = tk.Label(self.status_frame, text="CLARO: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID)
+        self.claro_status.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
+
+        # Label para Coopera
+        self.coopera_status = tk.Label(self.status_frame, text="COOPERA: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID)
+        self.coopera_status.grid(row=0, column=2, padx=5, pady=5, sticky=tk.W)
+
+        # Inicia atualização do status das conexões.
+        self.update_status_labels()
+
         # Cria o Notebook
         self.notebook = ttk.Notebook(self.master)
         self.notebook.pack(expand=1, fill='both')
@@ -488,8 +510,41 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 65.9", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
+
+# LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
+    def run_test_command(self, interface):
+        # Comando dividido em uma lista com cada parte do comando
+        command = [
+            "start", "/B", "sexec",
+            "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp",
+            "--", "curl", "--interface", interface, "ipinfo.io"
+        ]
+    
+        print(f"Executando comando: {' '.join(command)}")  # Debug: Exibe o comando que está sendo executado
+        process = subprocess.run(command, capture_output=True, text=True, shell=True)
+    
+        print(f"Saída do comando para {interface}: {process.stdout}")  # Debug: Exibe a saída do comando
+        return process.stdout
+
+    def check_status(self):
+        def check_interface_status(interface, label, name):
+            output = self.run_test_command(interface)
+            if name in output:
+                label.config(text=f"{name}: Online", bg='green')
+            else:
+                label.config(text=f"{name}: Offline", bg='red')
+
+        # Cria uma thread para cada interface
+        threading.Thread(target=check_interface_status, args=('eth2', self.unifique_status, 'UNIFIQUE')).start()
+        threading.Thread(target=check_interface_status, args=('eth4', self.claro_status, 'CLARO')).start()
+        threading.Thread(target=check_interface_status, args=('eth5', self.coopera_status, 'COOPERA')).start()
+
+    def update_status_labels(self):
+        # Atualiza os labels a cada 30 segundos
+        self.check_status()
+        self.master.after(30000, self.update_status_labels)
 
 #LOGICA PARA EXIBIR STATUS E MENUS DAS VMS
     # Configura menus nos botões de VMs
@@ -547,13 +602,19 @@ class ButtonManager:
 
         def update_label(label, state):
             if state == "stopping":
-                label.config(text="Parando", fg="blue")
+                label.config(text="Desligando", fg="blue")
             elif state == "starting":
-                label.config(text="Iniciando", fg="blue")
+                label.config(text="Ligando", fg="blue")
             elif state == "running":
                 label.config(text="Ligado", fg="green")
             elif state == "poweroff":
                 label.config(text="Desligado", fg="red")
+            elif state == "saved":
+                label.config(text="Salva", fg="red")
+            elif state == "restoring":
+                label.config(text="Restaurando", fg="blue")
+            elif state == "saving":
+                label.config(text="Salvando", fg="blue")
             else:
                 label.config(text=state, fg="black")
 
@@ -1181,6 +1242,7 @@ class ButtonManager:
                 self.general_status_frame.config(bg="yellow")
                 self.general_status_label.config(text="Conectando", bg="yellow", fg="black")
                 self.script_finished = False
+                self.display_connection_status("Conectando")  # Atualiza para "Conectando"
         else:
             self.general_status_frame.config(bg="red")
             self.general_status_label.config(text="Desconectado", bg="red", fg="black")
@@ -2587,7 +2649,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 65.9 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 66 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
