@@ -488,7 +488,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 65.7", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 65.8", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 #LOGICA PARA EXIBIR STATUS E MENUS DAS VMS
@@ -760,6 +760,19 @@ class ButtonManager:
                         logging.error("Primeira falha na conexão com o Glorytun VPN. Reiniciando imediatamente...")
                         first_failure_vpn = False
                         try:
+                            # Reinicia o omr-tracker antes do Glorytun VPN
+                            subprocess.Popen(
+                                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"],
+                                shell=True
+                            )
+                            logging.info("Comando de reinício do omr-tracker executado.")
+
+                            # Aguarda 5 segundos, verificando se ainda deve continuar
+                            for _ in range(5):
+                                if not self.monitor_xray:
+                                    return
+                                time.sleep(1)
+
                             subprocess.Popen(
                                 ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/glorytun", "restart"],
                                 shell=True
@@ -781,6 +794,19 @@ class ButtonManager:
             if status_vpn == "OFF":
                 logging.error("Falha na conexão com o Glorytun VPN após 6 tentativas. Executando o comando de reinício do Glorytun novamente...")
                 try:
+                    # Reinicia o omr-tracker antes do Glorytun VPN
+                    subprocess.Popen(
+                        ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"],
+                        shell=True
+                    )
+                    logging.info("Comando de reinício do omr-tracker executado.")
+
+                    # Aguarda 5 segundos, verificando se ainda deve continuar
+                    for _ in range(5):
+                        if not self.monitor_xray:
+                            return
+                        time.sleep(1)
+
                     subprocess.Popen(
                         ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/glorytun", "restart"],
                         shell=True
@@ -799,6 +825,19 @@ class ButtonManager:
                         logging.error("Primeira falha na conexão com o Xray Jogo. Reiniciando imediatamente...")
                         first_failure_xray = False
                         try:
+                            # Reinicia o omr-tracker antes do Xray Jogo
+                            subprocess.Popen(
+                                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"],
+                                shell=True
+                            )
+                            logging.info("Comando de reinício do omr-tracker executado.")
+
+                            # Aguarda 5 segundos, verificando se ainda deve continuar
+                            for _ in range(5):
+                                if not self.monitor_xray:
+                                    return
+                                time.sleep(1)
+
                             subprocess.Popen(
                                 ["cmd", "/c", "start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/xray", "restart"],
                                 shell=True
@@ -820,6 +859,19 @@ class ButtonManager:
             if status_xray == "OFF":
                 logging.error("Falha na conexão com o Xray Jogo após 4 tentativas. Executando o comando de reinício do Xray novamente...")
                 try:
+                    # Reinicia o omr-tracker antes do Xray Jogo
+                    subprocess.Popen(
+                        ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"],
+                        shell=True
+                    )
+                    logging.info("Comando de reinício do omr-tracker executado.")
+
+                    # Aguarda 5 segundos, verificando se ainda deve continuar
+                    for _ in range(5):
+                        if not self.monitor_xray:
+                            return
+                        time.sleep(1)
+
                     subprocess.Popen(
                         ["cmd", "/c", "start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/xray", "restart"],
                         shell=True
@@ -2514,7 +2566,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 65.7 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 65.8 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
