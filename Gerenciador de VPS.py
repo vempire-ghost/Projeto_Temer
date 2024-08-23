@@ -346,15 +346,15 @@ class ButtonManager:
             self.run_test_command('eth5', 'COOPERA')
 
         # Botão para Unifique
-        self.unifique_status = tk.Button(self.status_frame, text="UNIFIQUE: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=2, relief=tk.SOLID, command=test_unifique)
+        self.unifique_status = tk.Button(self.status_frame, text="UNIFIQUE: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=test_unifique)
         self.unifique_status.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
 
         # Botão para Claro
-        self.claro_status = tk.Button(self.status_frame, text="CLARO: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=2, relief=tk.SOLID, command=test_claro)
+        self.claro_status = tk.Button(self.status_frame, text="CLARO: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=test_claro)
         self.claro_status.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
 
         # Botão para Coopera
-        self.coopera_status = tk.Button(self.status_frame, text="COOPERA: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=2, relief=tk.SOLID, command=test_coopera)
+        self.coopera_status = tk.Button(self.status_frame, text="COOPERA: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=test_coopera)
         self.coopera_status.grid(row=0, column=2, padx=5, pady=5, sticky=tk.W)
 
         # Inicia atualização do status das conexões.
