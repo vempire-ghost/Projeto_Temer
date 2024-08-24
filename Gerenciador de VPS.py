@@ -520,7 +520,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
@@ -528,30 +528,33 @@ class ButtonManager:
         # Função para executar o comando e atualizar o label
         def thread_function():
             command = f'start /B sexec -profile="J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp" -- curl --interface {interface} ipinfo.io'
-            #print(f"Executando comando: {command}")
+            print(f"Executando comando: {command}")
             try:
                 # Executa o comando e captura a saída
                 process = subprocess.run(command, capture_output=True, text=True, shell=True)
                 output = process.stdout
-                #print(f"Saída do comando: {output}")
+                print(f"Saída do comando: {output}")
 
                 if output is None:
                     #print(f"Erro: A saída do comando é None.")
                     return
 
+                # Convertendo a saída para minúsculas
+                output_lower = output.lower()
+
                 # Atualiza o status com base na saída
                 if status_label == 'UNIFIQUE':
-                    if "UNIFIQUE" in output:
+                    if "unifique" in output_lower:
                         self.unifique_status.config(text="UNIFIQUE: Online", bg='green')
                     else:
                         self.unifique_status.config(text="UNIFIQUE: Offline", bg='red')
                 elif status_label == 'CLARO':
-                    if "CLARO" in output:
+                    if "claro" in output_lower:
                         self.claro_status.config(text="CLARO: Online", bg='green')
                     else:
                         self.claro_status.config(text="CLARO: Offline", bg='red')
                 elif status_label == 'COOPERA':
-                    if "COOPERA" in output:
+                    if "coopera" in output_lower:
                         self.coopera_status.config(text="COOPERA: Online", bg='green')
                     else:
                         self.coopera_status.config(text="COOPERA: Offline", bg='red')
@@ -2695,7 +2698,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 66.1 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 66.2 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
