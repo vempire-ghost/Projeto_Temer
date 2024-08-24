@@ -996,8 +996,8 @@ class ButtonManager:
                     )
                     logger_main.info("Comando de reinício do omr-tracker executado.")
 
-                    # Aguarda 20 segundos, verificando se ainda deve continuar
-                    for _ in range(20):
+                    # Aguarda 5 segundos, verificando se ainda deve continuar
+                    for _ in range(5):
                         if not self.monitor_xray:
                             return
                         time.sleep(1)
@@ -1027,8 +1027,8 @@ class ButtonManager:
                             )
                             logger_main.info("Comando de reinício do omr-tracker executado.")
 
-                            # Aguarda 5 segundos, verificando se ainda deve continuar
-                            for _ in range(5):
+                            # Aguarda 20 segundos, verificando se ainda deve continuar
+                            for _ in range(20):
                                 if not self.monitor_xray:
                                     return
                                 time.sleep(1)
