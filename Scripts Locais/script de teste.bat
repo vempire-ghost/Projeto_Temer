@@ -8,6 +8,7 @@ echo vbox.exe machin gumer
 echo     "lifecycle"
 echo     "display-name"
 echo Conectando Google US Central
+echo DESLIGAMENTO CONCLUIDO
 timeout 5
 timeout 2
 timeout 4

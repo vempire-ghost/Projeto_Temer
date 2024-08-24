@@ -45,6 +45,7 @@ class ButtonManager:
         self.script_finished = False  # Inicializa a variável de controle para o término do script
         self.monitor_xray = False # Variável para rastrear o estado do monitoramento do Xray JOGO
         self.botao_monitorar_xray = True  # Variável para rastrear o estado do botão monitoramento do Xray JOGO
+        self.verificar_vm = True  # Variável que controla a verificação das VMs
         self.thread = None
         self.buttons = []
         self.button_frame = None
@@ -174,8 +175,8 @@ class ButtonManager:
         self.master.wait_window(dialog.top)
 
     def open_omr_manager(self):
-        dialog = OMRManagerDialog(self.master)
-        self.master.wait_window(dialog.top)
+        dialog = OMRManagerDialog(self.master, self)  # Passa a instância de ButtonManager para OMRManagerDialog
+        self.master.wait_window(dialog.top)  # Espera até que a janela de diálogo seja fechada
 
     def open_color_config(self):
         dialog = ConfigDialog(self.master, self.color_map, self.top)
@@ -539,7 +540,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.3", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.4", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
@@ -635,8 +636,11 @@ class ButtonManager:
         else:
             print(f"Arquivo de configuração '{self.vm_config_file}' não encontrado.")
 
-    # Função que fas o monitoramento das VMs
+    # Função que faz o monitoramento das VMs
     def update_vm_status(self):
+        if not self.verificar_vm:
+            return  # Se verificar_vm for False, interrompe o loop
+
         # Função que executa o comando para VM VPN e VM JOGO
         def get_vm_state(vm_name):
             try:
@@ -679,8 +683,9 @@ class ButtonManager:
         thread = threading.Thread(target=threaded_update)
         thread.start()
 
-        # Agenda a próxima atualização em 5 segundos
-        self.master.after(5000, self.update_vm_status)
+        # Agenda a próxima atualização em 5 segundos se verificar_vm for True
+        if self.verificar_vm:
+            self.master.after(5000, self.update_vm_status)
 
 #LOGICA PARA SALVAMENTO E EXIBIÇÃO DE LOGS EM TEMPO REAL.
     def abrir_janela_logs(self):
@@ -1830,6 +1835,9 @@ class ButtonManager:
                             if "PROCESSO CONCLUIDO" in line:
                                 self.start_monitoring_delay()
 
+                            if "DESLIGAMENTO CONCLUIDO" in line:
+                                self.verificar_vm = False
+
                             # Verifica se a linha começa com "Conectando" e atualizando status da conexão com o servidor correspondente.
                             if line.startswith("Conectando"):
                                 connection_target = line[len("Conectando"):].strip()
@@ -2199,9 +2207,10 @@ class ConfigDialog:
 
 #JANELA DE CONFIGURAÇÕES E GERENCIADOR DE ARQUIVOS.
 class OMRManagerDialog:
-    def __init__(self, master):
+    def __init__(self, master, ButtonManager):
         top = self.top = tk.Toplevel(master)
         self.master = master
+        self.ButtonManager = ButtonManager  # Armazena a instância de ButtonManager
         self.load_window_position()
         self.top.title("Configurações do Gerenciador de VPS")
 
@@ -2323,8 +2332,22 @@ class OMRManagerDialog:
         save_button = tk.Button(frame_vm_config, text="Salvar", command=self.save_vm_names)
         save_button.grid(row=2, column=0, columnspan=2, pady=10)
 
+        # Botões para Ligar e Desligar o monitoramento
+        start_monitoring_button = tk.Button(frame_vm_config, text="Ligar Monitoramento", command=self.start_monitoring)
+        start_monitoring_button.grid(row=4, column=0, padx=5, pady=5, sticky=tk.W)
+
+        stop_monitoring_button = tk.Button(frame_vm_config, text="Desligar Monitoramento", command=self.stop_monitoring)
+        stop_monitoring_button.grid(row=4, column=1, padx=5, pady=5, sticky=tk.E)
+
+        # Label para mostrar o status do monitoramento
+        self.monitoring_status_label = tk.Label(frame_vm_config, text="Monitoramento: Desligado", fg="red")
+        self.monitoring_status_label.grid(row=3, column=0, columnspan=2, pady=10)
+
         # Carregar nomes das VMs ao inicializar
         self.load_vm_names()
+
+        # Verifica o estado do monitoramento das VMs
+        self.update_monitoring_status()
 
         self.top.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -2361,6 +2384,21 @@ class OMRManagerDialog:
             self.vm_vpn_name_entry.delete(0, tk.END)
             self.vm_jogo_name_entry.delete(0, tk.END)
 
+    def start_monitoring(self):
+        self.ButtonManager.verificar_vm = True  # Habilita o monitoramento
+        self.ButtonManager.update_vm_status()   # Inicia o monitoramento
+        self.update_monitoring_status()
+
+    def stop_monitoring(self):
+        self.ButtonManager.verificar_vm = False  # Desabilita o monitoramento
+        self.update_monitoring_status()
+
+    def update_monitoring_status(self):
+        # Atualiza o texto do Label com base no status de monitoramento
+        if self.ButtonManager.verificar_vm:
+            self.monitoring_status_label.config(text="Monitoramento: Ligado", fg="green")
+        else:
+            self.monitoring_status_label.config(text="Monitoramento: Desligado", fg="red")
 
 #Métodos para a segunda aba (Configurações de Ping)
     def load_addresses(self):
@@ -2718,7 +2756,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 66.3 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 66.4 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
