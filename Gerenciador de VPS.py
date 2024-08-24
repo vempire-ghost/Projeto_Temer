@@ -16,10 +16,28 @@ import sys
 import webview
 import logging
 import winreg
+import queue
 from datetime import datetime
 from PIL import Image, ImageTk
-# Configuração básica do logging para salvar em arquivo
-logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%d/%m/%Y %H:%M:%S')
+# Configuração básica do logging para salvar em dois arquivos diferentes
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%d/%m/%Y %H:%M:%S')
+
+# Criando o Formatter
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%d/%m/%Y %H:%M:%S')
+
+# Logger principal
+logger_main = logging.getLogger('main_logger')
+main_handler = logging.FileHandler('app.log')
+main_handler.setLevel(logging.INFO)
+main_handler.setFormatter(formatter)  # Aplicando o Formatter
+logger_main.addHandler(main_handler)
+
+# Logger secundário para o run_test_command
+logger_test_command = logging.getLogger('test_command_logger')
+test_command_handler = logging.FileHandler('test_command.log')
+test_command_handler.setLevel(logging.INFO)
+test_command_handler.setFormatter(formatter)  # Aplicando o Formatter
+logger_test_command.addHandler(test_command_handler)
 
 class ButtonManager:
     def __init__(self, master):
@@ -72,7 +90,8 @@ class ButtonManager:
         if not os.path.exists('imagens'):
             os.makedirs('imagens')
 
-        self.clear_log_file()  # Limpa o arquivo de log ao iniciar o programa
+        self.clear_log_file('app.log')  # Limpa o arquivo de log ao iniciar o programa
+        self.clear_log_file('test_command.log')  # Limpa o arquivo de log ao iniciar o programa
 
     # Função para verificar instalação de programas necessarios para o funcionamento do sistema
     def check_software_installation(self):
@@ -520,46 +539,22 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.3", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
-    def run_test_command(self, interface, status_label):
-        # Função para executar o comando e atualizar o label
+    def run_test_command(self, interface, status_label, output_queue):
         def thread_function():
             command = f'start /B sexec -profile="J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp" -- curl --interface {interface} ipinfo.io'
-            print(f"Executando comando: {command}")
+            logger_test_command.info(f"Testando conexões: {command}")
             try:
-                # Executa o comando e captura a saída
                 process = subprocess.run(command, capture_output=True, text=True, shell=True)
                 output = process.stdout
-                print(f"Saída do comando: {output}")
-
-                if output is None:
-                    #print(f"Erro: A saída do comando é None.")
-                    return
-
-                # Convertendo a saída para minúsculas
-                output_lower = output.lower()
-
-                # Atualiza o status com base na saída
-                if status_label == 'UNIFIQUE':
-                    if "unifique" in output_lower:
-                        self.unifique_status.config(text="UNIFIQUE: Online", bg='green')
-                    else:
-                        self.unifique_status.config(text="UNIFIQUE: Offline", bg='red')
-                elif status_label == 'CLARO':
-                    if "claro" in output_lower:
-                        self.claro_status.config(text="CLARO: Online", bg='green')
-                    else:
-                        self.claro_status.config(text="CLARO: Offline", bg='red')
-                elif status_label == 'COOPERA':
-                    if "coopera" in output_lower:
-                        self.coopera_status.config(text="COOPERA: Online", bg='green')
-                    else:
-                        self.coopera_status.config(text="COOPERA: Offline", bg='red')
+                logger_test_command.info(f"Conexões: {output}")
+                output_queue.put(output)  # Envia o output para a fila
             except Exception as e:
-                print(f"Erro ao executar comando: {e}")
+                logger_test_command.error(f"Erro ao executar comando: {e}")
+                output_queue.put(None)  # Envia None em caso de erro
 
         # Cria e inicia a thread
         test_thread = threading.Thread(target=thread_function)
@@ -567,19 +562,25 @@ class ButtonManager:
 
     def check_status(self):
         def check_interface_status(interface, button, name):
+            output_queue = queue.Queue()  # Fila para armazenar o output
+
+            # Executa o comando em uma thread
+            self.run_test_command(interface, name, output_queue)
+
             def thread_function():
                 try:
-                    output = self.run_test_command(interface, name)
+                    output = output_queue.get()  # Espera até receber o output
                     if output is None:
-                        #print(f"Erro: A saída do comando é None.")
+                        logger_test_command.error(f"Erro: A saída do comando é None.")
+                        button.config(text=f"{name}: Offline", bg='red')
                         return
 
-                    if name in output:
+                    if name.lower() in output.lower():
                         button.config(text=f"{name}: Online", bg='green')
                     else:
                         button.config(text=f"{name}: Offline", bg='red')
                 except Exception as e:
-                    print(f"Erro ao verificar status: {e}")
+                    logger_test_command.error(f"Erro ao verificar status: {e}")
 
             # Cria e inicia a thread
             check_thread = threading.Thread(target=thread_function)
@@ -685,16 +686,29 @@ class ButtonManager:
     def abrir_janela_logs(self):
         log_window = tk.Toplevel(self.master)
         log_window.title("Visualização de Logs")
-
         # Definir o tamanho da janela
         log_window.geometry("877x656")  # Largura de 600 pixels e altura de 400 pixels
 
         # Carregar a posição salva
         self.load_log_position(log_window)
-    
+
+        # Cria um notebook (abas)
+        notebook = ttk.Notebook(log_window)
+        notebook.pack(expand=1, fill='both')
+
+        # Aba 1: Logs principais
         # Configuração do widget de rolagem
-        log_text = scrolledtext.ScrolledText(log_window, wrap=tk.WORD, state=tk.NORMAL)
-        log_text.pack(expand=1, fill=tk.BOTH)
+        log_frame_main = tk.Frame(notebook)
+        log_text_main = scrolledtext.ScrolledText(log_frame_main, wrap=tk.WORD, state=tk.NORMAL)
+        log_text_main.pack(expand=1, fill=tk.BOTH)
+        notebook.add(log_frame_main, text='Monitoramento do OMR')
+
+        # Aba 2: Logs do Test Command
+        # Configuração do widget de rolagem
+        log_frame_test = tk.Frame(notebook)
+        log_text_test = scrolledtext.ScrolledText(log_frame_test, wrap=tk.WORD, state=tk.NORMAL)
+        log_text_test.pack(expand=1, fill=tk.BOTH)
+        notebook.add(log_frame_test, text='Logs das Conexões')
 
         # Variável para controlar o scroll automático
         self.auto_scroll = True
@@ -704,10 +718,17 @@ class ButtonManager:
         def update_logs():
             if self.auto_scroll:  # Atualiza apenas se o scroll automático estiver ativo
                 with open('app.log', 'r') as file:
-                    logs = file.read()
-                log_text.delete(1.0, tk.END)
-                log_text.insert(tk.END, logs)
-                log_text.see(tk.END)
+                    logs_main = file.read()
+                log_text_main.delete(1.0, tk.END)
+                log_text_main.insert(tk.END, logs_main)
+                log_text_main.see(tk.END)
+
+                with open('test_command.log', 'r') as file:
+                    logs_test = file.read()
+                log_text_test.delete(1.0, tk.END)
+                log_text_test.insert(tk.END, logs_test)
+                log_text_test.see(tk.END)
+
             # Agendar a próxima atualização
             self.update_logs_id = log_window.after(1, update_logs)
 
@@ -756,26 +777,25 @@ class ButtonManager:
         self.save_log_position(window)
         window.destroy()
 
-    def clear_log_file(self):
-        log_file_path = 'app.log'
-        open(log_file_path, 'w').close()  # Abre o arquivo no modo de escrita e o fecha imediatamente, efetivamente limpando-o
+    def clear_log_file(self, log_file_path):
+        open(log_file_path, 'w').close()
 
 #LOGICA PARA MONITORAMENTO DA CONEXÃO DOS OMR E REINICIO DO GLORYTUN/XRAY CASO NECESSARIO.
     def monitor_ping_direto(self):
         while self.monitor_xray:
-            logging.info(f"Verificando conexão com o VPS VPN ({self.url_to_ping_vps_vpn})...")
+            logger_main.info(f"Verificando conexão com o VPS VPN ({self.url_to_ping_vps_vpn})...")
             status, _ = self.ping_direto(self.url_to_ping_vps_vpn)
         
             if status == "OFF":
-                logging.error(f"Falha na conexão com o VPS VPN ({self.url_to_ping_vps_vpn}). Aguardando 5 segundos para testar novamente...")
+                logger_main.error(f"Falha na conexão com o VPS VPN ({self.url_to_ping_vps_vpn}). Aguardando 5 segundos para testar novamente...")
                 # Aguardar 5 segundos antes de realizar o próximo teste
                 for _ in range(5):
                     if not self.monitor_xray:
-                        logging.info("Teste do VPS VPN interrompido.")
+                        logger_main.info("Teste do VPS VPN interrompido.")
                         return
                     time.sleep(1)  # Aguarde 1 segundo
             else:
-                logging.info(f"Conexão com o VPS VPN ({self.url_to_ping_vps_vpn}) concluída com êxito. Prosseguindo...")
+                logger_main.info(f"Conexão com o VPS VPN ({self.url_to_ping_vps_vpn}) concluída com êxito. Prosseguindo...")
                 self.monitor_xray = False
                 self.start_monitoring()  # Inicia o monitoramento principal
                 return  # Interrompe o loop após iniciar o monitoramento principal
@@ -791,23 +811,23 @@ class ButtonManager:
                 return False
 
         # Teste inicial de conexão ao endereço 192.168.101.1 na porta 80
-        logging.info("Iniciando teste de conexão com o IP 192.168.101.1...")
+        logger_main.info("Iniciando teste de conexão com o IP 192.168.101.1...")
         if not test_connection('192.168.101.1', 80, timeout):
-            logging.error("Falha na conexão com o IP 192.168.101.1. Aguardando 5 segundos para testar novamente...")
+            logger_main.error("Falha na conexão com o IP 192.168.101.1. Aguardando 5 segundos para testar novamente...")
             for _ in range(5):  # Divida a espera em intervalos de 1 segundo
                 if not self.monitor_xray:
-                    logging.info("Monitoramento interrompido durante a espera.")
+                    logger_main.info("Monitoramento interrompido durante a espera.")
                     return "OFF", "red"
                 time.sleep(1)  # Aguarde 1 segundo
             return self.ping_glorytun_vpn(host, port, timeout)
 
         # Teste de conexão ao host fornecido na porta 80
-        logging.info(f"Verificando conexão com o host {host} na porta {port}...")
+        logger_main.info(f"Verificando conexão com o host {host} na porta {port}...")
         if test_connection(host, port, timeout):
-            logging.info(f"Conexão com o host {host} bem-sucedida.")
+            logger_main.info(f"Conexão com o host {host} bem-sucedida.")
             return "ON", "green"
         else:
-            logging.error(f"Falha na conexão com o host {host}.")
+            logger_main.error(f"Falha na conexão com o host {host}.")
             return "OFF", "blue"
 
     def ping_xray_jogo(self, host, port=65222, timeout=1):
@@ -821,18 +841,18 @@ class ButtonManager:
                 return False
 
         # Teste inicial de conexão ao endereço 192.168.100.1 na porta 80
-        logging.info("Iniciando teste de conexão com o IP 192.168.100.1...")
+        logger_main.info("Iniciando teste de conexão com o IP 192.168.100.1...")
         if not test_connection('192.168.100.1', 80, timeout):
-            logging.error("Falha na conexão com o IP 192.168.100.1. Aguardando 5 segundos para testar novamente...")
+            logger_main.error("Falha na conexão com o IP 192.168.100.1. Aguardando 5 segundos para testar novamente...")
             for _ in range(5):  # Divida a espera em intervalos de 1 segundo
                 if not self.monitor_xray:
-                    logging.info("Monitoramento interrompido durante a espera.")
+                    logger_main.info("Monitoramento interrompido durante a espera.")
                     return "OFF", "red"
                 time.sleep(1)  # Aguarde 1 segundo
             return self.ping_xray_jogo(host, port, timeout)
 
         # Teste de conexão ao host fornecido na porta 65222
-        logging.info(f"Verificando conexão com o host {host} na porta {port}...")
+        logger_main.info(f"Verificando conexão com o host {host} na porta {port}...")
         try:
             start_time = time.time()
             socket_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
@@ -844,13 +864,13 @@ class ButtonManager:
             response_time = int((end_time - start_time) * 1000 / 2)  # Converte para milissegundos e arredonda para inteiro
 
             if response:
-                logging.info(f"Conexão com o host {host} bem-sucedida. Tempo de resposta: {response_time} ms")
+                logger_main.info(f"Conexão com o host {host} bem-sucedida. Tempo de resposta: {response_time} ms")
                 return f"ON ({response_time} ms)", "green"
             else:
-                logging.warning(f"Falha na conexão com o host {host} (sem resposta).")
+                logger_main.warning(f"Falha na conexão com o host {host} (sem resposta).")
                 return "OFF", "blue"
         except (socket.timeout, socket.error):
-            logging.error(f"Falha na conexão com o host {host} (exceção).")
+            logger_main.error(f"Falha na conexão com o host {host} (exceção).")
             return "OFF", "blue"
 
     def monitor_loop(self):
@@ -863,11 +883,11 @@ class ButtonManager:
 
             # Verificação do Glorytun VPN
             while consecutive_failures_vpn < 6 and self.monitor_xray:
-                logging.info("Verificando conexão com o Glorytun VPN...")
+                logger_main.info("Verificando conexão com o Glorytun VPN...")
                 status_vpn, _ = self.ping_glorytun_vpn(self.url_to_ping_omr_vpn)
                 if status_vpn == "OFF":
                     if first_failure_vpn:
-                        logging.error("Primeira falha na conexão com o Glorytun VPN. Reiniciando imediatamente...")
+                        logger_main.error("Primeira falha na conexão com o Glorytun VPN. Reiniciando imediatamente...")
                         first_failure_vpn = False
                         try:
                             # Reinicia o omr-tracker antes do Glorytun VPN
@@ -875,7 +895,7 @@ class ButtonManager:
                                 ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"],
                                 shell=True
                             )
-                            logging.info("Comando de reinício do omr-tracker executado.")
+                            logger_main.info("Comando de reinício do omr-tracker executado.")
 
                             # Aguarda 5 segundos, verificando se ainda deve continuar
                             for _ in range(5):
@@ -887,29 +907,29 @@ class ButtonManager:
                                 ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/glorytun", "restart"],
                                 shell=True
                             )
-                            logging.info("Comando de reinício do Glorytun VPN executado.")
+                            logger_main.info("Comando de reinício do Glorytun VPN executado.")
                         except Exception as e:
-                            logging.error(f"Erro ao executar o comando de reinício do Glorytun VPN: {e}")
+                            logger_main.error(f"Erro ao executar o comando de reinício do Glorytun VPN: {e}")
                     else:
                         consecutive_failures_vpn += 1
-                        logging.error(f"Falha {consecutive_failures_vpn}/6 na conexão com o Glorytun VPN. Aguardando 5 segundos para testar novamente...")
+                        logger_main.error(f"Falha {consecutive_failures_vpn}/6 na conexão com o Glorytun VPN. Aguardando 5 segundos para testar novamente...")
                         for _ in range(5):
                             if not self.monitor_xray:
                                 return
                             time.sleep(1)
                 else:
-                    logging.info("Conexão com o Glorytun VPN bem-sucedida.")
+                    logger_main.info("Conexão com o Glorytun VPN bem-sucedida.")
                     break  # Sai do loop do Glorytun VPN
 
             if status_vpn == "OFF":
-                logging.error("Falha na conexão com o Glorytun VPN após 6 tentativas. Executando o comando de reinício do Glorytun novamente...")
+                logger_main.error("Falha na conexão com o Glorytun VPN após 6 tentativas. Executando o comando de reinício do Glorytun novamente...")
                 try:
                     # Reinicia o omr-tracker antes do Glorytun VPN
                     subprocess.Popen(
                         ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"],
                         shell=True
                     )
-                    logging.info("Comando de reinício do omr-tracker executado.")
+                    logger_main.info("Comando de reinício do omr-tracker executado.")
 
                     # Aguarda 5 segundos, verificando se ainda deve continuar
                     for _ in range(5):
@@ -921,18 +941,18 @@ class ButtonManager:
                         ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/glorytun", "restart"],
                         shell=True
                     )
-                    logging.info("Comando de reinício do Glorytun VPN executado.")
+                    logger_main.info("Comando de reinício do Glorytun VPN executado.")
                 except Exception as e:
-                    logging.error(f"Erro ao executar o comando de reinício do Glorytun VPN: {e}")
+                    logger_main.error(f"Erro ao executar o comando de reinício do Glorytun VPN: {e}")
                 continue  # Reinicia o loop para testar o Glorytun novamente
 
             # Verificação do Xray Jogo (só prossegue se a conexão com o Glorytun for bem-sucedida)
             while consecutive_failures_xray < 4 and self.monitor_xray:
-                logging.info("Verificando conexão com o Xray Jogo...")
+                logger_main.info("Verificando conexão com o Xray Jogo...")
                 status_xray, _ = self.ping_xray_jogo(self.url_to_ping_omr_jogo)
                 if status_xray == "OFF":
                     if first_failure_xray:
-                        logging.error("Primeira falha na conexão com o Xray Jogo. Reiniciando imediatamente...")
+                        logger_main.error("Primeira falha na conexão com o Xray Jogo. Reiniciando imediatamente...")
                         first_failure_xray = False
                         try:
                             # Reinicia o omr-tracker antes do Xray Jogo
@@ -940,7 +960,7 @@ class ButtonManager:
                                 ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"],
                                 shell=True
                             )
-                            logging.info("Comando de reinício do omr-tracker executado.")
+                            logger_main.info("Comando de reinício do omr-tracker executado.")
 
                             # Aguarda 5 segundos, verificando se ainda deve continuar
                             for _ in range(5):
@@ -952,29 +972,29 @@ class ButtonManager:
                                 ["cmd", "/c", "start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/xray", "restart"],
                                 shell=True
                             )
-                            logging.info("Comando de reinício do Xray executado.")
+                            logger_main.info("Comando de reinício do Xray executado.")
                         except Exception as e:
-                            logging.error(f"Erro ao executar o comando de reinício do Xray: {e}")
+                            logger_main.error(f"Erro ao executar o comando de reinício do Xray: {e}")
                     else:
                         consecutive_failures_xray += 1
-                        logging.error(f"Falha {consecutive_failures_xray}/4 na conexão com o Xray Jogo. Aguardando 5 segundos para testar novamente...")
+                        logger_main.error(f"Falha {consecutive_failures_xray}/4 na conexão com o Xray Jogo. Aguardando 5 segundos para testar novamente...")
                         for _ in range(5):
                             if not self.monitor_xray:
                                 return
                             time.sleep(1)
                 else:
-                    logging.info("Conexão com o Xray Jogo está OK.")
+                    logger_main.info("Conexão com o Xray Jogo está OK.")
                     break  # Sai do loop do Xray Jogo
 
             if status_xray == "OFF":
-                logging.error("Falha na conexão com o Xray Jogo após 4 tentativas. Executando o comando de reinício do Xray novamente...")
+                logger_main.error("Falha na conexão com o Xray Jogo após 4 tentativas. Executando o comando de reinício do Xray novamente...")
                 try:
                     # Reinicia o omr-tracker antes do Xray Jogo
                     subprocess.Popen(
                         ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"],
                         shell=True
                     )
-                    logging.info("Comando de reinício do omr-tracker executado.")
+                    logger_main.info("Comando de reinício do omr-tracker executado.")
 
                     # Aguarda 5 segundos, verificando se ainda deve continuar
                     for _ in range(5):
@@ -986,18 +1006,18 @@ class ButtonManager:
                         ["cmd", "/c", "start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/xray", "restart"],
                         shell=True
                     )
-                    logging.info("Comando de reinício do Xray executado.")
+                    logger_main.info("Comando de reinício do Xray executado.")
                 except Exception as e:
-                    logging.error(f"Erro ao executar o comando de reinício do Xray: {e}")
+                    logger_main.error(f"Erro ao executar o comando de reinício do Xray: {e}")
                 continue  # Reinicia o loop para testar o Xray novamente
 
-            logging.info("Ambos os testes foram bem-sucedidos. Encerrando o monitoramento...")
+            logger_main.info("Ambos os testes foram bem-sucedidos. Encerrando o monitoramento...")
             self.botao_alternar.after(0, self.stop_monitoring)
             return  # Sai do loop principal se ambos os testes forem bem-sucedidos
 
     def start_monitoring_delay(self):
         if not self.monitor_xray:
-            logging.info("Aguardando 40 segundos antes de iniciar o monitoramento...")
+            logger_main.info("Aguardando 40 segundos antes de iniciar o monitoramento...")
             self.monitor_xray = True  # Use a variável existente
             # Agendar a execução do restante da função após 20 segundos
             self.botao_alternar.config(text="Parar Monitoramento do OMR")
@@ -1005,7 +1025,7 @@ class ButtonManager:
 
     def start_ping_direto_monitoring(self):
         if self.monitor_xray:
-            logging.info(f"Iniciando teste do VPS VPN ({self.url_to_ping_vps_vpn})...")
+            logger_main.info(f"Iniciando teste do VPS VPN ({self.url_to_ping_vps_vpn})...")
             #self.monitor_xray = True  # Use a variável existente
             self.thread_ping_direto = threading.Thread(target=self.monitor_ping_direto)
             self.thread_ping_direto.start()
@@ -1013,7 +1033,7 @@ class ButtonManager:
 
     def start_monitoring(self):
         if not self.monitor_xray:
-            logging.info("Iniciando monitoramento...")
+            logger_main.info("Iniciando monitoramento...")
             self.monitor_xray = True
             self.thread = threading.Thread(target=self.monitor_loop)
             self.thread.start()
@@ -1021,12 +1041,12 @@ class ButtonManager:
 
     def stop_monitoring(self):
         if self.monitor_xray:
-            logging.info("Parando monitoramento...")
+            logger_main.info("Parando monitoramento...")
             self.monitor_xray = False
             if self.thread is not None:
                 self.thread.join()  # Aguarda a thread terminar
             self.botao_alternar.config(text="Iniciar Monitoramento do OMR")
-            logging.info("Monitoramento parado.")
+            logger_main.info("Monitoramento parado.")
 
     def alternar_monitoramento(self):
         if self.monitor_xray:
@@ -2698,7 +2718,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 66.2 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 66.3 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
