@@ -218,7 +218,7 @@ class ButtonManager:
 
     def prepare_for_closing(self):
         # Criar e exibir a tela de alerta
-        self.show_closing_alert()
+        #self.show_closing_alert()
 
         # Colocar aqui toda chamada de encerramento de threads que estiverem sendo executadas de forma initerrupta e qualquer função a ser chamada no encerramento do programa.
         self.stop_pinging_threads()
@@ -226,8 +226,8 @@ class ButtonManager:
         self.save_window_position()
         self.save_color_map()  # Salva o mapeamento de cores
 
-        # Aguardar 2 segundos antes de destruir o widget
-        self.master.after(2000, self.destroy_widget)
+        # Aguardar 300ms antes de destruir o widget
+        self.master.after(300, self.destroy_widget)
 
     def show_closing_alert(self):
         # Criar uma nova janela para a mensagem de encerramento
