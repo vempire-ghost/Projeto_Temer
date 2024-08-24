@@ -46,6 +46,7 @@ class ButtonManager:
         self.monitor_xray = False # Variável para rastrear o estado do monitoramento do Xray JOGO
         self.botao_monitorar_xray = True  # Variável para rastrear o estado do botão monitoramento do Xray JOGO
         self.verificar_vm = True  # Variável que controla a verificação das VMs
+        self.ping_forever = True # Variavel para ligar/desligar testes de ping.
         self.thread = None
         self.buttons = []
         self.button_frame = None
@@ -211,12 +212,67 @@ class ButtonManager:
         with open("window_position.json", "w") as f:
             json.dump(position, f)
 
+# FUNÇÃO DE ENDERRAMENTO DO PROGRAMA ENCERRANDO OS THREADS E ESPERANDO PARA NÃO CAUSAR NENHUM PROBLEMA.
     def on_close(self):
+        self.master.after(100, self.prepare_for_closing)  # Agendar a execução de prepare_for_closing após 100 ms
+
+    def prepare_for_closing(self):
+        # Criar e exibir a tela de alerta
+        self.show_closing_alert()
+
+        # Colocar aqui toda chamada de encerramento de threads que estiverem sendo executadas de forma initerrupta e qualquer função a ser chamada no encerramento do programa.
+        self.stop_pinging_threads()
+        self.stop_verificar_vm()
         self.save_window_position()
         self.save_color_map()  # Salva o mapeamento de cores
-        self.master.destroy()
-        return
 
+        # Aguardar 2 segundos antes de destruir o widget
+        self.master.after(2000, self.destroy_widget)
+
+    def show_closing_alert(self):
+        # Criar uma nova janela para a mensagem de encerramento
+        self.alert_window = tk.Toplevel(self.master)
+        self.alert_window.title("Encerrando")
+        self.alert_window.geometry("200x75")  # Definir o tamanho da janela
+
+        # Carregar a posição salva
+        self.load_show_closing_alert_position()
+
+        # Criar um Frame cinza para o rótulo
+        frame = tk.Frame(self.alert_window, bg="lightgray", borderwidth=2)
+        frame.pack(padx=10, pady=10, expand=True, fill="both")
+
+        # Criar um rótulo para mostrar a mensagem dentro do Frame
+        message_label = tk.Label(frame, text="Encerrando, aguarde...", padx=20, pady=20, bg="lightgray")
+        message_label.pack(expand=True)
+
+        # Agendar a chamada de salvar a posição e fechar a janela
+        self.alert_window.after(1900, self.save_and_close_alert_window)
+
+    def load_show_closing_alert_position(self):
+        if os.path.isfile("show_closing_alert_position.json"):
+            with open("show_closing_alert_position.json", "r") as f:
+                position = json.load(f)
+                self.alert_window.geometry("+{}+{}".format(position["x"], position["y"]))
+
+    def save_and_close_alert_window(self):
+        # Salvar a posição da janela e depois fechar a janela de alerta
+        self.save_alert_window_position()
+        self.alert_window.destroy()
+
+    def save_alert_window_position(self):
+        if hasattr(self, 'alert_window') and self.alert_window is not None:
+            position = {
+                "x": self.alert_window.winfo_x(),
+                "y": self.alert_window.winfo_y()
+            }
+            with open("show_closing_alert_position.json", "w") as f:
+                json.dump(position, f)
+
+    def destroy_widget(self):
+        self.master.destroy()
+
+# FUNÇÃO PARA ENCONTRAR A LETRA DA UNIDADE ONDE O PROGRAMA SE ENCONTRA E UTILIZAR NAS FUNÇÕES DO MESMO.
     def get_drive_letter(self):
         """Retorna a letra da unidade onde o script está sendo executado."""
         if getattr(sys, 'frozen', False):  # Verifica se o código está congelado/compilado
@@ -540,7 +596,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.4", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.5", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
@@ -686,6 +742,10 @@ class ButtonManager:
         # Agenda a próxima atualização em 5 segundos se verificar_vm for True
         if self.verificar_vm:
             self.master.after(5000, self.update_vm_status)
+
+    # Desliga o monitoramento das VMs
+    def stop_verificar_vm(self):
+        self.verificar_vm = False
 
 #LOGICA PARA SALVAMENTO E EXIBIÇÃO DE LOGS EM TEMPO REAL.
     def abrir_janela_logs(self):
@@ -1149,12 +1209,17 @@ class ButtonManager:
         confirmar_reiniciar()
 
 #LOGICA PARA MONITORAMENTO DE VPS E OMR, E ATUALIZAR AS DEVIDAS LABELS NO TOPO DA JANELA PRINCIPAL DA APLICAÇÃO.
+    # Inicia o looping de monitoramento de ping.
     def start_pinging_threads(self):
         interval = 2  # Define o intervalo de 2 segundos para os pings
         threading.Thread(target=self.ping_forever_direto, args=(self.url_to_ping_vps_vpn, self.update_status_vps_vpn), daemon=True).start()
         threading.Thread(target=self.ping_forever_direto, args=(self.url_to_ping_vps_jogo, self.update_status_vps_jogo), daemon=True).start()
         threading.Thread(target=self.ping_forever_omr_vpn, args=(self.url_to_ping_omr_vpn, self.update_status_omr_vpn), daemon=True).start()
         threading.Thread(target=self.ping_forever_omr_jogo, args=(self.url_to_ping_omr_jogo, self.update_status_omr_jogo), daemon=True).start()
+
+    # Para o looping de monitoramento de ping.
+    def stop_pinging_threads(self):
+        self.ping_forever = False
 
     def load_addresses(self):
         try:
@@ -1196,7 +1261,7 @@ class ButtonManager:
             return "OFF", "blue"
 
     def ping_forever_omr_vpn(self, url, update_func, interval=1):
-        while True:
+        while self.ping_forever:
             status, color = self.ping_omr_vpn(url)
             update_func(status, color)
             time.sleep(interval)
@@ -1240,7 +1305,7 @@ class ButtonManager:
             return "OFF", "blue"
 
     def ping_forever_omr_jogo(self, url, update_func, interval=1):
-        while True:
+        while self.ping_forever:
             status, color = self.ping_omr_jogo(url)
             update_func(status, color)
             time.sleep(interval)
@@ -1270,7 +1335,7 @@ class ButtonManager:
             return "OFF", "red"
 
     def ping_forever_direto(self, url, update_func, interval=1):
-        while True:
+        while self.ping_forever:
             status, color = self.ping_direto(url)
             update_func(status, color)
             time.sleep(interval)
@@ -2756,7 +2821,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 66.4 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 66.5 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
