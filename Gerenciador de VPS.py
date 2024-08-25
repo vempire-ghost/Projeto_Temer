@@ -1362,7 +1362,7 @@ class ButtonManager:
         elif any("ON" in status for status in statuses):
             if all("ON" in status for status in statuses):
                 self.general_status_frame.config(bg="green")
-                self.general_status_label.config(text="Conectado", bg="green", fg="black")
+                self.general_status_label.config(bg="green")
                 self.script_finished = False
                 self.display_connection_status("Conectado")  # Atualiza para "Conectado"
             else:
