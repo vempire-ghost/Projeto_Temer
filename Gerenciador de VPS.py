@@ -599,7 +599,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.6", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.7", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
@@ -851,11 +851,15 @@ class ButtonManager:
 #LOGICA PARA MONITORAMENTO DA CONEXÃO DOS OMR E REINICIO DO GLORYTUN/XRAY CASO NECESSARIO.
     def monitor_ping_direto(self):
         while self.monitor_xray:
-            logger_main.info(f"Verificando conexão com o VPS VPN ({self.url_to_ping_vps_vpn})...")
-            status, _ = self.ping_direto(self.url_to_ping_vps_vpn)
-        
-            if status == "OFF":
-                logger_main.error(f"Falha na conexão com o VPS VPN ({self.url_to_ping_vps_vpn}). Aguardando 5 segundos para testar novamente...")
+            logger_main.info(f"Verificando conexão com o VPS VPN ({self.url_to_ping_vps_vpn}) ou VPS VPN 1 ({self.url_to_ping_vps_vpn_1})...")
+
+            # Tenta pingar ambos os endereços
+            status_vpn, _ = self.ping_direto(self.url_to_ping_vps_vpn)
+            status_vpn_1, _ = self.ping_direto(self.url_to_ping_vps_vpn_1)
+
+            # Verifica se pelo menos um dos pings foi bem-sucedido
+            if status_vpn == "OFF" and status_vpn_1 == "OFF":
+                logger_main.error("Falha na conexão com ambos os VPS VPNs. Aguardando 5 segundos para testar novamente...")
                 # Aguardar 5 segundos antes de realizar o próximo teste
                 for _ in range(5):
                     if not self.monitor_xray:
@@ -863,7 +867,11 @@ class ButtonManager:
                         return
                     time.sleep(1)  # Aguarde 1 segundo
             else:
-                logger_main.info(f"Conexão com o VPS VPN ({self.url_to_ping_vps_vpn}) concluída com êxito. Prosseguindo...")
+                if status_vpn != "OFF":
+                    logger_main.info(f"Conexão com o VPS VPN ({self.url_to_ping_vps_vpn}) concluída com êxito. Prosseguindo...")
+                if status_vpn_1 != "OFF":
+                    logger_main.info(f"Conexão com o VPS VPN 1 ({self.url_to_ping_vps_vpn_1}) concluída com êxito. Prosseguindo...")
+            
                 self.monitor_xray = False
                 self.start_monitoring()  # Inicia o monitoramento principal
                 return  # Interrompe o loop após iniciar o monitoramento principal
@@ -1205,11 +1213,15 @@ class ButtonManager:
                 self.url_to_ping_vps_vpn = addresses.get("vps_vpn")
                 self.url_to_ping_omr_vpn = addresses.get("omr_vpn")
                 self.url_to_ping_omr_jogo = addresses.get("omr_jogo")
+                self.url_to_ping_vps_vpn_1 = addresses.get("vps_vpn_1")
+                self.url_to_ping_vps_jogo_1 = addresses.get("vps_jogo_1")
         except (FileNotFoundError, json.JSONDecodeError):
             self.url_to_ping_vps_jogo = None
             self.url_to_ping_vps_vpn = None
             self.url_to_ping_omr_vpn = None
             self.url_to_ping_omr_jogo = None
+            self.url_to_ping_vps_vpn_1 = None
+            self.url_to_ping_vps_jogo_1 = None
 
     def ping_omr_vpn(self, host, port=80, timeout=1):
         def test_connection(ip, port, timeout):
@@ -1342,7 +1354,7 @@ class ButtonManager:
         if all("OFF" in status for status in statuses):
             if self.script_finished:
                 self.general_status_frame.config(bg="yellow")
-                self.general_status_label.config(text="Conectando", bg="yellow", fg="black")
+                self.general_status_label.config(bg="yellow")
                 self.display_connection_status("Conectando")  # Atualiza para "Conectando"
             else:
                 self.general_status_frame.config(bg="red")
@@ -1355,7 +1367,7 @@ class ButtonManager:
                 self.display_connection_status("Conectado")  # Atualiza para "Conectado"
             else:
                 self.general_status_frame.config(bg="yellow")
-                self.general_status_label.config(text="Conectando", bg="yellow", fg="black")
+                self.general_status_label.config(bg="yellow")
                 self.script_finished = False
                 self.display_connection_status("Conectando")  # Atualiza para "Conectando"
         else:
@@ -1366,7 +1378,7 @@ class ButtonManager:
         # Verifica se o script terminou e atualiza o status para "Conectando" se necessário
         if self.script_finished:
             self.general_status_frame.config(bg="yellow")
-            self.general_status_label.config(text="Conectando", bg="yellow", fg="black")
+            self.general_status_label.config(bg="yellow")
             self.display_connection_status("Conectando")  # Atualiza para "Conectando"
 
     def display_connection_status(self, status):
@@ -2271,7 +2283,7 @@ class OMRManagerDialog:
 
         # Frame para os botões e textos descritivos
         button_frame = tk.Frame(aba1, borderwidth=1, relief=tk.RIDGE)
-        button_frame.pack(side="left", padx=10, pady=10, anchor='w')
+        button_frame.pack(side="left", padx=10, pady=10, anchor='w', fill=tk.BOTH)
 
         # Primeiro texto descritivo e botão
         tk.Label(button_frame, text="Seleciona arquivos .vdi antigos do OMR para mover:").pack(side=tk.TOP, anchor='w')
@@ -2295,7 +2307,7 @@ class OMRManagerDialog:
 
         # Frame para os botões e textos descritivos à direita
         button_frame_right = tk.Frame(aba1, borderwidth=1, relief=tk.RIDGE)
-        button_frame_right.pack(side="top", padx=10, pady=10, anchor='w')
+        button_frame_right.pack(side="top", padx=10, pady=10, anchor='e', fill=tk.BOTH)
 
         # Primeiro botão
         tk.Label(button_frame_right, text="Edita script de alteração de UUID:").pack(side=tk.TOP, anchor='w')
@@ -2336,10 +2348,20 @@ class OMRManagerDialog:
         self.vps_vpn_entry.grid(row=0, column=1, padx=5, pady=5)
         self.vps_vpn_entry.insert(0, self.url_to_ping_vps_vpn or '')
 
+        tk.Label(frame, text="Endereço VPS VPN 1:").grid(row=0, column=2, sticky=tk.W)
+        self.vps_vpn_1_entry = tk.Entry(frame, width=30)
+        self.vps_vpn_1_entry.grid(row=0, column=3, padx=5, pady=5)
+        self.vps_vpn_1_entry.insert(0, self.url_to_ping_vps_vpn_1 or '')
+
         tk.Label(frame, text="Endereço VPS JOGO:").grid(row=1, column=0, sticky=tk.W)
         self.vps_jogo_entry = tk.Entry(frame, width=30)
         self.vps_jogo_entry.grid(row=1, column=1, padx=5, pady=5)
         self.vps_jogo_entry.insert(0, self.url_to_ping_vps_jogo or '')
+
+        tk.Label(frame, text="Endereço VPS JOGO 1:").grid(row=1, column=2, sticky=tk.W)
+        self.vps_jogo_1_entry = tk.Entry(frame, width=30)
+        self.vps_jogo_1_entry.grid(row=1, column=3, padx=5, pady=5)
+        self.vps_jogo_1_entry.insert(0, self.url_to_ping_vps_jogo_1 or '')
 
         tk.Label(frame, text="Endereço OMR VPN:").grid(row=2, column=0, sticky=tk.W)
         self.omr_vpn_entry = tk.Entry(frame, width=30)
@@ -2352,7 +2374,7 @@ class OMRManagerDialog:
         self.omr_jogo_entry.insert(0, self.url_to_ping_omr_jogo or '')
 
         save_button = tk.Button(frame, text="Salvar", command=self.save_addresses)
-        save_button.grid(row=4, column=0, columnspan=2, pady=10)
+        save_button.grid(row=4, column=0, columnspan=4, pady=10)
 
         # Terceira aba Configurações de VMs.
         aba3 = ttk.Frame(self.tabs)
@@ -2404,9 +2426,9 @@ class OMRManagerDialog:
             }
             with open("vm_config.json", 'w') as file:
                 json.dump(vm_names, file, indent=4)
-            print("Nomes das VMs salvos com sucesso.")
+            messagebox.showinfo("Salvar", "Nome de VMs salvos com sucesso!")
         else:
-            print("Por favor, insira todos os nomes das VMs.")
+            messagebox.showinfo("Erro", "Por favor, insira todos os nomes das VMs.")
 
     def load_vm_names(self):
         try:
@@ -2441,7 +2463,7 @@ class OMRManagerDialog:
         else:
             self.monitoring_status_label.config(text="Monitoramento: Desligado", fg="red")
 
-#Métodos para a segunda aba (Configurações de Ping)
+# MÉTODOS PARA A SEGUNDA ABA (Configurações de Ping)
     def load_addresses(self):
         try:
             with open('addresses.json', 'r') as f:
@@ -2450,22 +2472,29 @@ class OMRManagerDialog:
                 self.url_to_ping_vps_vpn = addresses.get("vps_vpn")
                 self.url_to_ping_omr_vpn = addresses.get("omr_vpn")
                 self.url_to_ping_omr_jogo = addresses.get("omr_jogo")
+                self.url_to_ping_vps_vpn_1 = addresses.get("vps_vpn_1")
+                self.url_to_ping_vps_jogo_1 = addresses.get("vps_jogo_1")
         except (FileNotFoundError, json.JSONDecodeError):
             self.url_to_ping_vps_jogo = None
             self.url_to_ping_vps_vpn = None
             self.url_to_ping_omr_vpn = None
             self.url_to_ping_omr_jogo = None
+            self.url_to_ping_vps_vpn_1 = None
+            self.url_to_ping_vps_jogo_1 = None
 
     def save_addresses(self):
         addresses = {
             "vps_vpn": self.vps_vpn_entry.get(),
             "vps_jogo": self.vps_jogo_entry.get(),
             "omr_vpn": self.omr_vpn_entry.get(),
-            "omr_jogo": self.omr_jogo_entry.get()
+            "omr_jogo": self.omr_jogo_entry.get(),
+            "vps_vpn_1": self.vps_vpn_1_entry.get(),
+            "vps_jogo_1": self.vps_jogo_1_entry.get()
         }
         with open("addresses.json", "w") as f:
             json.dump(addresses, f)
-        #messagebox.showinfo("Salvar", "Endereços salvos com sucesso!")
+        # Exibir uma mensagem de sucesso
+        messagebox.showinfo("Salvar", "Endereços salvos com sucesso!")
 
 
 #FUNÇÃO PARA GERAR LINKS SEM PRECISAR ADICIONAR A LETRA DE UNIDADE.
@@ -2797,7 +2826,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 66.6 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 66.7 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
