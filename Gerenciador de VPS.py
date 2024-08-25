@@ -1139,12 +1139,12 @@ class ButtonManager:
                 ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP.tlp", "--", "cat", "/proc/sys/net/ipv4/tcp_congestion_control"]
             ),
             (self.label_omr_vpn_scheduler, self.label_omr_vpn_cc): (
-                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "cat", "/proc/sys/net/mptcp/mptcp_scheduler"],
-                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "cat", "/proc/sys/net/ipv4/tcp_congestion_control"]
+                ["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.101.1", "cat", "/proc/sys/net/mptcp/mptcp_scheduler"],
+                ["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.101.1", "cat", "/proc/sys/net/ipv4/tcp_congestion_control"]
             ),
             (self.label_omr_jogo_scheduler, self.label_omr_jogo_cc): (
-                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "cat", "/proc/sys/net/mptcp/mptcp_scheduler"],
-                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "cat", "/proc/sys/net/ipv4/tcp_congestion_control"]
+                ["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.100.1", "cat", "/proc/sys/net/mptcp/mptcp_scheduler"],
+                ["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.100.1", "cat", "/proc/sys/net/ipv4/tcp_congestion_control"]
             ),
         }
 
