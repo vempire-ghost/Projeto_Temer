@@ -413,13 +413,16 @@ class ButtonManager:
 
         # Funções para os botões de teste
         def test_unifique():
-            self.run_test_command('eth2', 'UNIFIQUE')
+            output_queue = queue.Queue()
+            self.run_test_command('eth2', 'UNIFIQUE', output_queue)
 
         def test_claro():
-            self.run_test_command('eth4', 'CLARO')
+            output_queue = queue.Queue()
+            self.run_test_command('eth4', 'CLARO', output_queue)
 
         def test_coopera():
-            self.run_test_command('eth5', 'COOPERA')
+            output_queue = queue.Queue()
+            self.run_test_command('eth5', 'COOPERA', output_queue)
 
         # Botão para Unifique
         self.unifique_status = tk.Button(self.status_frame, text="UNIFIQUE: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=test_unifique)
@@ -596,13 +599,13 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.5", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.6", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
     def run_test_command(self, interface, status_label, output_queue):
         def thread_function():
-            command = f'start /B sexec -profile="J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp" -- curl --interface {interface} ipinfo.io'
+            command = f'ssh -o StrictHostKeyChecking=no root@192.168.101.1 "curl --interface {interface} ipinfo.io"'
             logger_test_command.info(f"Testando conexões: {command}")
             try:
                 process = subprocess.run(command, capture_output=True, text=True, shell=True)
@@ -2821,7 +2824,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 66.5 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 66.6 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
