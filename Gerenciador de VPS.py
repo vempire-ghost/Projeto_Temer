@@ -959,10 +959,7 @@ class ButtonManager:
                         first_failure_vpn = False
                         try:
                             # Reinicia o omr-tracker antes do Glorytun VPN
-                            subprocess.Popen(
-                                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"],
-                                shell=True
-                            )
+                            subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.101.1", "/etc/init.d/omr-tracker", "restart"], shell=True)
                             logger_main.info("Comando de reinício do omr-tracker executado.")
 
                             # Aguarda 20 segundos, verificando se ainda deve continuar
@@ -971,10 +968,7 @@ class ButtonManager:
                                     return
                                 time.sleep(1)
 
-                            subprocess.Popen(
-                                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/glorytun", "restart"],
-                                shell=True
-                            )
+                            subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.101.1", "/etc/init.d/glorytun", "restart"], shell=True)
                             logger_main.info("Comando de reinício do Glorytun VPN executado.")
                         except Exception as e:
                             logger_main.error(f"Erro ao executar o comando de reinício do Glorytun VPN: {e}")
@@ -993,10 +987,7 @@ class ButtonManager:
                 logger_main.error("Falha na conexão com o Glorytun VPN após 6 tentativas. Executando o comando de reinício do Glorytun novamente...")
                 try:
                     # Reinicia o omr-tracker antes do Glorytun VPN
-                    subprocess.Popen(
-                        ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"],
-                        shell=True
-                    )
+                    subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.101.1", "/etc/init.d/omr-tracker", "restart"], shell=True)
                     logger_main.info("Comando de reinício do omr-tracker executado.")
 
                     # Aguarda 5 segundos, verificando se ainda deve continuar
@@ -1005,10 +996,7 @@ class ButtonManager:
                             return
                         time.sleep(1)
 
-                    subprocess.Popen(
-                        ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/glorytun", "restart"],
-                        shell=True
-                    )
+                    subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.101.1", "/etc/init.d/glorytun", "restart"], shell=True)
                     logger_main.info("Comando de reinício do Glorytun VPN executado.")
                 except Exception as e:
                     logger_main.error(f"Erro ao executar o comando de reinício do Glorytun VPN: {e}")
@@ -1024,10 +1012,7 @@ class ButtonManager:
                         first_failure_xray = False
                         try:
                             # Reinicia o omr-tracker antes do Xray Jogo
-                            subprocess.Popen(
-                                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"],
-                                shell=True
-                            )
+                            subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.100.1", "/etc/init.d/omr-tracker", "restart"], shell=True)
                             logger_main.info("Comando de reinício do omr-tracker executado.")
 
                             # Aguarda 20 segundos, verificando se ainda deve continuar
@@ -1036,10 +1021,7 @@ class ButtonManager:
                                     return
                                 time.sleep(1)
 
-                            subprocess.Popen(
-                                ["cmd", "/c", "start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/xray", "restart"],
-                                shell=True
-                            )
+                            subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.100.1", "/etc/init.d/xray", "restart"], shell=True)
                             logger_main.info("Comando de reinício do Xray executado.")
                         except Exception as e:
                             logger_main.error(f"Erro ao executar o comando de reinício do Xray: {e}")
@@ -1058,10 +1040,7 @@ class ButtonManager:
                 logger_main.error("Falha na conexão com o Xray Jogo após 4 tentativas. Executando o comando de reinício do Xray novamente...")
                 try:
                     # Reinicia o omr-tracker antes do Xray Jogo
-                    subprocess.Popen(
-                        ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/omr-tracker", "restart"],
-                        shell=True
-                    )
+                    subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.100.1", "/etc/init.d/omr-tracker", "restart"], shell=True)
                     logger_main.info("Comando de reinício do omr-tracker executado.")
 
                     # Aguarda 5 segundos, verificando se ainda deve continuar
@@ -1070,10 +1049,7 @@ class ButtonManager:
                             return
                         time.sleep(1)
 
-                    subprocess.Popen(
-                        ["cmd", "/c", "start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/xray", "restart"],
-                        shell=True
-                    )
+                    subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.100.1", "/etc/init.d/xray", "restart"], shell=True)
                     logger_main.info("Comando de reinício do Xray executado.")
                 except Exception as e:
                     logger_main.error(f"Erro ao executar o comando de reinício do Xray: {e}")
@@ -1191,7 +1167,7 @@ class ButtonManager:
 
 #LOGICA PARA BOTÕES DE REINICIAR GLORYTUN E XRAY NA 3° ABA.
     def reiniciar_glorytun_vpn(self):
-        subprocess.Popen(["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/glorytun", "restart"], shell=True)
+        subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.101.1", "/etc/init.d/glorytun", "restart"], shell=True)
 
     def reiniciar_xray_jogo(self):
         # Função para exibir a caixa de diálogo de confirmação
@@ -1204,10 +1180,7 @@ class ButtonManager:
             )
             if resposta == 6:  # IDYES
                 # Executa o comando se o usuário clicar em "Sim"
-                subprocess.Popen(
-                    ["cmd", "/c", "start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP_Router.tlp", "--", "/etc/init.d/xray", "restart"],
-                   shell=True
-                )
+                subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.100.1", "/etc/init.d/xray", "restart"], shell=True)
 
         confirmar_reiniciar()
 
