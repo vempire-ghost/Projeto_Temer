@@ -17,6 +17,8 @@ import webview
 import logging
 import winreg
 import queue
+import paramiko
+import configparser
 from datetime import datetime
 from PIL import Image, ImageTk
 # Configuração básica do logging para salvar em dois arquivos diferentes
@@ -47,12 +49,26 @@ class ButtonManager:
         self.botao_monitorar_xray = True  # Variável para rastrear o estado do botão monitoramento do Xray JOGO
         self.verificar_vm = True  # Variável que controla a verificação das VMs
         self.ping_forever = True # Variavel para ligar/desligar testes de ping.
+        self.connection_established = threading.Event()  # Evento para sinalizar conexão estabelecida
         self.thread = None
         self.buttons = []
         self.button_frame = None
         self.second_tab_button_frame = None
+        self.ssh_client = None  # Inicializa ssh_client aqui
         self.button_counter = 1  # Inicializa o contador de botões
         self.load_window_position()
+
+        # Verifica e cria o arquivo de configuração se não existir
+        self.config_file = 'config.ini'
+        self.config = configparser.ConfigParser()
+        if not os.path.isfile(self.config_file):
+            self.create_default_config()
+
+        # Carregar configurações de SSH
+        self.config.read(self.config_file)
+        self.ssh_host = self.config.get('ssh', 'host', fallback='192.168.101.1')
+        self.ssh_username = self.config.get('ssh', 'username', fallback='user')
+        self.ssh_password = self.config.get('ssh', 'password', fallback='password')
 
         # Verifica se o Bitvise e o VirtualBox estão instalados
         if not self.check_software_installation():
@@ -94,6 +110,17 @@ class ButtonManager:
 
         self.clear_log_file('app.log')  # Limpa o arquivo de log ao iniciar o programa
         self.clear_log_file('test_command.log')  # Limpa o arquivo de log ao iniciar o programa
+
+    # Função para ler e criar o arquivo ini
+    def create_default_config(self):
+        """Cria um arquivo de configuração com valores padrão."""
+        self.config.add_section('ssh')
+        self.config.set('ssh', 'host', '192.168.101.1')
+        self.config.set('ssh', 'username', 'user')
+        self.config.set('ssh', 'password', 'password')
+
+        with open(self.config_file, 'w') as configfile:
+            self.config.write(configfile)
 
     # Função para verificar instalação de programas necessarios para o funcionamento do sistema
     def check_software_installation(self):
@@ -437,7 +464,9 @@ class ButtonManager:
         self.coopera_status.grid(row=0, column=2, padx=5, pady=5, sticky=tk.W)
 
         # Inicia atualização do status das conexões.
-        self.update_status_labels()
+        self.ssh_thread = threading.Thread(target=self.establish_ssh_connection)
+        self.ssh_thread.start()
+        #self.update_status_labels()
 
         # Cria o Notebook
         self.notebook = ttk.Notebook(self.master)
@@ -603,58 +632,94 @@ class ButtonManager:
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
-    def run_test_command(self, interface, status_label, output_queue):
-        def thread_function():
-            command = f'ssh -o StrictHostKeyChecking=no root@192.168.101.1 "curl --interface {interface} ipinfo.io"'
-            logger_test_command.info(f"Testando conexões: {command}")
+    def establish_ssh_connection(self):
+        """Estabelece e mantém uma conexão SSH persistente com tentativas de reconexão."""
+        max_retries = 500  # Número máximo de tentativas de reconexão
+        retry_delay = 5  # Tempo de espera entre as tentativas de reconexão (em segundos)
+        attempt = 0
+
+        while attempt < max_retries:
             try:
-                process = subprocess.run(command, capture_output=True, text=True, shell=True)
-                output = process.stdout
-                logger_test_command.info(f"Conexões: {output}")
-                output_queue.put(output)  # Envia o output para a fila
+                self.ssh_client = paramiko.SSHClient()
+                self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                self.ssh_client.connect(self.ssh_host, username=self.ssh_username, password=self.ssh_password, look_for_keys=False, allow_agent=False)
+                logger_test_command.info("Conexão SSH estabelecida com sucesso.")
+                self.connection_established.set()  # Sinaliza que a conexão foi estabelecida
+                self.master.after(1000, self.update_status_labels)  # Inicia o ciclo de atualização dos labels após 1 segundos
+                return  # Saia do loop se a conexão for bem-sucedida
             except Exception as e:
-                logger_test_command.error(f"Erro ao executar comando: {e}")
-                output_queue.put(None)  # Envia None em caso de erro
+                logger_test_command.error(f"Erro ao estabelecer conexão SSH: {e}")
+                attempt += 1
+                if attempt < max_retries:
+                    logger_test_command.info(f"Tentando novamente em {retry_delay} segundos...")
+                    time.sleep(retry_delay)
+                else:
+                    logger_test_command.error("Número máximo de tentativas de conexão atingido.")
+                    self.connection_established.set()  # Sinaliza que a tentativa falhou
+
+    def run_test_command(self, interface, output_queue):
+        """Executa um comando utilizando a conexão SSH estabelecida."""
+        if self.ssh_client is None:
+            logger_test_command.error("Conexão SSH não está estabelecida.")
+            output_queue.put(None)
+            return
+
+        command = f'curl --interface {interface} ipinfo.io'
+        logger_test_command.info(f"Testando conexão com interface {interface}: {command}")
+
+        try:
+            stdin, stdout, stderr = self.ssh_client.exec_command(command)
+            output = stdout.read().decode()
+            logger_test_command.info(f"Saída do comando: {output}")
+            output_queue.put(output)
+        except Exception as e:
+            logger_test_command.error(f"Erro ao executar comando: {e}")
+            output_queue.put(None)
+
+    def check_interface_status(self, interface, button, name):
+        output_queue = queue.Queue()
+
+        # Executa o comando em uma thread
+        threading.Thread(target=self.run_test_command, args=(interface, output_queue)).start()
+
+        def thread_function():
+            try:
+                output = output_queue.get()  # Espera até receber o output
+                if output is None:
+                    logger_test_command.error(f"Erro: A saída do comando é None.")
+                    button.config(text=f"{name}: Offline", bg='red')
+                    return
+
+                if name.lower() in output.lower():
+                    button.config(text=f"{name}: Online", bg='green')
+                else:
+                    button.config(text=f"{name}: Offline", bg='red')
+            except Exception as e:
+                logger_test_command.error(f"Erro ao verificar status: {e}")
 
         # Cria e inicia a thread
-        test_thread = threading.Thread(target=thread_function)
-        test_thread.start()
+        threading.Thread(target=thread_function).start()
 
     def check_status(self):
-        def check_interface_status(interface, button, name):
-            output_queue = queue.Queue()  # Fila para armazenar o output
-
-            # Executa o comando em uma thread
-            self.run_test_command(interface, name, output_queue)
-
-            def thread_function():
-                try:
-                    output = output_queue.get()  # Espera até receber o output
-                    if output is None:
-                        logger_test_command.error(f"Erro: A saída do comando é None.")
-                        button.config(text=f"{name}: Offline", bg='red')
-                        return
-
-                    if name.lower() in output.lower():
-                        button.config(text=f"{name}: Online", bg='green')
-                    else:
-                        button.config(text=f"{name}: Offline", bg='red')
-                except Exception as e:
-                    logger_test_command.error(f"Erro ao verificar status: {e}")
-
-            # Cria e inicia a thread
-            check_thread = threading.Thread(target=thread_function)
-            check_thread.start()
-
-        # Cria uma thread para cada interface
-        threading.Thread(target=check_interface_status, args=('eth2', self.unifique_status, 'UNIFIQUE')).start()
-        threading.Thread(target=check_interface_status, args=('eth4', self.claro_status, 'CLARO')).start()
-        threading.Thread(target=check_interface_status, args=('eth5', self.coopera_status, 'COOPERA')).start()
+        """Verifica o status das interfaces."""
+        threading.Thread(target=self.check_interface_status, args=('eth2', self.unifique_status, 'UNIFIQUE')).start()
+        threading.Thread(target=self.check_interface_status, args=('eth4', self.claro_status, 'CLARO')).start()
+        threading.Thread(target=self.check_interface_status, args=('eth5', self.coopera_status, 'COOPERA')).start()
 
     def update_status_labels(self):
-        # Atualiza os labels a cada 30 segundos
-        self.check_status()
-        self.master.after(30000, self.update_status_labels)
+        """Atualiza os labels a cada 30 segundos, se a conexão SSH estiver estabelecida."""
+        if self.connection_established.is_set():
+            self.check_status()  # Chama o método para atualizar o status
+        else:
+            logger_test_command.info("Aguardando conexão SSH estabelecida para atualizar os labels.")
+
+        self.master.after(30000, self.update_status_labels)  # Chama update_status_labels novamente após 30 segundos
+
+    def close_ssh_connection(self):
+        """Fecha a conexão SSH."""
+        if self.ssh_client:
+            self.ssh_client.close()
+            logger_test_command.info("Conexão SSH fechada.")
 
 #LOGICA PARA EXIBIR STATUS E MENUS DAS VMS
     # Configura menus nos botões de VMs
@@ -2412,7 +2477,64 @@ class OMRManagerDialog:
         # Verifica o estado do monitoramento das VMs
         self.update_monitoring_status()
 
+        # Quarta aba (Configurações de Usuário e Senha)
+        aba4 = ttk.Frame(self.tabs)
+        self.tabs.add(aba4, text="Configurações de Usuário")
+
+        # Frame para configurações de usuário na aba 4
+        frame_user_config = tk.Frame(aba4, borderwidth=1, relief=tk.RAISED)
+        frame_user_config.pack(padx=10, pady=10, fill=tk.BOTH)
+
+        tk.Label(frame_user_config, text="Nome de Usuário:").grid(row=0, column=0, sticky=tk.W)
+        self.username_entry = tk.Entry(frame_user_config, width=30)
+        self.username_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        tk.Label(frame_user_config, text="Senha:").grid(row=1, column=0, sticky=tk.W)
+        self.password_entry = tk.Entry(frame_user_config, width=30, show='*')  # 'show' oculta o texto
+        self.password_entry.grid(row=1, column=1, padx=5, pady=5)
+
+        save_button = tk.Button(frame_user_config, text="Salvar", command=self.save_user_credentials)
+        save_button.grid(row=2, column=0, columnspan=2, pady=10)
+
+        # Carregar informações do usuário ao inicializar
+        self.load_user_credentials()
+
         self.top.protocol("WM_DELETE_WINDOW", self.on_close)
+
+# METODO PARA SALVAR USUARIO E SENHA PARA CONEXÃO SSH COM OMR
+    def load_user_credentials(self):
+        """Carrega as credenciais do usuário do arquivo de configuração."""
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+
+        if 'ssh' in config:
+            self.username_entry.delete(0, tk.END)
+            self.username_entry.insert(0, config.get('ssh', 'username', fallback=''))
+            self.password_entry.delete(0, tk.END)
+            self.password_entry.insert(0, config.get('ssh', 'password', fallback=''))
+
+    def save_user_credentials(self):
+        """Salva as credenciais do usuário no arquivo de configuração."""
+        username = self.username_entry.get()
+        password = self.password_entry.get()
+
+        if not username or not password:
+            messagebox.showwarning("Aviso", "Nome de usuário e senha não podem estar vazios.")
+            return
+
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+
+        if not config.has_section('ssh'):
+            config.add_section('ssh')
+
+        config.set('ssh', 'username', username)
+        config.set('ssh', 'password', password)
+
+        with open('config.ini', 'w') as configfile:
+            config.write(configfile)
+
+        messagebox.showinfo("Informação", "Credenciais salvas com sucesso.")
 
 #METODO PARA SALVAR NOME DAS VMS NA TERCEIRA ABA
     def save_vm_names(self):
