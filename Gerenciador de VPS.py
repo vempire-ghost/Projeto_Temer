@@ -64,11 +64,23 @@ class ButtonManager:
         if not os.path.isfile(self.config_file):
             self.create_default_config()
 
-        # Carregar configurações de SSH
+        self.config_file = 'config.ini'
+        self.config = configparser.ConfigParser()
+        if not os.path.isfile(self.config_file):
+            self.create_default_config()
+
+        # Carregar configurações de SSH para vpn e jogo
         self.config.read(self.config_file)
-        self.ssh_host = self.config.get('ssh', 'host', fallback='192.168.101.1')
-        self.ssh_username = self.config.get('ssh', 'username', fallback='user')
-        self.ssh_password = self.config.get('ssh', 'password', fallback='password')
+        self.ssh_vpn_config = {
+            'host': self.config.get('ssh_vpn', 'host', fallback='192.168.101.1'),
+            'username': self.config.get('ssh_vpn', 'username', fallback='user'),
+            'password': self.config.get('ssh_vpn', 'password', fallback='password')
+        }
+        self.ssh_jogo_config = {
+            'host': self.config.get('ssh_jogo', 'host', fallback='192.168.100.1'),
+            'username': self.config.get('ssh_jogo', 'username', fallback='user'),
+            'password': self.config.get('ssh_jogo', 'password', fallback='password')
+        }
 
         # Verifica se o Bitvise e o VirtualBox estão instalados
         if not self.check_software_installation():
@@ -438,34 +450,24 @@ class ButtonManager:
         # Configura o peso das colunas para expandir uniformemente
         self.status_frame.grid_columnconfigure((0, 1, 2), weight=1)
 
-        # Funções para os botões de teste
-        def test_unifique():
-            output_queue = queue.Queue()
-            self.run_test_command('eth2', 'UNIFIQUE', output_queue)
-
-        def test_claro():
-            output_queue = queue.Queue()
-            self.run_test_command('eth4', 'CLARO', output_queue)
-
-        def test_coopera():
-            output_queue = queue.Queue()
-            self.run_test_command('eth5', 'COOPERA', output_queue)
-
         # Botão para Unifique
-        self.unifique_status = tk.Button(self.status_frame, text="UNIFIQUE: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=test_unifique)
+        self.unifique_status = tk.Button(self.status_frame, text="UNIFIQUE: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=self.test_unifique)
         self.unifique_status.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
 
         # Botão para Claro
-        self.claro_status = tk.Button(self.status_frame, text="CLARO: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=test_claro)
+        self.claro_status = tk.Button(self.status_frame, text="CLARO: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=self.test_claro)
         self.claro_status.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
 
         # Botão para Coopera
-        self.coopera_status = tk.Button(self.status_frame, text="COOPERA: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=test_coopera)
+        self.coopera_status = tk.Button(self.status_frame, text="COOPERA: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=self.test_coopera)
         self.coopera_status.grid(row=0, column=2, padx=5, pady=5, sticky=tk.W)
 
-        # Inicia atualização do status das conexões.
-        self.ssh_thread = threading.Thread(target=self.establish_ssh_connection)
-        self.ssh_thread.start()
+        # Inicia a atualização do status das conexões SSH
+        self.ssh_vpn_thread = threading.Thread(target=self.establish_ssh_vpn_connection)
+        self.ssh_vpn_thread.start()
+
+        self.ssh_jogo_thread = threading.Thread(target=self.establish_ssh_jogo_connection)
+        self.ssh_jogo_thread.start()
         #self.update_status_labels()
 
         # Cria o Notebook
@@ -628,38 +630,102 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.7", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.9", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
-    def establish_ssh_connection(self):
-        """Estabelece e mantém uma conexão SSH persistente com tentativas de reconexão."""
-        max_retries = 500  # Número máximo de tentativas de reconexão
-        retry_delay = 5  # Tempo de espera entre as tentativas de reconexão (em segundos)
+    # Funções para os botões de teste
+    def test_unifique(self):
+        """Executa o teste para a conexão UNIFIQUE usando a conexão SSH apropriada."""
+        if not hasattr(self, 'ssh_vpn_client') or self.ssh_vpn_client is None:
+            logger_test_command.error("Conexão SSH VPN não está estabelecida para o teste UNIFIQUE.")
+            return
+
+        output_queue = queue.Queue()
+        self.run_test_command(self.ssh_vpn_client, 'eth2', output_queue)
+
+    def test_claro(self):
+        """Executa o teste para a conexão CLARO usando a conexão SSH apropriada."""
+        if not hasattr(self, 'ssh_vpn_client') or self.ssh_vpn_client is None:
+            logger_test_command.error("Conexão SSH VPN não está estabelecida para o teste CLARO.")
+            return
+
+        output_queue = queue.Queue()
+        self.run_test_command(self.ssh_vpn_client, 'eth4', output_queue)
+
+    def test_coopera(self):
+        """Executa o teste para a conexão COOPERA usando a conexão SSH de jogo."""
+        if not hasattr(self, 'ssh_vpn_client') or self.ssh_vpn_client is None:
+            logger_test_command.error("Conexão SSH JOGO não está estabelecida para o teste COOPERA.")
+            return
+
+        output_queue = queue.Queue()
+        self.run_test_command(self.ssh_vpn_client, 'eth5', output_queue)
+
+    def establish_ssh_vpn_connection(self):
+        """Estabelece e mantém uma conexão SSH persistente para VPN."""
+        self.establish_ssh_connection(self.ssh_vpn_config, 'vpn')
+
+    def establish_ssh_jogo_connection(self):
+        """Estabelece e mantém uma conexão SSH persistente para Jogo."""
+        self.establish_ssh_connection(self.ssh_jogo_config, 'jogo')
+
+    def establish_ssh_connection(self, config, connection_type):
+        """Estabelece e mantém uma conexão SSH persistente com tentativas de reconexão contínuas."""
+        max_retries = 500
+        retry_delay = 5
         attempt = 0
 
-        while attempt < max_retries:
+        while True:
+            ssh_client = paramiko.SSHClient()
+            ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
             try:
-                self.ssh_client = paramiko.SSHClient()
-                self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                self.ssh_client.connect(self.ssh_host, username=self.ssh_username, password=self.ssh_password, look_for_keys=False, allow_agent=False)
-                logger_test_command.info("Conexão SSH estabelecida com sucesso.")
-                self.connection_established.set()  # Sinaliza que a conexão foi estabelecida
-                self.master.after(1000, self.update_status_labels)  # Inicia o ciclo de atualização dos labels após 1 segundos
-                return  # Saia do loop se a conexão for bem-sucedida
+                # Tenta se conectar
+                ssh_client.connect(config['host'], username=config['username'], password=config['password'], look_for_keys=False, allow_agent=False)
+            
+                if connection_type == 'vpn':
+                    self.ssh_vpn_client = ssh_client
+                    # Inicia a atualização das labels após a conexão VPN ser estabelecida
+                    if hasattr(self, 'update_status_labels'):
+                        self.master.after(1000, self.update_status_labels)
+                    logger_test_command.info("Conexão SSH (vpn) estabelecida com sucesso e atualização das labels iniciada.")
+                else:
+                    self.ssh_jogo_client = ssh_client
+                    logger_test_command.info("Conexão SSH (jogo) estabelecida com sucesso.")
+            
+                # Marca a conexão como estabelecida
+                self.connection_established.set()
+
+                # Aguarda até que a conexão seja interrompida
+                while True:
+                    try:
+                        # Realiza uma operação simples para verificar a conexão
+                        ssh_client.exec_command('echo test')
+                        time.sleep(60)  # Verifica a conexão a cada minuto
+                    except Exception as e:
+                        # Se uma exceção for lançada, significa que a conexão foi perdida
+                        logger_test_command.error(f"Conexão SSH ({connection_type}) perdida: {e}")
+                        ssh_client.close()
+                        self.connection_established.clear()  # Limpa o sinal de conexão estabelecida
+                        self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline
+                        break  # Sai do loop de verificação para tentar reconectar
+
             except Exception as e:
-                logger_test_command.error(f"Erro ao estabelecer conexão SSH: {e}")
+                logger_test_command.error(f"Erro ao estabelecer conexão SSH ({connection_type}): {e}")
                 attempt += 1
                 if attempt < max_retries:
                     logger_test_command.info(f"Tentando novamente em {retry_delay} segundos...")
                     time.sleep(retry_delay)
                 else:
                     logger_test_command.error("Número máximo de tentativas de conexão atingido.")
-                    self.connection_established.set()  # Sinaliza que a tentativa falhou
+                    self.connection_established.set()  # Marca a conexão como falhada
+                    self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline
+                    break  # Sai do loop de tentativa de conexão
 
-    def run_test_command(self, interface, output_queue):
+    def run_test_command(self, ssh_client, interface, output_queue):
         """Executa um comando utilizando a conexão SSH estabelecida."""
-        if self.ssh_client is None:
+        if ssh_client is None:
             logger_test_command.error("Conexão SSH não está estabelecida.")
             output_queue.put(None)
             return
@@ -668,7 +734,7 @@ class ButtonManager:
         logger_test_command.info(f"Testando conexão com interface {interface}: {command}")
 
         try:
-            stdin, stdout, stderr = self.ssh_client.exec_command(command)
+            stdin, stdout, stderr = ssh_client.exec_command(command)
             output = stdout.read().decode()
             logger_test_command.info(f"Saída do comando: {output}")
             output_queue.put(output)
@@ -676,11 +742,27 @@ class ButtonManager:
             logger_test_command.error(f"Erro ao executar comando: {e}")
             output_queue.put(None)
 
-    def check_interface_status(self, interface, button, name):
+    def update_all_statuses_offline(self):
+        """Atualiza o status de todas as conexões para offline."""
+        self.unifique_status.config(text="UNIFIQUE: Offline", bg='red')
+        self.claro_status.config(text="CLARO: Offline", bg='red')
+        self.coopera_status.config(text="COOPERA: Offline", bg='red')
+
+    def update_status_labels(self):
+        """Atualiza os labels a cada 30 segundos, se a conexão SSH estiver estabelecida."""
+        if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
+            self.check_status()  # Chama o método para atualizar o status
+        else:
+            logger_test_command.info("Aguardando conexão SSH VPN estabelecida para atualizar os labels.")
+            self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline
+
+        self.master.after(30000, self.update_status_labels)  # Chama update_status_labels novamente após 30 segundos
+
+    def check_interface_status(self, interface, button, name, ssh_client):
         output_queue = queue.Queue()
 
         # Executa o comando em uma thread
-        threading.Thread(target=self.run_test_command, args=(interface, output_queue)).start()
+        threading.Thread(target=self.run_test_command, args=(ssh_client, interface, output_queue)).start()
 
         def thread_function():
             try:
@@ -701,25 +783,11 @@ class ButtonManager:
         threading.Thread(target=thread_function).start()
 
     def check_status(self):
-        """Verifica o status das interfaces."""
-        threading.Thread(target=self.check_interface_status, args=('eth2', self.unifique_status, 'UNIFIQUE')).start()
-        threading.Thread(target=self.check_interface_status, args=('eth4', self.claro_status, 'CLARO')).start()
-        threading.Thread(target=self.check_interface_status, args=('eth5', self.coopera_status, 'COOPERA')).start()
-
-    def update_status_labels(self):
-        """Atualiza os labels a cada 30 segundos, se a conexão SSH estiver estabelecida."""
-        if self.connection_established.is_set():
-            self.check_status()  # Chama o método para atualizar o status
-        else:
-            logger_test_command.info("Aguardando conexão SSH estabelecida para atualizar os labels.")
-
-        self.master.after(30000, self.update_status_labels)  # Chama update_status_labels novamente após 30 segundos
-
-    def close_ssh_connection(self):
-        """Fecha a conexão SSH."""
-        if self.ssh_client:
-            self.ssh_client.close()
-            logger_test_command.info("Conexão SSH fechada.")
+        """Verifica o status das interfaces usando as conexões SSH apropriadas."""
+        if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
+            threading.Thread(target=self.check_interface_status, args=('eth2', self.unifique_status, 'UNIFIQUE', self.ssh_vpn_client)).start()
+            threading.Thread(target=self.check_interface_status, args=('eth4', self.claro_status, 'CLARO', self.ssh_vpn_client)).start()
+            threading.Thread(target=self.check_interface_status, args=('eth5', self.coopera_status, 'COOPERA', self.ssh_vpn_client)).start()
 
 #LOGICA PARA EXIBIR STATUS E MENUS DAS VMS
     # Configura menus nos botões de VMs
@@ -2479,22 +2547,30 @@ class OMRManagerDialog:
 
         # Quarta aba (Configurações de Usuário e Senha)
         aba4 = ttk.Frame(self.tabs)
-        self.tabs.add(aba4, text="Configurações de Usuário")
+        self.tabs.add(aba4, text="Configurações de SSH")
 
         # Frame para configurações de usuário na aba 4
         frame_user_config = tk.Frame(aba4, borderwidth=1, relief=tk.RAISED)
         frame_user_config.pack(padx=10, pady=10, fill=tk.BOTH)
 
-        tk.Label(frame_user_config, text="Nome de Usuário:").grid(row=0, column=0, sticky=tk.W)
-        self.username_entry = tk.Entry(frame_user_config, width=30)
-        self.username_entry.grid(row=0, column=1, padx=5, pady=5)
+        tk.Label(frame_user_config, text="Usuário OMR VPN:").grid(row=0, column=0, sticky=tk.W)
+        self.user_vpn_entry = tk.Entry(frame_user_config, width=30)
+        self.user_vpn_entry.grid(row=0, column=1, padx=5, pady=5)
 
-        tk.Label(frame_user_config, text="Senha:").grid(row=1, column=0, sticky=tk.W)
-        self.password_entry = tk.Entry(frame_user_config, width=30, show='*')  # 'show' oculta o texto
-        self.password_entry.grid(row=1, column=1, padx=5, pady=5)
+        tk.Label(frame_user_config, text="Senha OMR VPN:").grid(row=1, column=0, sticky=tk.W)
+        self.password_vpn_entry = tk.Entry(frame_user_config, show='*', width=30)
+        self.password_vpn_entry.grid(row=1, column=1, padx=5, pady=5)
+
+        tk.Label(frame_user_config, text="Usuário OMR JOGO:").grid(row=0, column=3, sticky=tk.W)
+        self.user_jogo_entry = tk.Entry(frame_user_config, width=30)
+        self.user_jogo_entry.grid(row=0, column=4, padx=5, pady=5)
+
+        tk.Label(frame_user_config, text="Senha OMR JOGO:").grid(row=1, column=3, sticky=tk.W)
+        self.password_jogo_entry = tk.Entry(frame_user_config, show='*', width=30)
+        self.password_jogo_entry.grid(row=1, column=4, padx=5, pady=5)
 
         save_button = tk.Button(frame_user_config, text="Salvar", command=self.save_user_credentials)
-        save_button.grid(row=2, column=0, columnspan=2, pady=10)
+        save_button.grid(row=4, column=0, columnspan=2, pady=10)
 
         # Carregar informações do usuário ao inicializar
         self.load_user_credentials()
@@ -2503,38 +2579,45 @@ class OMRManagerDialog:
 
 # METODO PARA SALVAR USUARIO E SENHA PARA CONEXÃO SSH COM OMR
     def load_user_credentials(self):
-        """Carrega as credenciais do usuário do arquivo de configuração."""
         config = configparser.ConfigParser()
         config.read('config.ini')
 
-        if 'ssh' in config:
-            self.username_entry.delete(0, tk.END)
-            self.username_entry.insert(0, config.get('ssh', 'username', fallback=''))
-            self.password_entry.delete(0, tk.END)
-            self.password_entry.insert(0, config.get('ssh', 'password', fallback=''))
+        # Carregar informações do usuário da seção apropriada
+        self.user_vpn_entry.delete(0, tk.END)
+        self.password_vpn_entry.delete(0, tk.END)
+        self.user_jogo_entry.delete(0, tk.END)
+        self.password_jogo_entry.delete(0, tk.END)
+
+        if 'ssh_vpn' in config:
+            self.user_vpn_entry.insert(0, config['ssh_vpn'].get('username', ''))
+            self.password_vpn_entry.insert(0, config['ssh_vpn'].get('password', ''))
+
+        if 'ssh_jogo' in config:
+            self.user_jogo_entry.insert(0, config['ssh_jogo'].get('username', ''))
+            self.password_jogo_entry.insert(0, config['ssh_jogo'].get('password', ''))
 
     def save_user_credentials(self):
-        """Salva as credenciais do usuário no arquivo de configuração."""
-        username = self.username_entry.get()
-        password = self.password_entry.get()
-
-        if not username or not password:
-            messagebox.showwarning("Aviso", "Nome de usuário e senha não podem estar vazios.")
-            return
-
         config = configparser.ConfigParser()
         config.read('config.ini')
 
-        if not config.has_section('ssh'):
-            config.add_section('ssh')
+        # Cria as seções se não existirem
+        if 'ssh_vpn' not in config:
+            config.add_section('ssh_vpn')
+        if 'ssh_jogo' not in config:
+            config.add_section('ssh_jogo')
 
-        config.set('ssh', 'username', username)
-        config.set('ssh', 'password', password)
+        # Salva as informações do usuário
+        config['ssh_vpn']['username'] = self.user_vpn_entry.get()
+        config['ssh_vpn']['password'] = self.password_vpn_entry.get()
 
+        config['ssh_jogo']['username'] = self.user_jogo_entry.get()
+        config['ssh_jogo']['password'] = self.password_jogo_entry.get()
+
+        # Escreve as configurações no arquivo
         with open('config.ini', 'w') as configfile:
             config.write(configfile)
 
-        messagebox.showinfo("Informação", "Credenciais salvas com sucesso.")
+        messagebox.showinfo("Salvar Configurações", "Configurações salvas com sucesso!")
 
 #METODO PARA SALVAR NOME DAS VMS NA TERCEIRA ABA
     def save_vm_names(self):
@@ -2948,7 +3031,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 66.7 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 66.9 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
