@@ -50,6 +50,7 @@ class ButtonManager:
         self.verificar_vm = True  # Variável que controla a verificação das VMs
         self.ping_forever = True # Variavel para ligar/desligar testes de ping.
         self.connection_established = threading.Event()  # Evento para sinalizar conexão estabelecida
+        self.stop_event = threading.Event()
         self.thread = None
         self.buttons = []
         self.button_frame = None
@@ -126,11 +127,19 @@ class ButtonManager:
     # Função para ler e criar o arquivo ini
     def create_default_config(self):
         """Cria um arquivo de configuração com valores padrão."""
-        self.config.add_section('ssh')
-        self.config.set('ssh', 'host', '192.168.101.1')
-        self.config.set('ssh', 'username', 'user')
-        self.config.set('ssh', 'password', 'password')
+        # Adiciona a seção 'ssh_vpn'
+        self.config.add_section('ssh_vpn')
+        self.config.set('ssh_vpn', 'host', '192.168.101.1')
+        self.config.set('ssh_vpn', 'username', '')
+        self.config.set('ssh_vpn', 'password', '')
 
+        # Adiciona a seção 'ssh_jogo'
+        self.config.add_section('ssh_jogo')
+        self.config.set('ssh_jogo', 'host', '192.168.100.1')
+        self.config.set('ssh_jogo', 'username', '')
+        self.config.set('ssh_jogo', 'password', '')
+
+        # Grava as configurações no arquivo
         with open(self.config_file, 'w') as configfile:
             self.config.write(configfile)
 
@@ -260,6 +269,9 @@ class ButtonManager:
         #self.show_closing_alert()
 
         # Colocar aqui toda chamada de encerramento de threads que estiverem sendo executadas de forma initerrupta e qualquer função a ser chamada no encerramento do programa.
+        # Sinaliza para as threads que devem encerrar
+        self.stop_event.set()
+        self.close_ssh_connection()
         self.stop_pinging_threads()
         self.stop_verificar_vm()
         self.save_window_position()
@@ -630,7 +642,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.9", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.10", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
@@ -676,14 +688,20 @@ class ButtonManager:
         retry_delay = 5
         attempt = 0
 
-        while True:
+        while not self.stop_event.is_set():
             ssh_client = paramiko.SSHClient()
             ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
             try:
                 # Tenta se conectar
-                ssh_client.connect(config['host'], username=config['username'], password=config['password'], look_for_keys=False, allow_agent=False)
-            
+                ssh_client.connect(
+                    config['host'],
+                    username=config['username'],
+                    password=config['password'],
+                    look_for_keys=False,
+                    allow_agent=False
+                )
+                
                 if connection_type == 'vpn':
                     self.ssh_vpn_client = ssh_client
                     # Inicia a atualização das labels após a conexão VPN ser estabelecida
@@ -693,16 +711,18 @@ class ButtonManager:
                 else:
                     self.ssh_jogo_client = ssh_client
                     logger_test_command.info("Conexão SSH (jogo) estabelecida com sucesso.")
-            
+
                 # Marca a conexão como estabelecida
                 self.connection_established.set()
 
-                # Aguarda até que a conexão seja interrompida
-                while True:
+                # Aguarda até que a conexão seja interrompida ou o programa seja fechado
+                while not self.stop_event.is_set():
                     try:
                         # Realiza uma operação simples para verificar a conexão
                         ssh_client.exec_command('echo test')
-                        time.sleep(60)  # Verifica a conexão a cada minuto
+                        # Usa wait com timeout para permitir a verificação do evento de parada
+                        if self.stop_event.wait(60):  # Espera 60 segundos ou até o evento ser setado
+                            break
                     except Exception as e:
                         # Se uma exceção for lançada, significa que a conexão foi perdida
                         logger_test_command.error(f"Conexão SSH ({connection_type}) perdida: {e}")
@@ -716,7 +736,8 @@ class ButtonManager:
                 attempt += 1
                 if attempt < max_retries:
                     logger_test_command.info(f"Tentando novamente em {retry_delay} segundos...")
-                    time.sleep(retry_delay)
+                    if self.stop_event.wait(retry_delay):
+                        break
                 else:
                     logger_test_command.error("Número máximo de tentativas de conexão atingido.")
                     self.connection_established.set()  # Marca a conexão como falhada
@@ -788,6 +809,18 @@ class ButtonManager:
             threading.Thread(target=self.check_interface_status, args=('eth2', self.unifique_status, 'UNIFIQUE', self.ssh_vpn_client)).start()
             threading.Thread(target=self.check_interface_status, args=('eth4', self.claro_status, 'CLARO', self.ssh_vpn_client)).start()
             threading.Thread(target=self.check_interface_status, args=('eth5', self.coopera_status, 'COOPERA', self.ssh_vpn_client)).start()
+
+    def close_ssh_connection(self):
+        """Fecha todas as conexões SSH abertas."""
+        if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
+            self.ssh_vpn_client.close()
+            logger_test_command.info("Conexão SSH (vpn) fechada.")
+            self.ssh_vpn_client = None
+
+        if hasattr(self, 'ssh_jogo_client') and self.ssh_jogo_client is not None:
+            self.ssh_jogo_client.close()
+            logger_test_command.info("Conexão SSH (jogo) fechada.")
+            self.ssh_jogo_client = None
 
 #LOGICA PARA EXIBIR STATUS E MENUS DAS VMS
     # Configura menus nos botões de VMs
@@ -3031,7 +3064,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 66.9 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 66.10 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
