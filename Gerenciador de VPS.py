@@ -645,35 +645,7 @@ class ButtonManager:
         self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.10", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
-# LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
-    # Funções para os botões de teste
-    def test_unifique(self):
-        """Executa o teste para a conexão UNIFIQUE usando a conexão SSH apropriada."""
-        if not hasattr(self, 'ssh_vpn_client') or self.ssh_vpn_client is None:
-            logger_test_command.error("Conexão SSH VPN não está estabelecida para o teste UNIFIQUE.")
-            return
-
-        output_queue = queue.Queue()
-        self.run_test_command(self.ssh_vpn_client, 'eth2', output_queue)
-
-    def test_claro(self):
-        """Executa o teste para a conexão CLARO usando a conexão SSH apropriada."""
-        if not hasattr(self, 'ssh_vpn_client') or self.ssh_vpn_client is None:
-            logger_test_command.error("Conexão SSH VPN não está estabelecida para o teste CLARO.")
-            return
-
-        output_queue = queue.Queue()
-        self.run_test_command(self.ssh_vpn_client, 'eth4', output_queue)
-
-    def test_coopera(self):
-        """Executa o teste para a conexão COOPERA usando a conexão SSH de jogo."""
-        if not hasattr(self, 'ssh_vpn_client') or self.ssh_vpn_client is None:
-            logger_test_command.error("Conexão SSH JOGO não está estabelecida para o teste COOPERA.")
-            return
-
-        output_queue = queue.Queue()
-        self.run_test_command(self.ssh_vpn_client, 'eth5', output_queue)
-
+# LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
     def establish_ssh_vpn_connection(self):
         """Estabelece e mantém uma conexão SSH persistente para VPN."""
         self.establish_ssh_connection(self.ssh_vpn_config, 'vpn')
@@ -744,6 +716,79 @@ class ButtonManager:
                     self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline
                     break  # Sai do loop de tentativa de conexão
 
+    def execute_command_via_vpn(self, command):
+        logger_test_command.info(f"Executando via VPN: {command}")
+        try:
+            stdin, stdout, stderr = self.ssh_vpn_client.exec_command(command)
+            output = stdout.read().decode('utf-8').strip()
+            error = stderr.read().decode('utf-8').strip()
+
+            if error:
+                logger_test_command.error(f"Erro ao executar comando via VPN: {error}")
+                return None, error
+
+            return output, None
+        except Exception as e:
+            logger_test_command.error(f"Erro ao executar comando via VPN: {str(e)}")
+            return None, str(e)
+
+    def execute_command_via_jogo(self, command):
+        logger_test_command.info(f"Executando via Jogo: {command}")
+        try:
+            stdin, stdout, stderr = self.ssh_jogo_client.exec_command(command)
+            output = stdout.read().decode('utf-8').strip()
+            error = stderr.read().decode('utf-8').strip()
+
+            if error:
+                logger_test_command.error(f"Erro ao executar comando via Jogo: {error}")
+                return None, error
+
+            return output, None
+        except Exception as e:
+            logger_test_command.error(f"Erro ao executar comando via Jogo: {str(e)}")
+            return None, str(e)
+
+    def close_ssh_connection(self):
+        """Fecha todas as conexões SSH abertas."""
+        if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
+            self.ssh_vpn_client.close()
+            logger_test_command.info("Conexão SSH (vpn) fechada.")
+            self.ssh_vpn_client = None
+
+        if hasattr(self, 'ssh_jogo_client') and self.ssh_jogo_client is not None:
+            self.ssh_jogo_client.close()
+            logger_test_command.info("Conexão SSH (jogo) fechada.")
+            self.ssh_jogo_client = None
+
+# LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
+    # Funções para os botões de teste
+    def test_unifique(self):
+        """Executa o teste para a conexão UNIFIQUE usando a conexão SSH apropriada."""
+        if not hasattr(self, 'ssh_vpn_client') or self.ssh_vpn_client is None:
+            logger_test_command.error("Conexão SSH VPN não está estabelecida para o teste UNIFIQUE.")
+            return
+
+        output_queue = queue.Queue()
+        self.run_test_command(self.ssh_vpn_client, 'eth2', output_queue)
+
+    def test_claro(self):
+        """Executa o teste para a conexão CLARO usando a conexão SSH apropriada."""
+        if not hasattr(self, 'ssh_vpn_client') or self.ssh_vpn_client is None:
+            logger_test_command.error("Conexão SSH VPN não está estabelecida para o teste CLARO.")
+            return
+
+        output_queue = queue.Queue()
+        self.run_test_command(self.ssh_vpn_client, 'eth4', output_queue)
+
+    def test_coopera(self):
+        """Executa o teste para a conexão COOPERA usando a conexão SSH de jogo."""
+        if not hasattr(self, 'ssh_vpn_client') or self.ssh_vpn_client is None:
+            logger_test_command.error("Conexão SSH JOGO não está estabelecida para o teste COOPERA.")
+            return
+
+        output_queue = queue.Queue()
+        self.run_test_command(self.ssh_vpn_client, 'eth5', output_queue)
+
     def run_test_command(self, ssh_client, interface, output_queue):
         """Executa um comando utilizando a conexão SSH estabelecida."""
         if ssh_client is None:
@@ -809,18 +854,6 @@ class ButtonManager:
             threading.Thread(target=self.check_interface_status, args=('eth2', self.unifique_status, 'UNIFIQUE', self.ssh_vpn_client)).start()
             threading.Thread(target=self.check_interface_status, args=('eth4', self.claro_status, 'CLARO', self.ssh_vpn_client)).start()
             threading.Thread(target=self.check_interface_status, args=('eth5', self.coopera_status, 'COOPERA', self.ssh_vpn_client)).start()
-
-    def close_ssh_connection(self):
-        """Fecha todas as conexões SSH abertas."""
-        if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
-            self.ssh_vpn_client.close()
-            logger_test_command.info("Conexão SSH (vpn) fechada.")
-            self.ssh_vpn_client = None
-
-        if hasattr(self, 'ssh_jogo_client') and self.ssh_jogo_client is not None:
-            self.ssh_jogo_client.close()
-            logger_test_command.info("Conexão SSH (jogo) fechada.")
-            self.ssh_jogo_client = None
 
 #LOGICA PARA EXIBIR STATUS E MENUS DAS VMS
     # Configura menus nos botões de VMs
@@ -1302,7 +1335,7 @@ class ButtonManager:
         self.master.after(0, lambda: label_cc.config(text=f"CC: {resultado_cc_truncado}"))
 
     def executar_comandos_scheduler(self):
-        # Define os comandos a serem executados
+       # Define os comandos a serem executados e as funções de execução SSH associadas
         comandos = {
             (self.label_vps_vpn_scheduler, self.label_vps_vpn_cc): (
                 ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP.tlp", "--", "cat", "/proc/sys/net/mptcp/mptcp_scheduler"],
