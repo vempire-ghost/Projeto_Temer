@@ -644,7 +644,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.11", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.12", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -1159,7 +1159,11 @@ class ButtonManager:
                         first_failure_vpn = False
                         try:
                             # Reinicia o omr-tracker antes do Glorytun VPN
-                            subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.101.1", "/etc/init.d/omr-tracker", "restart"], shell=True)
+                            if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
+                                try:
+                                    self.ssh_vpn_client.exec_command("/etc/init.d/omr-tracker restart")
+                                except Exception:
+                                    pass
                             logger_main.info("Comando de reinício do omr-tracker executado.")
 
                             # Aguarda 20 segundos, verificando se ainda deve continuar
@@ -1168,7 +1172,11 @@ class ButtonManager:
                                     return
                                 time.sleep(1)
 
-                            subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.101.1", "/etc/init.d/glorytun", "restart"], shell=True)
+                            if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
+                                try:
+                                    self.ssh_vpn_client.exec_command("/etc/init.d/glorytun restart")
+                                except Exception:
+                                    pass
                             logger_main.info("Comando de reinício do Glorytun VPN executado.")
                         except Exception as e:
                             logger_main.error(f"Erro ao executar o comando de reinício do Glorytun VPN: {e}")
@@ -1187,7 +1195,11 @@ class ButtonManager:
                 logger_main.error("Falha na conexão com o Glorytun VPN após 6 tentativas. Executando o comando de reinício do Glorytun novamente...")
                 try:
                     # Reinicia o omr-tracker antes do Glorytun VPN
-                    subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.101.1", "/etc/init.d/omr-tracker", "restart"], shell=True)
+                    if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
+                        try:
+                            self.ssh_vpn_client.exec_command("/etc/init.d/omr-tracker restart")
+                        except Exception:
+                            pass
                     logger_main.info("Comando de reinício do omr-tracker executado.")
 
                     # Aguarda 5 segundos, verificando se ainda deve continuar
@@ -1196,7 +1208,11 @@ class ButtonManager:
                             return
                         time.sleep(1)
 
-                    subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.101.1", "/etc/init.d/glorytun", "restart"], shell=True)
+                    if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
+                        try:
+                            self.ssh_vpn_client.exec_command("/etc/init.d/glorytun restart")
+                        except Exception:
+                            pass
                     logger_main.info("Comando de reinício do Glorytun VPN executado.")
                 except Exception as e:
                     logger_main.error(f"Erro ao executar o comando de reinício do Glorytun VPN: {e}")
@@ -1212,7 +1228,11 @@ class ButtonManager:
                         first_failure_xray = False
                         try:
                             # Reinicia o omr-tracker antes do Xray Jogo
-                            subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.100.1", "/etc/init.d/omr-tracker", "restart"], shell=True)
+                            if hasattr(self, 'ssh_jogo_client') and self.ssh_jogo_client is not None:
+                                try:
+                                    self.ssh_jogo_client.exec_command("/etc/init.d/omr-tracker restart")
+                                except Exception:
+                                    pass
                             logger_main.info("Comando de reinício do omr-tracker executado.")
 
                             # Aguarda 20 segundos, verificando se ainda deve continuar
@@ -1221,7 +1241,11 @@ class ButtonManager:
                                     return
                                 time.sleep(1)
 
-                            subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.100.1", "/etc/init.d/xray", "restart"], shell=True)
+                            if hasattr(self, 'ssh_jogo_client') and self.ssh_jogo_client is not None:
+                                try:
+                                    self.ssh_jogo_client.exec_command("/etc/init.d/xray restart")
+                                except Exception:
+                                    pass
                             logger_main.info("Comando de reinício do Xray executado.")
                         except Exception as e:
                             logger_main.error(f"Erro ao executar o comando de reinício do Xray: {e}")
@@ -1240,7 +1264,11 @@ class ButtonManager:
                 logger_main.error("Falha na conexão com o Xray Jogo após 4 tentativas. Executando o comando de reinício do Xray novamente...")
                 try:
                     # Reinicia o omr-tracker antes do Xray Jogo
-                    subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.100.1", "/etc/init.d/omr-tracker", "restart"], shell=True)
+                    if hasattr(self, 'ssh_jogo_client') and self.ssh_jogo_client is not None:
+                        try:
+                            self.ssh_jogo_client.exec_command("/etc/init.d/omr-tracker restart")
+                        except Exception:
+                            pass
                     logger_main.info("Comando de reinício do omr-tracker executado.")
 
                     # Aguarda 5 segundos, verificando se ainda deve continuar
@@ -1249,7 +1277,11 @@ class ButtonManager:
                             return
                         time.sleep(1)
 
-                    subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.100.1", "/etc/init.d/xray", "restart"], shell=True)
+                    if hasattr(self, 'ssh_jogo_client') and self.ssh_jogo_client is not None:
+                        try:
+                            self.ssh_jogo_client.exec_command("/etc/init.d/xray restart")
+                        except Exception:
+                            pass
                     logger_main.info("Comando de reinício do Xray executado.")
                 except Exception as e:
                     logger_main.error(f"Erro ao executar o comando de reinício do Xray: {e}")
@@ -1367,10 +1399,15 @@ class ButtonManager:
 
 #LOGICA PARA BOTÕES DE REINICIAR GLORYTUN E XRAY NA 3° ABA.
     def reiniciar_glorytun_vpn(self):
-        subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.101.1", "/etc/init.d/glorytun", "restart"], shell=True)
+        """Reinicia o serviço Glorytun através da conexão SSH já estabelecida."""
+        if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
+            try:
+                self.ssh_vpn_client.exec_command("/etc/init.d/glorytun restart")
+            except Exception:
+                pass
 
     def reiniciar_xray_jogo(self):
-        # Função para exibir a caixa de diálogo de confirmação
+        """Reinicia o serviço Xray através da conexão SSH já estabelecida com confirmação do usuário."""
         def confirmar_reiniciar():
             resposta = ctypes.windll.user32.MessageBoxW(
                 0,
@@ -1379,8 +1416,11 @@ class ButtonManager:
                 4  # MB_YESNO
             )
             if resposta == 6:  # IDYES
-                # Executa o comando se o usuário clicar em "Sim"
-                subprocess.Popen(["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.100.1", "/etc/init.d/xray", "restart"], shell=True)
+                if hasattr(self, 'ssh_jogo_client') and self.ssh_jogo_client is not None:
+                    try:
+                        self.ssh_jogo_client.exec_command("/etc/init.d/xray restart")
+                    except Exception:
+                        pass
 
         confirmar_reiniciar()
 
@@ -3109,7 +3149,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 66.11 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 66.12 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
