@@ -65,23 +65,8 @@ class ButtonManager:
         if not os.path.isfile(self.config_file):
             self.create_default_config()
 
-        self.config_file = 'config.ini'
-        self.config = configparser.ConfigParser()
-        if not os.path.isfile(self.config_file):
-            self.create_default_config()
-
-        # Carregar configurações de SSH para vpn e jogo
-        self.config.read(self.config_file)
-        self.ssh_vpn_config = {
-            'host': self.config.get('ssh_vpn', 'host', fallback='192.168.101.1'),
-            'username': self.config.get('ssh_vpn', 'username', fallback='user'),
-            'password': self.config.get('ssh_vpn', 'password', fallback='password')
-        }
-        self.ssh_jogo_config = {
-            'host': self.config.get('ssh_jogo', 'host', fallback='192.168.100.1'),
-            'username': self.config.get('ssh_jogo', 'username', fallback='user'),
-            'password': self.config.get('ssh_jogo', 'password', fallback='password')
-        }
+        # Carregar as configurações ssh do arquivo ini
+        self.load_ssh_configurations()
 
         # Verifica se o Bitvise e o VirtualBox estão instalados
         if not self.check_software_installation():
@@ -124,18 +109,19 @@ class ButtonManager:
         self.clear_log_file('app.log')  # Limpa o arquivo de log ao iniciar o programa
         self.clear_log_file('test_command.log')  # Limpa o arquivo de log ao iniciar o programa
 
+#FUNÇÃO RELACIONADAS A ARQUIVO .INI
     # Função para ler e criar o arquivo ini
     def create_default_config(self):
         """Cria um arquivo de configuração com valores padrão."""
         # Adiciona a seção 'ssh_vpn'
         self.config.add_section('ssh_vpn')
-        self.config.set('ssh_vpn', 'host', '192.168.101.1')
+        self.config.set('ssh_vpn', 'host', '')
         self.config.set('ssh_vpn', 'username', '')
         self.config.set('ssh_vpn', 'password', '')
 
         # Adiciona a seção 'ssh_jogo'
         self.config.add_section('ssh_jogo')
-        self.config.set('ssh_jogo', 'host', '192.168.100.1')
+        self.config.set('ssh_jogo', 'host', '')
         self.config.set('ssh_jogo', 'username', '')
         self.config.set('ssh_jogo', 'password', '')
 
@@ -143,7 +129,23 @@ class ButtonManager:
         with open(self.config_file, 'w') as configfile:
             self.config.write(configfile)
 
-    # Função para verificar instalação de programas necessarios para o funcionamento do sistema
+    def load_ssh_configurations(self):
+        # Recarrega as configurações de SSH para vpn e jogo
+        self.config.read(self.config_file)
+        self.ssh_vpn_config = {
+            'host': self.config.get('ssh_vpn', 'host', fallback=''),
+            'username': self.config.get('ssh_vpn', 'username', fallback=''),
+            'password': self.config.get('ssh_vpn', 'password', fallback='')
+        }
+        self.ssh_jogo_config = {
+            'host': self.config.get('ssh_jogo', 'host', fallback=''),
+            'username': self.config.get('ssh_jogo', 'username', fallback=''),
+            'password': self.config.get('ssh_jogo', 'password', fallback='')
+        }
+
+        print("Configurações de SSH recarregadas com sucesso.")
+
+# FUNÇÃO PARA VERIFICA INSTALAÇÃO DE PROGRAMAS NECESSARIOS PARA O FUNCIONAMENTO DO SISTEMA
     def check_software_installation(self):
         """Verifica se o Bitvise e o VirtualBox estão instalados no sistema."""
         bitvise_installed = self.is_program_installed("BvSsh.exe")
@@ -277,8 +279,8 @@ class ButtonManager:
         self.save_window_position()
         self.save_color_map()  # Salva o mapeamento de cores
 
-        # Aguardar 300ms antes de destruir o widget
-        self.master.after(300, self.destroy_widget)
+        # Aguardar 900ms antes de destruir o widget
+        self.master.after(900, self.destroy_widget)
 
     def show_closing_alert(self):
         # Criar uma nova janela para a mensagem de encerramento
@@ -642,25 +644,48 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.10", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.11", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
     def establish_ssh_vpn_connection(self):
         """Estabelece e mantém uma conexão SSH persistente para VPN."""
-        self.establish_ssh_connection(self.ssh_vpn_config, 'vpn')
+        self.establish_ssh_connection('vpn')
 
     def establish_ssh_jogo_connection(self):
         """Estabelece e mantém uma conexão SSH persistente para Jogo."""
-        self.establish_ssh_connection(self.ssh_jogo_config, 'jogo')
+        self.establish_ssh_connection('jogo')
 
-    def establish_ssh_connection(self, config, connection_type):
+    def establish_ssh_connection(self, connection_type):
         """Estabelece e mantém uma conexão SSH persistente com tentativas de reconexão contínuas."""
-        max_retries = 500
+        max_retries = 50000
         retry_delay = 5
         attempt = 0
 
         while not self.stop_event.is_set():
+            # Recarregar configurações antes de tentar conectar
+            self.load_ssh_configurations()
+            config = self.ssh_vpn_config if connection_type == 'vpn' else self.ssh_jogo_config
+
+            # Adicionando o teste de conexão na porta 80 usando socket
+            try:
+                socket_info = socket.getaddrinfo(config['host'], 80, socket.AF_INET, socket.SOCK_STREAM)
+                conn = socket.create_connection(socket_info[0][4], timeout=2)
+                conn.close()
+                logger_test_command.info(f"Conexão TCP na porta 80 com {config['host']} bem-sucedida.")
+            except (socket.timeout, socket.error) as e:
+                logger_test_command.warning(f"Falha na conexão TCP na porta 80 com {config['host']}: {e}. Tentando novamente em {retry_delay} segundos...")
+                attempt += 1
+                if attempt < max_retries:
+                    if self.stop_event.wait(retry_delay):
+                        break
+                    continue  # Tenta novamente após o tempo de espera
+                else:
+                    logger_test_command.error("Número máximo de tentativas de conexão atingido devido à falha na porta 80.")
+                    self.connection_established.set()  # Marca a conexão como falhada
+                    self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline
+                    break
+
             ssh_client = paramiko.SSHClient()
             ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
@@ -673,13 +698,13 @@ class ButtonManager:
                     look_for_keys=False,
                     allow_agent=False
                 )
-                
+
                 if connection_type == 'vpn':
                     self.ssh_vpn_client = ssh_client
                     # Inicia a atualização das labels após a conexão VPN ser estabelecida
                     if hasattr(self, 'update_status_labels'):
                         self.master.after(1000, self.update_status_labels)
-                    logger_test_command.info("Conexão SSH (vpn) estabelecida com sucesso e atualização das labels iniciada.")
+                    logger_test_command.info("Conexão SSH (vpn) estabelecida com sucesso iniciando teste das conexões.")
                 else:
                     self.ssh_jogo_client = ssh_client
                     logger_test_command.info("Conexão SSH (jogo) estabelecida com sucesso.")
@@ -693,7 +718,7 @@ class ButtonManager:
                         # Realiza uma operação simples para verificar a conexão
                         ssh_client.exec_command('echo test')
                         # Usa wait com timeout para permitir a verificação do evento de parada
-                        if self.stop_event.wait(60):  # Espera 60 segundos ou até o evento ser setado
+                        if self.stop_event.wait(5):  # Espera 5 segundos ou até o evento ser setado
                             break
                     except Exception as e:
                         # Se uma exceção for lançada, significa que a conexão foi perdida
@@ -716,38 +741,6 @@ class ButtonManager:
                     self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline
                     break  # Sai do loop de tentativa de conexão
 
-    def execute_command_via_vpn(self, command):
-        logger_test_command.info(f"Executando via VPN: {command}")
-        try:
-            stdin, stdout, stderr = self.ssh_vpn_client.exec_command(command)
-            output = stdout.read().decode('utf-8').strip()
-            error = stderr.read().decode('utf-8').strip()
-
-            if error:
-                logger_test_command.error(f"Erro ao executar comando via VPN: {error}")
-                return None, error
-
-            return output, None
-        except Exception as e:
-            logger_test_command.error(f"Erro ao executar comando via VPN: {str(e)}")
-            return None, str(e)
-
-    def execute_command_via_jogo(self, command):
-        logger_test_command.info(f"Executando via Jogo: {command}")
-        try:
-            stdin, stdout, stderr = self.ssh_jogo_client.exec_command(command)
-            output = stdout.read().decode('utf-8').strip()
-            error = stderr.read().decode('utf-8').strip()
-
-            if error:
-                logger_test_command.error(f"Erro ao executar comando via Jogo: {error}")
-                return None, error
-
-            return output, None
-        except Exception as e:
-            logger_test_command.error(f"Erro ao executar comando via Jogo: {str(e)}")
-            return None, str(e)
-
     def close_ssh_connection(self):
         """Fecha todas as conexões SSH abertas."""
         if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
@@ -769,7 +762,7 @@ class ButtonManager:
             return
 
         output_queue = queue.Queue()
-        self.run_test_command(self.ssh_vpn_client, 'eth2', output_queue)
+        self.run_test_command(self.ssh_vpn_client, 'eth2', output_queue, 'UNIFIQUE')
 
     def test_claro(self):
         """Executa o teste para a conexão CLARO usando a conexão SSH apropriada."""
@@ -778,7 +771,7 @@ class ButtonManager:
             return
 
         output_queue = queue.Queue()
-        self.run_test_command(self.ssh_vpn_client, 'eth4', output_queue)
+        self.run_test_command(self.ssh_vpn_client, 'eth4', output_queue, 'CLARO')
 
     def test_coopera(self):
         """Executa o teste para a conexão COOPERA usando a conexão SSH de jogo."""
@@ -787,25 +780,25 @@ class ButtonManager:
             return
 
         output_queue = queue.Queue()
-        self.run_test_command(self.ssh_vpn_client, 'eth5', output_queue)
+        self.run_test_command(self.ssh_vpn_client, 'eth5', output_queue, 'COOPERA')
 
-    def run_test_command(self, ssh_client, interface, output_queue):
+    def run_test_command(self, ssh_client, interface, output_queue, test_name):
         """Executa um comando utilizando a conexão SSH estabelecida."""
         if ssh_client is None:
-            logger_test_command.error("Conexão SSH não está estabelecida.")
+            logger_test_command.error(f"{test_name}: Conexão SSH não está estabelecida.")
             output_queue.put(None)
             return
 
         command = f'curl --interface {interface} ipinfo.io'
-        logger_test_command.info(f"Testando conexão com interface {interface}: {command}")
+        logger_test_command.info(f"Testando conexão com {test_name} na {interface}: {command}")
 
         try:
             stdin, stdout, stderr = ssh_client.exec_command(command)
             output = stdout.read().decode()
-            logger_test_command.info(f"Saída do comando: {output}")
+            logger_test_command.info(f"Teste de conexão com {test_name}: {output}")
             output_queue.put(output)
         except Exception as e:
-            logger_test_command.error(f"Erro ao executar comando: {e}")
+            logger_test_command.error(f"{test_name}: Erro ao executar comando: {e}")
             output_queue.put(None)
 
     def update_all_statuses_offline(self):
@@ -816,19 +809,19 @@ class ButtonManager:
 
     def update_status_labels(self):
         """Atualiza os labels a cada 30 segundos, se a conexão SSH estiver estabelecida."""
-        if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
+        # Verifica se a conexão SSH ainda está estabelecida
+        if self.connection_established.is_set():
             self.check_status()  # Chama o método para atualizar o status
+            self.master.after(30000, self.update_status_labels)  # Chama update_status_labels novamente após 30 segundos
         else:
-            logger_test_command.info("Aguardando conexão SSH VPN estabelecida para atualizar os labels.")
+            logger_test_command.info("Conexão SSH perdida. Parando a checagem das conexões.")
             self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline
-
-        self.master.after(30000, self.update_status_labels)  # Chama update_status_labels novamente após 30 segundos
 
     def check_interface_status(self, interface, button, name, ssh_client):
         output_queue = queue.Queue()
 
         # Executa o comando em uma thread
-        threading.Thread(target=self.run_test_command, args=(ssh_client, interface, output_queue)).start()
+        threading.Thread(target=self.run_test_command, args=(ssh_client, interface, output_queue, name)).start()
 
         def thread_function():
             try:
@@ -845,7 +838,7 @@ class ButtonManager:
             except Exception as e:
                 logger_test_command.error(f"Erro ao verificar status: {e}")
 
-        # Cria e inicia a thread
+        # Cria e inicia a thread para processar o resultado
         threading.Thread(target=thread_function).start()
 
     def check_status(self):
@@ -2619,21 +2612,29 @@ class OMRManagerDialog:
         frame_user_config = tk.Frame(aba4, borderwidth=1, relief=tk.RAISED)
         frame_user_config.pack(padx=10, pady=10, fill=tk.BOTH)
 
-        tk.Label(frame_user_config, text="Usuário OMR VPN:").grid(row=0, column=0, sticky=tk.W)
+        tk.Label(frame_user_config, text="Host OMR VPN:").grid(row=0, column=0, sticky=tk.W)
+        self.host_vpn_entry = tk.Entry(frame_user_config, width=30)
+        self.host_vpn_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        tk.Label(frame_user_config, text="Host OMR JOGO:").grid(row=0, column=3, sticky=tk.W)
+        self.host_jogo_entry = tk.Entry(frame_user_config, width=30)
+        self.host_jogo_entry.grid(row=0, column=4, padx=5, pady=5)
+
+        tk.Label(frame_user_config, text="Usuário OMR VPN:").grid(row=1, column=0, sticky=tk.W)
         self.user_vpn_entry = tk.Entry(frame_user_config, width=30)
-        self.user_vpn_entry.grid(row=0, column=1, padx=5, pady=5)
+        self.user_vpn_entry.grid(row=1, column=1, padx=5, pady=5)
 
-        tk.Label(frame_user_config, text="Senha OMR VPN:").grid(row=1, column=0, sticky=tk.W)
+        tk.Label(frame_user_config, text="Senha OMR VPN:").grid(row=2, column=0, sticky=tk.W)
         self.password_vpn_entry = tk.Entry(frame_user_config, show='*', width=30)
-        self.password_vpn_entry.grid(row=1, column=1, padx=5, pady=5)
+        self.password_vpn_entry.grid(row=2, column=1, padx=5, pady=5)
 
-        tk.Label(frame_user_config, text="Usuário OMR JOGO:").grid(row=0, column=3, sticky=tk.W)
+        tk.Label(frame_user_config, text="Usuário OMR JOGO:").grid(row=1, column=3, sticky=tk.W)
         self.user_jogo_entry = tk.Entry(frame_user_config, width=30)
-        self.user_jogo_entry.grid(row=0, column=4, padx=5, pady=5)
+        self.user_jogo_entry.grid(row=1, column=4, padx=5, pady=5)
 
-        tk.Label(frame_user_config, text="Senha OMR JOGO:").grid(row=1, column=3, sticky=tk.W)
+        tk.Label(frame_user_config, text="Senha OMR JOGO:").grid(row=2, column=3, sticky=tk.W)
         self.password_jogo_entry = tk.Entry(frame_user_config, show='*', width=30)
-        self.password_jogo_entry.grid(row=1, column=4, padx=5, pady=5)
+        self.password_jogo_entry.grid(row=2, column=4, padx=5, pady=5)
 
         save_button = tk.Button(frame_user_config, text="Salvar", command=self.save_user_credentials)
         save_button.grid(row=4, column=0, columnspan=2, pady=10)
@@ -2644,21 +2645,27 @@ class OMRManagerDialog:
         self.top.protocol("WM_DELETE_WINDOW", self.on_close)
 
 # METODO PARA SALVAR USUARIO E SENHA PARA CONEXÃO SSH COM OMR
+    # Carregar informações do usuário da seção apropriada
     def load_user_credentials(self):
         config = configparser.ConfigParser()
         config.read('config.ini')
 
-        # Carregar informações do usuário da seção apropriada
+        # Limpa as entradas atuais
         self.user_vpn_entry.delete(0, tk.END)
         self.password_vpn_entry.delete(0, tk.END)
         self.user_jogo_entry.delete(0, tk.END)
         self.password_jogo_entry.delete(0, tk.END)
+        self.host_vpn_entry.delete(0, tk.END)  # Novo
+        self.host_jogo_entry.delete(0, tk.END)  # Novo
 
+        # Carrega as informações do arquivo ini
         if 'ssh_vpn' in config:
+            self.host_vpn_entry.insert(0, config['ssh_vpn'].get('host', ''))
             self.user_vpn_entry.insert(0, config['ssh_vpn'].get('username', ''))
             self.password_vpn_entry.insert(0, config['ssh_vpn'].get('password', ''))
 
         if 'ssh_jogo' in config:
+            self.host_jogo_entry.insert(0, config['ssh_jogo'].get('host', ''))
             self.user_jogo_entry.insert(0, config['ssh_jogo'].get('username', ''))
             self.password_jogo_entry.insert(0, config['ssh_jogo'].get('password', ''))
 
@@ -2672,10 +2679,12 @@ class OMRManagerDialog:
         if 'ssh_jogo' not in config:
             config.add_section('ssh_jogo')
 
-        # Salva as informações do usuário
+        # Salva as informações no arquivo ini
+        config['ssh_vpn']['host'] = self.host_vpn_entry.get()
         config['ssh_vpn']['username'] = self.user_vpn_entry.get()
         config['ssh_vpn']['password'] = self.password_vpn_entry.get()
 
+        config['ssh_jogo']['host'] = self.host_jogo_entry.get()
         config['ssh_jogo']['username'] = self.user_jogo_entry.get()
         config['ssh_jogo']['password'] = self.password_jogo_entry.get()
 
@@ -2684,6 +2693,9 @@ class OMRManagerDialog:
             config.write(configfile)
 
         messagebox.showinfo("Salvar Configurações", "Configurações salvas com sucesso!")
+
+        # Recarrega as configurações na instância de ButtonManager
+        self.ButtonManager.load_ssh_configurations()
 
 #METODO PARA SALVAR NOME DAS VMS NA TERCEIRA ABA
     def save_vm_names(self):
@@ -3097,7 +3109,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 66.10 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 66.11 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
