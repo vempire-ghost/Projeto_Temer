@@ -644,7 +644,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.12", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.13", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -1319,8 +1319,15 @@ class ButtonManager:
         if self.monitor_xray:
             logger_main.info("Parando monitoramento...")
             self.monitor_xray = False
+
             if self.thread is not None:
-                self.thread.join()  # Aguarda a thread terminar
+                # Espera no máximo 5 segundos para a thread terminar
+                self.thread.join(timeout=5)
+                if self.thread.is_alive():
+                    logger_main.warning("A thread de monitoramento não terminou após o timeout.")
+                else:
+                    logger_main.info("Thread de monitoramento terminada com sucesso.")
+
             self.botao_alternar.config(text="Iniciar Monitoramento do OMR")
             logger_main.info("Monitoramento parado.")
 
@@ -3149,7 +3156,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 66.12 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 66.13 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
