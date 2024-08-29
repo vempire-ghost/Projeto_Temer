@@ -49,15 +49,18 @@ class ButtonManager:
         self.botao_monitorar_xray = True  # Variável para rastrear o estado do botão monitoramento do Xray JOGO
         self.verificar_vm = True  # Variável que controla a verificação das VMs
         self.ping_forever = True # Variavel para ligar/desligar testes de ping.
+        self.criar_usuario_ssh = True # Variavel para definir se cria ou não o usuario ssh no OMR
         self.connection_established = threading.Event()  # Evento para sinalizar conexão estabelecida
         self.stop_event = threading.Event()
         self.thread = None
         self.buttons = []
         self.button_frame = None
         self.second_tab_button_frame = None
-        self.ssh_client = None  # Inicializa ssh_client aqui
         self.button_counter = 1  # Inicializa o contador de botões
         self.load_window_position()
+
+        self.clear_log_file('app.log')  # Limpa o arquivo de log ao iniciar o programa
+        self.clear_log_file('test_command.log')  # Limpa o arquivo de log ao iniciar o programa
 
         # Verifica e cria o arquivo de configuração se não existir
         self.config_file = 'config.ini'
@@ -71,7 +74,9 @@ class ButtonManager:
         # Verifica se o Bitvise e o VirtualBox estão instalados
         if not self.check_software_installation():
             return  # Interrompe a execução do restante do __init__ se a checagem falhar
-        
+
+        self.ssh_client = None  # Inicializa ssh_client aqui
+  
         #Carrega nome das VMs
         self.vm_config_file = "vm_config.json"  # Caminho para o arquivo JSON
         self.vm_names = {
@@ -106,9 +111,6 @@ class ButtonManager:
         if not os.path.exists('imagens'):
             os.makedirs('imagens')
 
-        self.clear_log_file('app.log')  # Limpa o arquivo de log ao iniciar o programa
-        self.clear_log_file('test_command.log')  # Limpa o arquivo de log ao iniciar o programa
-
 #FUNÇÃO RELACIONADAS A ARQUIVO .INI
     # Função para ler e criar o arquivo ini
     def create_default_config(self):
@@ -125,7 +127,22 @@ class ButtonManager:
         self.config.set('ssh_jogo', 'username', '')
         self.config.set('ssh_jogo', 'password', '')
 
+        # Adiciona a seção 'general' para configurações gerais
+        self.config.add_section('general')
+        self.config.set('general', 'criar_usuario_ssh', str(self.criar_usuario_ssh))
+
         # Grava as configurações no arquivo
+        with open(self.config_file, 'w') as configfile:
+            self.config.write(configfile)
+
+    def load_general_config(self):
+        """Carrega configurações gerais do arquivo .ini."""
+        self.config.read(self.config_file)
+        self.criar_usuario_ssh = self.config.getboolean('general', 'criar_usuario_ssh', fallback=False)
+
+    def save_general_config(self):
+        """Salva configurações gerais no arquivo .ini."""
+        self.config.set('general', 'criar_usuario_ssh', str(self.criar_usuario_ssh))
         with open(self.config_file, 'w') as configfile:
             self.config.write(configfile)
 
@@ -142,6 +159,7 @@ class ButtonManager:
             'username': self.config.get('ssh_jogo', 'username', fallback=''),
             'password': self.config.get('ssh_jogo', 'password', fallback='')
         }
+        self.load_general_config()  # Carrega as configurações gerais
 
         print("Configurações de SSH recarregadas com sucesso.")
 
@@ -346,7 +364,7 @@ class ButtonManager:
             return os.path.join(drive_letter + os.sep, relative_path)
 
     def abrir_arquivo_vps_jogo(self):
-        # Função para abrir o arquivo específico do VPS JOGO
+        # Função para abrir o bitvise do VPS JOGO
         relative_path = r"Dropbox Compartilhado\AmazonWS\Google Debian 5.4 Instance 3\OpenMPTCP.tlp"  # Substitua pelo caminho relativo do seu arquivo
         filepath = self.os_letter(relative_path)
         if os.path.exists(filepath):
@@ -355,7 +373,7 @@ class ButtonManager:
             print(f"Arquivo não encontrado: {filepath}")
 
     def abrir_arquivo_vps_vpn(self):
-        # Função para abrir o arquivo específico do VPS VPN
+        # Função para abrir o bitvise do VPS VPN
         relative_path = r"Dropbox Compartilhado\AmazonWS\Oracle Ubuntu 22.04 Instance 2\OpenMPTCP.tlp"  # Substitua pelo caminho relativo do seu arquivo
         filepath = self.os_letter(relative_path)
         if os.path.exists(filepath):
@@ -644,7 +662,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 66.13", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 67", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -727,6 +745,25 @@ class ButtonManager:
                         self.connection_established.clear()  # Limpa o sinal de conexão estabelecida
                         self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline
                         break  # Sai do loop de verificação para tentar reconectar
+
+            except paramiko.AuthenticationException as e:
+                logger_test_command.error(f"Erro de autenticação ao estabelecer conexão SSH ({connection_type}): {e}")
+
+                if self.criar_usuario_ssh:
+                    try:
+                        logger_test_command.info("Tentando criar usuário SSH via root...")
+                        # Comando para criar o usuário via SSH como root
+                        ssh_cmd = f"echo '{config['username']}:x:0:0:root:/root:/bin/ash' >> /etc/passwd && echo '{config['username']}:{config['password']}' | chpasswd"
+                        root_user = "root"
+                        ssh_command = f"ssh -o StrictHostKeyChecking=no {root_user}@{config['host']} \"{ssh_cmd}\""
+                        subprocess.run(ssh_command, shell=True, check=True)
+                        logger_test_command.info("Usuário SSH criado com sucesso.")
+                    except subprocess.CalledProcessError as err:
+                        logger_test_command.error(f"Falha ao criar o usuário SSH: {err}")
+                        break  # Se falhar, sair do loop de tentativa de conexão
+                else:
+                    logger_test_command.info("A opção Criar usuário SSH automaticamente não esta marcada, marque a opção ou crie o usuario manualmente e reinicie o programa.")
+                    break  # Sair do loop de tentativa de conexão
 
             except Exception as e:
                 logger_test_command.error(f"Erro ao estabelecer conexão SSH ({connection_type}): {e}")
@@ -2683,8 +2720,18 @@ class OMRManagerDialog:
         self.password_jogo_entry = tk.Entry(frame_user_config, show='*', width=30)
         self.password_jogo_entry.grid(row=2, column=4, padx=5, pady=5)
 
+        # Rótulo de texto acima do botão alinhado à esquerda
+        tk.Label(frame_user_config, text="", anchor=tk.W).grid(row=3, column=0, columnspan=5, pady=20, sticky=tk.W)
+        tk.Label(frame_user_config, text="Marcar esta opção irá criar um usuario e senha no OMR de acordo com as configurações definidas acima.", anchor=tk.W).grid(row=5, column=0, columnspan=5, pady=0, sticky=tk.W)
+
+        # Adiciona uma caixa de seleção para criar usuário SSH
+        self.criar_usuario_ssh_var = tk.BooleanVar(value=self.ButtonManager.criar_usuario_ssh)
+        criar_usuario_ssh_checkbox = tk.Checkbutton(frame_user_config, text="Criar usuário SSH automaticamente",
+                                            variable=self.criar_usuario_ssh_var, command=self.toggle_criar_usuario_ssh)
+        criar_usuario_ssh_checkbox.grid(row=6, column=0, columnspan=2, pady=10)
+
         save_button = tk.Button(frame_user_config, text="Salvar", command=self.save_user_credentials)
-        save_button.grid(row=4, column=0, columnspan=2, pady=10)
+        save_button.grid(row=8, column=0, columnspan=2, pady=10)
 
         # Carregar informações do usuário ao inicializar
         self.load_user_credentials()
@@ -2692,6 +2739,11 @@ class OMRManagerDialog:
         self.top.protocol("WM_DELETE_WINDOW", self.on_close)
 
 # METODO PARA SALVAR USUARIO E SENHA PARA CONEXÃO SSH COM OMR
+    def toggle_criar_usuario_ssh(self):
+        """Alterna o valor de criar_usuario_ssh e salva no arquivo de configuração."""
+        self.ButtonManager.criar_usuario_ssh = self.criar_usuario_ssh_var.get()
+        self.ButtonManager.save_general_config()
+
     # Carregar informações do usuário da seção apropriada
     def load_user_credentials(self):
         config = configparser.ConfigParser()
@@ -3156,7 +3208,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 66.13 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 67 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
