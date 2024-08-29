@@ -494,13 +494,10 @@ class ButtonManager:
         self.coopera_status = tk.Button(self.status_frame, text="COOPERA: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=self.test_coopera)
         self.coopera_status.grid(row=0, column=2, padx=5, pady=5, sticky=tk.W)
 
-        # Inicia a atualização do status das conexões SSH
-        self.ssh_vpn_thread = threading.Thread(target=self.establish_ssh_vpn_connection)
-        self.ssh_vpn_thread.start()
+        # Inicia a atualização do status das conexões SSH com atraso
+        self.master.after(1000, lambda: threading.Thread(target=self.establish_ssh_vpn_connection).start())
+        self.master.after(1000, lambda: threading.Thread(target=self.establish_ssh_jogo_connection).start())
 
-        self.ssh_jogo_thread = threading.Thread(target=self.establish_ssh_jogo_connection)
-        self.ssh_jogo_thread.start()
-        #self.update_status_labels()
 
         # Cria o Notebook
         self.notebook = ttk.Notebook(self.master)
@@ -662,7 +659,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 67", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 67.1", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -722,13 +719,12 @@ class ButtonManager:
                     # Inicia a atualização das labels após a conexão VPN ser estabelecida
                     if hasattr(self, 'update_status_labels'):
                         self.master.after(1000, self.update_status_labels)
+                        # Marca a conexão como estabelecida
+                        self.connection_established.set()
                     logger_test_command.info("Conexão SSH (vpn) estabelecida com sucesso iniciando teste das conexões.")
                 else:
                     self.ssh_jogo_client = ssh_client
                     logger_test_command.info("Conexão SSH (jogo) estabelecida com sucesso.")
-
-                # Marca a conexão como estabelecida
-                self.connection_established.set()
 
                 # Aguarda até que a conexão seja interrompida ou o programa seja fechado
                 while not self.stop_event.is_set():
@@ -742,9 +738,12 @@ class ButtonManager:
                         # Se uma exceção for lançada, significa que a conexão foi perdida
                         logger_test_command.error(f"Conexão SSH ({connection_type}) perdida: {e}")
                         ssh_client.close()
-                        self.connection_established.clear()  # Limpa o sinal de conexão estabelecida
-                        self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline
-                        break  # Sai do loop de verificação para tentar reconectar
+                        if connection_type == 'vpn':
+                            self.connection_established.clear()  # Limpa o sinal de conexão estabelecida (somente para VPN)
+                            self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline (somente para VPN)
+                            break  # Sai do loop para evitar looping infinito ao perder a conexão VPN
+                        else:
+                            break  # Sai do loop para tentar reconectar a conexão de jogo
 
             except paramiko.AuthenticationException as e:
                 logger_test_command.error(f"Erro de autenticação ao estabelecer conexão SSH ({connection_type}): {e}")
@@ -774,8 +773,9 @@ class ButtonManager:
                         break
                 else:
                     logger_test_command.error("Número máximo de tentativas de conexão atingido.")
-                    self.connection_established.set()  # Marca a conexão como falhada
-                    self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline
+                    if connection_type == 'vpn':
+                        self.connection_established.set()  # Marca a conexão como falhada (somente para VPN)
+                        self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline (somente para VPN)
                     break  # Sai do loop de tentativa de conexão
 
     def close_ssh_connection(self):
@@ -793,7 +793,7 @@ class ButtonManager:
 # LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
     # Funções para os botões de teste
     def test_unifique(self):
-        """Executa o teste para a conexão UNIFIQUE usando a conexão SSH apropriada."""
+        """Executa o teste para a conexão UNIFIQUE usando a conexão SSH VPN."""
         if not hasattr(self, 'ssh_vpn_client') or self.ssh_vpn_client is None:
             logger_test_command.error("Conexão SSH VPN não está estabelecida para o teste UNIFIQUE.")
             return
@@ -802,7 +802,7 @@ class ButtonManager:
         self.run_test_command(self.ssh_vpn_client, 'eth2', output_queue, 'UNIFIQUE')
 
     def test_claro(self):
-        """Executa o teste para a conexão CLARO usando a conexão SSH apropriada."""
+        """Executa o teste para a conexão CLARO usando a conexão SSH VPN."""
         if not hasattr(self, 'ssh_vpn_client') or self.ssh_vpn_client is None:
             logger_test_command.error("Conexão SSH VPN não está estabelecida para o teste CLARO.")
             return
@@ -811,9 +811,9 @@ class ButtonManager:
         self.run_test_command(self.ssh_vpn_client, 'eth4', output_queue, 'CLARO')
 
     def test_coopera(self):
-        """Executa o teste para a conexão COOPERA usando a conexão SSH de jogo."""
+        """Executa o teste para a conexão COOPERA usando a conexão SSH VPN."""
         if not hasattr(self, 'ssh_vpn_client') or self.ssh_vpn_client is None:
-            logger_test_command.error("Conexão SSH JOGO não está estabelecida para o teste COOPERA.")
+            logger_test_command.error("Conexão SSH VPN não está estabelecida para o teste COOPERA.")
             return
 
         output_queue = queue.Queue()
@@ -3208,7 +3208,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 67 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 67.1 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
