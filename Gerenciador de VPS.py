@@ -659,7 +659,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 67.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 67.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -798,8 +798,7 @@ class ButtonManager:
             logger_test_command.error("Conexão SSH VPN não está estabelecida para o teste UNIFIQUE.")
             return
 
-        output_queue = queue.Queue()
-        self.run_test_command(self.ssh_vpn_client, 'eth2', output_queue, 'UNIFIQUE')
+        threading.Thread(target=self.check_interface_status, args=('eth2', self.unifique_status, 'UNIFIQUE', self.ssh_vpn_client)).start()
 
     def test_claro(self):
         """Executa o teste para a conexão CLARO usando a conexão SSH VPN."""
@@ -807,8 +806,7 @@ class ButtonManager:
             logger_test_command.error("Conexão SSH VPN não está estabelecida para o teste CLARO.")
             return
 
-        output_queue = queue.Queue()
-        self.run_test_command(self.ssh_vpn_client, 'eth4', output_queue, 'CLARO')
+        threading.Thread(target=self.check_interface_status, args=('eth4', self.claro_status, 'CLARO', self.ssh_vpn_client)).start()
 
     def test_coopera(self):
         """Executa o teste para a conexão COOPERA usando a conexão SSH VPN."""
@@ -816,8 +814,7 @@ class ButtonManager:
             logger_test_command.error("Conexão SSH VPN não está estabelecida para o teste COOPERA.")
             return
 
-        output_queue = queue.Queue()
-        self.run_test_command(self.ssh_vpn_client, 'eth5', output_queue, 'COOPERA')
+        threading.Thread(target=self.check_interface_status, args=('eth5', self.coopera_status, 'COOPERA', self.ssh_vpn_client)).start()
 
     def run_test_command(self, ssh_client, interface, output_queue, test_name):
         """Executa um comando utilizando a conexão SSH estabelecida."""
@@ -865,13 +862,13 @@ class ButtonManager:
                 output = output_queue.get()  # Espera até receber o output
                 if output is None:
                     logger_test_command.error(f"Erro: A saída do comando é None.")
-                    button.config(text=f"{name}: Offline", bg='red')
+                    self.master.after(0, lambda: button.config(text=f"{name}: Offline", bg='red'))
                     return
 
                 if name.lower() in output.lower():
-                    button.config(text=f"{name}: Online", bg='green')
+                    self.master.after(0, lambda: button.config(text=f"{name}: Online", bg='green'))
                 else:
-                    button.config(text=f"{name}: Offline", bg='red')
+                    self.master.after(0, lambda: button.config(text=f"{name}: Offline", bg='red'))
             except Exception as e:
                 logger_test_command.error(f"Erro ao verificar status: {e}")
 
@@ -3208,7 +3205,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 67.1 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 67.2 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
