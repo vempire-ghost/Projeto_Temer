@@ -41,6 +41,14 @@ test_command_handler.setLevel(logging.INFO)
 test_command_handler.setFormatter(formatter)  # Aplicando o Formatter
 logger_test_command.addHandler(test_command_handler)
 
+# Logger para provedor_test
+logger_provedor_test = logging.getLogger('provedor_test_logger')
+provedor_test_handler = logging.FileHandler('provedor_test.log')
+provedor_test_handler.setLevel(logging.INFO)
+provedor_test_handler.setFormatter(formatter)  # Aplicando o Formatter
+logger_provedor_test.addHandler(provedor_test_handler)
+
+
 class ButtonManager:
     def __init__(self, master):
         self.master = master
@@ -50,7 +58,7 @@ class ButtonManager:
         self.verificar_vm = True  # Variável que controla a verificação das VMs
         self.ping_forever = True # Variavel para ligar/desligar testes de ping.
         self.criar_usuario_ssh = True # Variavel para definir se cria ou não o usuario ssh no OMR
-        self.connection_established = threading.Event()  # Evento para sinalizar conexão estabelecida
+        self.connection_established_ssh_omr_vpn = threading.Event()  # Evento para sinalizar conexão estabelecida
         self.stop_event = threading.Event()
         self.thread = None
         self.buttons = []
@@ -61,6 +69,7 @@ class ButtonManager:
 
         self.clear_log_file('app.log')  # Limpa o arquivo de log ao iniciar o programa
         self.clear_log_file('test_command.log')  # Limpa o arquivo de log ao iniciar o programa
+        self.clear_log_file('provedor_test.log')  # Limpa o arquivo de log ao iniciar o programa
 
         # Verifica e cria o arquivo de configuração se não existir
         self.config_file = 'config.ini'
@@ -703,7 +712,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.3", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -764,7 +773,7 @@ class ButtonManager:
                     continue  # Tenta novamente após o tempo de espera
                 else:
                     logger_test_command.error(f"Número máximo de tentativas de conexão atingido devido à falha na porta {port}.")
-                    self.connection_established.set()  # Marca a conexão como falhada
+                    self.connection_established_ssh_omr_vpn.set()  # Marca a conexão como falhada
                     self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline
                     break
 
@@ -800,7 +809,7 @@ class ButtonManager:
                     if hasattr(self, 'update_status_labels'):
                         self.master.after(1000, self.update_status_labels)
                         # Marca a conexão como estabelecida
-                        self.connection_established.set()
+                        self.connection_established_ssh_omr_vpn.set()
                     logger_test_command.info("Conexão SSH (vpn) estabelecida com sucesso iniciando teste das conexões.")
                 elif connection_type == 'jogo':
                     self.ssh_jogo_client = ssh_client
@@ -825,7 +834,7 @@ class ButtonManager:
                         logger_test_command.error(f"Conexão SSH ({connection_type}) perdida: {e}")
                         ssh_client.close()
                         if connection_type == 'vpn':
-                            self.connection_established.clear()  # Limpa o sinal de conexão estabelecida (somente para VPN)
+                            self.connection_established_ssh_omr_vpn.clear()  # Limpa o sinal de conexão estabelecida (somente para VPN)
                             self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline (somente para VPN)
                             break  # Sai do loop para evitar looping infinito ao perder a conexão VPN
                         else:
@@ -867,7 +876,7 @@ class ButtonManager:
                 else:
                     logger_test_command.error("Número máximo de tentativas de conexão atingido.")
                     if connection_type == 'vpn':
-                        self.connection_established.set()  # Marca a conexão como falhada (somente para VPN)
+                        self.connection_established_ssh_omr_vpn.set()  # Marca a conexão como falhada (somente para VPN)
                         self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline (somente para VPN)
                     break  # Sai do loop de tentativa de conexão
 
@@ -900,7 +909,7 @@ class ButtonManager:
     def test_unifique(self):
         """Executa o teste para a conexão UNIFIQUE usando a conexão SSH VPN."""
         if not hasattr(self, 'ssh_vpn_client') or self.ssh_vpn_client is None:
-            logger_test_command.error("Conexão SSH VPN não está estabelecida para o teste UNIFIQUE.")
+            logger_provedor_test.error("Conexão SSH VPN não está estabelecida para o teste UNIFIQUE.")
             return
 
         threading.Thread(target=self.check_interface_status, args=('eth2', self.unifique_status, 'UNIFIQUE', self.ssh_vpn_client)).start()
@@ -908,7 +917,7 @@ class ButtonManager:
     def test_claro(self):
         """Executa o teste para a conexão CLARO usando a conexão SSH VPN."""
         if not hasattr(self, 'ssh_vpn_client') or self.ssh_vpn_client is None:
-            logger_test_command.error("Conexão SSH VPN não está estabelecida para o teste CLARO.")
+            logger_provedor_test.error("Conexão SSH VPN não está estabelecida para o teste CLARO.")
             return
 
         threading.Thread(target=self.check_interface_status, args=('eth4', self.claro_status, 'CLARO', self.ssh_vpn_client)).start()
@@ -916,28 +925,28 @@ class ButtonManager:
     def test_coopera(self):
         """Executa o teste para a conexão COOPERA usando a conexão SSH VPN."""
         if not hasattr(self, 'ssh_vpn_client') or self.ssh_vpn_client is None:
-            logger_test_command.error("Conexão SSH VPN não está estabelecida para o teste COOPERA.")
+            logger_provedor_test.error("Conexão SSH VPN não está estabelecida para o teste COOPERA.")
             return
 
         threading.Thread(target=self.check_interface_status, args=('eth5', self.coopera_status, 'COOPERA', self.ssh_vpn_client)).start()
 
-    def run_test_command(self, ssh_client, interface, output_queue, test_name):
+    def run_provedor_test(self, ssh_client, interface, output_queue, test_name):
         """Executa um comando utilizando a conexão SSH estabelecida."""
         if ssh_client is None:
-            logger_test_command.error(f"{test_name}: Conexão SSH não está estabelecida.")
+            logger_provedor_test.error(f"{test_name}: Conexão SSH não está estabelecida.")
             output_queue.put(None)
             return
 
         command = f'curl --interface {interface} ipinfo.io'
-        logger_test_command.info(f"Testando conexão com {test_name} na {interface}: {command}")
+        logger_provedor_test.info(f"Testando conexão com {test_name} na {interface}: {command}")
 
         try:
             stdin, stdout, stderr = ssh_client.exec_command(command)
             output = stdout.read().decode()
-            logger_test_command.info(f"Teste de conexão com {test_name}: {output}")
+            logger_provedor_test.info(f"Teste de conexão com {test_name}: {output}")
             output_queue.put(output)
         except Exception as e:
-            logger_test_command.error(f"{test_name}: Erro ao executar comando: {e}")
+            logger_provedor_test.error(f"{test_name}: Erro ao executar comando: {e}")
             output_queue.put(None)
 
     def update_all_statuses_offline(self):
@@ -949,24 +958,24 @@ class ButtonManager:
     def update_status_labels(self):
         """Atualiza os labels a cada 30 segundos, se a conexão SSH estiver estabelecida."""
         # Verifica se a conexão SSH ainda está estabelecida
-        if self.connection_established.is_set():
+        if self.connection_established_ssh_omr_vpn.is_set():
             self.check_status()  # Chama o método para atualizar o status
             self.master.after(30000, self.update_status_labels)  # Chama update_status_labels novamente após 30 segundos
         else:
-            logger_test_command.info("Conexão SSH perdida. Parando a checagem das conexões.")
+            logger_provedor_test.info("Conexão SSH perdida. Parando a checagem das conexões.")
             self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline
 
     def check_interface_status(self, interface, button, name, ssh_client):
         output_queue = queue.Queue()
 
         # Executa o comando em uma thread
-        threading.Thread(target=self.run_test_command, args=(ssh_client, interface, output_queue, name)).start()
+        threading.Thread(target=self.run_provedor_test, args=(ssh_client, interface, output_queue, name)).start()
 
         def thread_function():
             try:
                 output = output_queue.get()  # Espera até receber o output
                 if output is None:
-                    logger_test_command.error(f"Erro: A saída do comando é None.")
+                    logger_provedor_test.error(f"Erro: A saída do comando é None.")
                     self.master.after(0, lambda: button.config(text=f"{name}: Offline", bg='red'))
                     return
 
@@ -975,7 +984,7 @@ class ButtonManager:
                 else:
                     self.master.after(0, lambda: button.config(text=f"{name}: Offline", bg='red'))
             except Exception as e:
-                logger_test_command.error(f"Erro ao verificar status: {e}")
+                logger_provedor_test.error(f"Erro ao verificar status: {e}")
 
         # Cria e inicia a thread para processar o resultado
         threading.Thread(target=thread_function).start()
@@ -1085,8 +1094,7 @@ class ButtonManager:
     def abrir_janela_logs(self):
         log_window = tk.Toplevel(self.master)
         log_window.title("Visualização de Logs")
-        # Definir o tamanho da janela
-        log_window.geometry("877x656")  # Largura de 600 pixels e altura de 400 pixels
+        log_window.geometry("877x656")  # Definir o tamanho da janela
 
         # Carregar a posição salva
         self.load_log_position(log_window)
@@ -1096,18 +1104,22 @@ class ButtonManager:
         notebook.pack(expand=1, fill='both')
 
         # Aba 1: Logs principais
-        # Configuração do widget de rolagem
         log_frame_main = tk.Frame(notebook)
         log_text_main = scrolledtext.ScrolledText(log_frame_main, wrap=tk.WORD, state=tk.NORMAL)
         log_text_main.pack(expand=1, fill=tk.BOTH)
         notebook.add(log_frame_main, text='Monitoramento do OMR')
 
         # Aba 2: Logs do Test Command
-        # Configuração do widget de rolagem
         log_frame_test = tk.Frame(notebook)
         log_text_test = scrolledtext.ScrolledText(log_frame_test, wrap=tk.WORD, state=tk.NORMAL)
         log_text_test.pack(expand=1, fill=tk.BOTH)
         notebook.add(log_frame_test, text='Logs das Conexões')
+
+        # Aba 3: Logs do Provedor
+        log_frame_provedor = tk.Frame(notebook)
+        log_text_provedor = scrolledtext.ScrolledText(log_frame_provedor, wrap=tk.WORD, state=tk.NORMAL)
+        log_text_provedor.pack(expand=1, fill=tk.BOTH)
+        notebook.add(log_frame_provedor, text='Logs de teste de Provedores')
 
         # Variável para controlar o scroll automático
         self.auto_scroll = True
@@ -1128,29 +1140,33 @@ class ButtonManager:
                 log_text_test.insert(tk.END, logs_test)
                 log_text_test.see(tk.END)
 
+                with open('provedor_test.log', 'r') as file:
+                    logs_provedor = file.read()
+                log_text_provedor.delete(1.0, tk.END)
+                log_text_provedor.insert(tk.END, logs_provedor)
+                log_text_provedor.see(tk.END)
+
             # Agendar a próxima atualização
-            self.update_logs_id = log_window.after(1, update_logs)
+            self.update_logs_id = log_window.after(1000, update_logs)
 
-        # Função para parar o scroll automático
-        def stop_auto_scroll():
-            self.auto_scroll = False
-            if self.update_logs_id:
-                log_window.after_cancel(self.update_logs_id)
+        # Função para alternar entre parar e continuar o scroll automático
+        def toggle_scroll():
+            if self.auto_scroll:
+                self.auto_scroll = False
+                toggle_button.config(text="Continuar Scroll")
+                if self.update_logs_id:
+                    log_window.after_cancel(self.update_logs_id)
+            else:
+                self.auto_scroll = True
+                toggle_button.config(text="Parar Scroll")
+                update_logs()  # Atualiza imediatamente e reinicia o loop
 
-        # Função para continuar o scroll automático
-        def start_auto_scroll():
-            self.auto_scroll = True
-            update_logs()  # Atualiza imediatamente e reinicia o loop
-
-        # Botões para pausar e retomar o scroll automático
+        # Botão para alternar scroll automático
         button_frame = tk.Frame(log_window)
         button_frame.pack(fill=tk.X, pady=5)
-    
-        stop_button = tk.Button(button_frame, text="Parar Scroll", command=stop_auto_scroll)
-        stop_button.pack(side=tk.LEFT, padx=5)
-    
-        start_button = tk.Button(button_frame, text="Continuar Scroll", command=start_auto_scroll)
-        start_button.pack(side=tk.LEFT, padx=5)
+
+        toggle_button = tk.Button(button_frame, text="Parar Scroll", command=toggle_scroll)
+        toggle_button.pack(side=tk.LEFT, padx=5)
 
         # Inicia o loop de atualização dos logs
         update_logs()
@@ -3431,7 +3447,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 68.2 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 68.3 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
