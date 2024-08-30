@@ -703,7 +703,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -1208,11 +1208,14 @@ class ButtonManager:
                 return  # Interrompe o loop após iniciar o monitoramento principal
 
     def ping_glorytun_vpn(self, host, port=80, timeout=1):
-        def test_connection(ip, port, timeout):
+        def test_connection(ip, port, timeout, bind_ip=None):
             try:
-                socket_info = socket.getaddrinfo(ip, port, socket.AF_INET, socket.SOCK_STREAM)
-                conn = socket.create_connection(socket_info[0][4], timeout=timeout)
-                conn.close()
+                # Cria um socket
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
+                    if bind_ip:
+                        conn.bind((bind_ip, 0))  # Bind ao IP de origem com uma porta qualquer
+                    conn.settimeout(timeout)
+                    conn.connect((ip, port))
                 return True
             except (socket.timeout, socket.error):
                 return False
@@ -1228,9 +1231,9 @@ class ButtonManager:
                 time.sleep(1)  # Aguarde 1 segundo
             return self.ping_glorytun_vpn(host, port, timeout)
 
-        # Teste de conexão ao host fornecido na porta 80
+        # Teste de conexão ao host fornecido na porta 80 com bind no IP 192.168.101.2
         logger_main.info(f"Verificando conexão com o host {host} na porta {port}...")
-        if test_connection(host, port, timeout):
+        if test_connection(host, port, timeout, bind_ip='192.168.101.2'):
             logger_main.info(f"Conexão com o host {host} bem-sucedida.")
             return "ON", "green"
         else:
@@ -1238,11 +1241,14 @@ class ButtonManager:
             return "OFF", "blue"
 
     def ping_xray_jogo(self, host, port=65222, timeout=1):
-        def test_connection(ip, port, timeout):
+        def test_connection(ip, port, timeout, bind_ip=None):
             try:
-                socket_info = socket.getaddrinfo(ip, port, socket.AF_INET, socket.SOCK_STREAM)
-                conn = socket.create_connection(socket_info[0][4], timeout=timeout)
-                conn.close()
+                # Cria um socket
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
+                    if bind_ip:
+                        conn.bind((bind_ip, 0))  # Bind ao IP de origem com uma porta qualquer
+                    conn.settimeout(timeout)
+                    conn.connect((ip, port))
                 return True
             except (socket.timeout, socket.error):
                 return False
@@ -1258,15 +1264,20 @@ class ButtonManager:
                 time.sleep(1)  # Aguarde 1 segundo
             return self.ping_xray_jogo(host, port, timeout)
 
-        # Teste de conexão ao host fornecido na porta 65222
+        # Teste de conexão ao host fornecido na porta 65222 com bind no IP 192.168.100.2
         logger_main.info(f"Verificando conexão com o host {host} na porta {port}...")
         try:
             start_time = time.time()
             socket_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
-            conn = socket.create_connection(socket_info[0][4], timeout=timeout)
-            conn.sendall(b'PING')
-            response = conn.recv(1024)
-            conn.close()
+            
+            # Bind ao IP 192.168.100.2
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
+                conn.bind(('192.168.100.2', 0))  # Bind no IP 192.168.100.2
+                conn.settimeout(timeout)
+                conn.connect(socket_info[0][4])
+                conn.sendall(b'PING')
+                response = conn.recv(1024)
+            
             end_time = time.time()
             response_time = int((end_time - start_time) * 1000 / 2)  # Converte para milissegundos e arredonda para inteiro
 
@@ -1604,9 +1615,11 @@ class ButtonManager:
     def ping_omr_vpn(self, host, port=80, timeout=1):
         def test_connection(ip, port, timeout):
             try:
-                socket_info = socket.getaddrinfo(ip, port, socket.AF_INET, socket.SOCK_STREAM)
-                conn = socket.create_connection(socket_info[0][4], timeout=timeout)
-                conn.close()
+                # Cria um socket e faz o bind ao IP de origem
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as test_sock:
+                    test_sock.bind(('192.168.101.2', 0))  # Bind ao IP de origem com uma porta qualquer
+                    test_sock.settimeout(timeout)
+                    test_sock.connect((ip, port))
                 return True
             except (socket.timeout, socket.error):
                 return False
@@ -1618,8 +1631,12 @@ class ButtonManager:
         # Teste de conexão ao host fornecido na porta 80
         try:
             start_time = time.time()
-            socket_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
-            socket.create_connection(socket_info[0][4], timeout=timeout).close()
+            # Cria um socket e faz o bind ao IP de origem
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
+                conn.bind(('192.168.101.2', 0))  # Bind ao IP de origem com uma porta qualquer
+                conn.settimeout(timeout)
+                conn.connect((host, port))
+                
             end_time = time.time()
             response_time = int((end_time - start_time) * 1000)  # Converte para milissegundos e arredonda para inteiro
             return f"ON ({response_time} ms)", "green"
@@ -1635,9 +1652,11 @@ class ButtonManager:
     def ping_omr_jogo(self, host, port=65222, timeout=1):
         def test_connection(ip, port, timeout):
             try:
-                socket_info = socket.getaddrinfo(ip, port, socket.AF_INET, socket.SOCK_STREAM)
-                conn = socket.create_connection(socket_info[0][4], timeout=timeout)
-                conn.close()
+                # Cria um socket e faz o bind ao IP de origem
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as test_sock:
+                    test_sock.bind(('192.168.100.2', 0))  # Bind ao IP de origem com uma porta qualquer
+                    test_sock.settimeout(timeout)
+                    test_sock.connect((ip, port))
                 return True
             except (socket.timeout, socket.error):
                 return False
@@ -1649,16 +1668,18 @@ class ButtonManager:
         # Teste de conexão ao host fornecido na porta 65222
         try:
             start_time = time.time()
-            socket_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
-            conn = socket.create_connection(socket_info[0][4], timeout=timeout)
-        
-            # Envia alguns bytes de dados
-            conn.sendall(b'PING')
-        
-            # Recebe alguns bytes de dados
-            response = conn.recv(1024)
-        
-            conn.close()
+            # Cria um socket e faz o bind ao IP de origem
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
+                conn.bind(('192.168.100.2', 0))  # Bind ao IP de origem com uma porta qualquer
+                conn.settimeout(timeout)
+                conn.connect((host, port))
+                
+                # Envia alguns bytes de dados
+                conn.sendall(b'PING')
+                
+                # Recebe alguns bytes de dados
+                response = conn.recv(1024)
+                
             end_time = time.time()
             response_time = int((end_time - start_time) * 1000 / 2)  # Converte para milissegundos e arredonda para inteiro
 
@@ -3410,7 +3431,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 68.1 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 68.2 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
