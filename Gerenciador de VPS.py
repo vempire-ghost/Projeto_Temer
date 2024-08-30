@@ -120,12 +120,14 @@ class ButtonManager:
         self.config.set('ssh_vpn', 'host', '')
         self.config.set('ssh_vpn', 'username', '')
         self.config.set('ssh_vpn', 'password', '')
+        self.config.set('ssh_vpn', 'port', '')
 
         # Adiciona a seção 'ssh_jogo'
         self.config.add_section('ssh_jogo')
         self.config.set('ssh_jogo', 'host', '')
         self.config.set('ssh_jogo', 'username', '')
         self.config.set('ssh_jogo', 'password', '')
+        self.config.set('ssh_jogo', 'port', '')
 
         # Adiciona a seção 'general' para configurações gerais
         self.config.add_section('general')
@@ -152,12 +154,14 @@ class ButtonManager:
         self.ssh_vpn_config = {
             'host': self.config.get('ssh_vpn', 'host', fallback=''),
             'username': self.config.get('ssh_vpn', 'username', fallback=''),
-            'password': self.config.get('ssh_vpn', 'password', fallback='')
+            'password': self.config.get('ssh_vpn', 'password', fallback=''),
+            'port': self.config.get('ssh_vpn', 'port', fallback='')
         }
         self.ssh_jogo_config = {
             'host': self.config.get('ssh_jogo', 'host', fallback=''),
             'username': self.config.get('ssh_jogo', 'username', fallback=''),
-            'password': self.config.get('ssh_jogo', 'password', fallback='')
+            'password': self.config.get('ssh_jogo', 'password', fallback=''),
+            'port': self.config.get('ssh_jogo', 'port', fallback='')
         }
         self.load_general_config()  # Carrega as configurações gerais
 
@@ -659,7 +663,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 67.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 67.3", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -682,21 +686,24 @@ class ButtonManager:
             self.load_ssh_configurations()
             config = self.ssh_vpn_config if connection_type == 'vpn' else self.ssh_jogo_config
 
-            # Adicionando o teste de conexão na porta 80 usando socket
+            # Obter a porta da configuração (definir um valor padrão caso não esteja presente)
+            port = int(config.get('port', 22))  # Por padrão, usa a porta 22 se não estiver definida
+
+            # Adicionando o teste de conexão na porta definida usando socket
             try:
-                socket_info = socket.getaddrinfo(config['host'], 80, socket.AF_INET, socket.SOCK_STREAM)
+                socket_info = socket.getaddrinfo(config['host'], port, socket.AF_INET, socket.SOCK_STREAM)
                 conn = socket.create_connection(socket_info[0][4], timeout=2)
                 conn.close()
-                logger_test_command.info(f"Conexão TCP na porta 80 com {config['host']} bem-sucedida.")
+                logger_test_command.info(f"Conexão TCP na porta {port} com {config['host']} bem-sucedida.")
             except (socket.timeout, socket.error) as e:
-                logger_test_command.warning(f"Falha na conexão TCP na porta 80 com {config['host']}: {e}. Tentando novamente em {retry_delay} segundos...")
+                logger_test_command.warning(f"Falha na conexão TCP na porta {port} com {config['host']}: {e}. Tentando novamente em {retry_delay} segundos...")
                 attempt += 1
                 if attempt < max_retries:
                     if self.stop_event.wait(retry_delay):
                         break
                     continue  # Tenta novamente após o tempo de espera
                 else:
-                    logger_test_command.error("Número máximo de tentativas de conexão atingido devido à falha na porta 80.")
+                    logger_test_command.error("Número máximo de tentativas de conexão atingido devido à falha na porta {port}.")
                     self.connection_established.set()  # Marca a conexão como falhada
                     self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline
                     break
@@ -708,6 +715,7 @@ class ButtonManager:
                 # Tenta se conectar
                 ssh_client.connect(
                     config['host'],
+                    port=port,  # Usa a porta carregada do arquivo ini
                     username=config['username'],
                     password=config['password'],
                     look_for_keys=False,
@@ -761,8 +769,15 @@ class ButtonManager:
                         logger_test_command.error(f"Falha ao criar o usuário SSH: {err}")
                         break  # Se falhar, sair do loop de tentativa de conexão
                 else:
-                    logger_test_command.info("A opção Criar usuário SSH automaticamente não esta marcada, marque a opção ou crie o usuario manualmente e reinicie o programa.")
+                    logger_test_command.info("A opção Criar usuário SSH automaticamente não está marcada, marque a opção ou crie o usuário manualmente e reinicie o programa.")
                     break  # Sair do loop de tentativa de conexão
+
+            except paramiko.SSHException as e:
+                # Captura erros específicos relacionados ao banner SSH
+                if "banner" in str(e).lower():
+                    logger_test_command.error(f"Erro de porta SSH ao estabelecer conexão ({connection_type}): {e}")
+                    logger_test_command.error("Verifique a configuração da porta SSH nas configurações e corrija o problema.")
+                    break  # Sai do loop de tentativa de conexão
 
             except Exception as e:
                 logger_test_command.error(f"Erro ao estabelecer conexão SSH ({connection_type}): {e}")
@@ -2694,12 +2709,20 @@ class OMRManagerDialog:
         frame_user_config.pack(padx=10, pady=10, fill=tk.BOTH)
 
         tk.Label(frame_user_config, text="Host OMR VPN:").grid(row=0, column=0, sticky=tk.W)
-        self.host_vpn_entry = tk.Entry(frame_user_config, width=30)
-        self.host_vpn_entry.grid(row=0, column=1, padx=5, pady=5)
+        self.host_vpn_entry = tk.Entry(frame_user_config, width=23)
+        self.host_vpn_entry.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
+
+        #tk.Label(frame_user_config, text=":").grid(row=0, column=1)
+        self.port_vpn_entry = tk.Entry(frame_user_config, width=5)
+        self.port_vpn_entry.grid(row=0, column=1, padx=5, pady=5, sticky=tk.E)
 
         tk.Label(frame_user_config, text="Host OMR JOGO:").grid(row=0, column=3, sticky=tk.W)
-        self.host_jogo_entry = tk.Entry(frame_user_config, width=30)
-        self.host_jogo_entry.grid(row=0, column=4, padx=5, pady=5)
+        self.host_jogo_entry = tk.Entry(frame_user_config, width=23)
+        self.host_jogo_entry.grid(row=0, column=4, padx=5, pady=5, sticky=tk.W)
+
+        #tk.Label(frame_user_config, text="Porta OMR JOGO:").grid(row=3, column=3, sticky=tk.W)
+        self.port_jogo_entry = tk.Entry(frame_user_config, width=5)
+        self.port_jogo_entry.grid(row=0, column=4, padx=5, pady=5, sticky=tk.E)
 
         tk.Label(frame_user_config, text="Usuário OMR VPN:").grid(row=1, column=0, sticky=tk.W)
         self.user_vpn_entry = tk.Entry(frame_user_config, width=30)
@@ -2753,17 +2776,21 @@ class OMRManagerDialog:
         self.password_jogo_entry.delete(0, tk.END)
         self.host_vpn_entry.delete(0, tk.END)  # Novo
         self.host_jogo_entry.delete(0, tk.END)  # Novo
+        self.port_vpn_entry.delete(0, tk.END)  # Novo
+        self.port_jogo_entry.delete(0, tk.END)  # Novo
 
         # Carrega as informações do arquivo ini
         if 'ssh_vpn' in config:
             self.host_vpn_entry.insert(0, config['ssh_vpn'].get('host', ''))
             self.user_vpn_entry.insert(0, config['ssh_vpn'].get('username', ''))
             self.password_vpn_entry.insert(0, config['ssh_vpn'].get('password', ''))
+            self.port_vpn_entry.insert(0, config['ssh_vpn'].get('port', ''))  # Novo
 
         if 'ssh_jogo' in config:
             self.host_jogo_entry.insert(0, config['ssh_jogo'].get('host', ''))
             self.user_jogo_entry.insert(0, config['ssh_jogo'].get('username', ''))
             self.password_jogo_entry.insert(0, config['ssh_jogo'].get('password', ''))
+            self.port_jogo_entry.insert(0, config['ssh_jogo'].get('port', ''))  # Novo
 
     def save_user_credentials(self):
         config = configparser.ConfigParser()
@@ -2779,10 +2806,12 @@ class OMRManagerDialog:
         config['ssh_vpn']['host'] = self.host_vpn_entry.get()
         config['ssh_vpn']['username'] = self.user_vpn_entry.get()
         config['ssh_vpn']['password'] = self.password_vpn_entry.get()
+        config['ssh_vpn']['port'] = self.port_vpn_entry.get()  # Novo
 
         config['ssh_jogo']['host'] = self.host_jogo_entry.get()
         config['ssh_jogo']['username'] = self.user_jogo_entry.get()
         config['ssh_jogo']['password'] = self.password_jogo_entry.get()
+        config['ssh_jogo']['port'] = self.port_jogo_entry.get()  # Novo
 
         # Escreve as configurações no arquivo
         with open('config.ini', 'w') as configfile:
@@ -3205,7 +3234,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 67.2 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 67.3 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
