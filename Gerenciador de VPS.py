@@ -59,6 +59,9 @@ class ButtonManager:
         self.ping_forever = True # Variavel para ligar/desligar testes de ping.
         self.criar_usuario_ssh = True # Variavel para definir se cria ou não o usuario ssh no OMR
         self.connection_established_ssh_omr_vpn = threading.Event()  # Evento para sinalizar conexão estabelecida
+        self.connection_established_ssh__omr_jogo = threading.Event() # Evento para sinalizar conexão estabelecida
+        self.connection_established_ssh_vps_vpn = threading.Event() # Evento para sinalizar conexão estabelecida
+        self.connection_established_ssh_vps_jogo = threading.Event() # Evento para sinalizar conexão estabelecida
         self.stop_event = threading.Event()
         self.thread = None
         self.buttons = []
@@ -712,7 +715,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.3", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.4", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -745,12 +748,16 @@ class ButtonManager:
             # Seleciona a configuração com base no tipo de conexão
             if connection_type == 'vpn':
                 config = self.ssh_vpn_config
+                connection_event = self.connection_established_ssh_omr_vpn
             elif connection_type == 'jogo':
                 config = self.ssh_jogo_config
+                connection_event = self.connection_established_ssh__omr_jogo
             elif connection_type == 'vps_vpn':
                 config = self.ssh_vps_vpn_config
+                connection_event = self.connection_established_ssh_vps_vpn
             elif connection_type == 'vps_jogo':
                 config = self.ssh_vps_jogo_config
+                connection_event = self.connection_established_ssh_vps_jogo
             else:
                 logger_test_command.error("Tipo de conexão inválido.")
                 return
@@ -773,8 +780,9 @@ class ButtonManager:
                     continue  # Tenta novamente após o tempo de espera
                 else:
                     logger_test_command.error(f"Número máximo de tentativas de conexão atingido devido à falha na porta {port}.")
-                    self.connection_established_ssh_omr_vpn.set()  # Marca a conexão como falhada
-                    self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline
+                    connection_event.clear()  # Marca a conexão como falhada
+                    if connection_type == 'vpn':
+                        self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline (somente para VPN)
                     break
 
             ssh_client = paramiko.SSHClient()
@@ -792,7 +800,7 @@ class ButtonManager:
                 key_files = []
 
             try:
-                # Tenta se conectar
+               # Tenta se conectar
                 ssh_client.connect(
                     config['host'],
                     port=port,  # Usa a porta carregada do arquivo ini
@@ -805,11 +813,8 @@ class ButtonManager:
 
                 if connection_type == 'vpn':
                     self.ssh_vpn_client = ssh_client
-                    # Inicia a atualização das labels após a conexão VPN ser estabelecida
                     if hasattr(self, 'update_status_labels'):
                         self.master.after(1000, self.update_status_labels)
-                        # Marca a conexão como estabelecida
-                        self.connection_established_ssh_omr_vpn.set()
                     logger_test_command.info("Conexão SSH (vpn) estabelecida com sucesso iniciando teste das conexões.")
                 elif connection_type == 'jogo':
                     self.ssh_jogo_client = ssh_client
@@ -821,27 +826,27 @@ class ButtonManager:
                     self.ssh_vps_jogo_client = ssh_client
                     logger_test_command.info("Conexão SSH (vps_jogo) estabelecida com sucesso.")
 
+                connection_event.set()  # Marca a conexão como estabelecida
+
                 # Aguarda até que a conexão seja interrompida ou o programa seja fechado
                 while not self.stop_event.is_set():
                     try:
                         # Realiza uma operação simples para verificar a conexão
                         ssh_client.exec_command('echo test')
-                        # Usa wait com timeout para permitir a verificação do evento de parada
                         if self.stop_event.wait(5):  # Espera 5 segundos ou até o evento ser setado
                             break
                     except Exception as e:
                         # Se uma exceção for lançada, significa que a conexão foi perdida
                         logger_test_command.error(f"Conexão SSH ({connection_type}) perdida: {e}")
                         ssh_client.close()
+                        connection_event.clear()  # Limpa o sinal de conexão estabelecida
                         if connection_type == 'vpn':
-                            self.connection_established_ssh_omr_vpn.clear()  # Limpa o sinal de conexão estabelecida (somente para VPN)
-                            self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline (somente para VPN)
-                            break  # Sai do loop para evitar looping infinito ao perder a conexão VPN
-                        else:
-                            break  # Sai do loop para tentar reconectar a conexão de jogo
+                            self.update_all_statuses_offline()
+                        break # Sai do loop para tentar reconectar a conexão
 
             except paramiko.AuthenticationException as e:
                 logger_test_command.error(f"Erro de autenticação ao estabelecer conexão SSH ({connection_type}): {e}")
+                connection_event.clear()
 
                 if self.criar_usuario_ssh:
                     try:
@@ -875,8 +880,8 @@ class ButtonManager:
                         break
                 else:
                     logger_test_command.error("Número máximo de tentativas de conexão atingido.")
+                    connection_event.clear()
                     if connection_type == 'vpn':
-                        self.connection_established_ssh_omr_vpn.set()  # Marca a conexão como falhada (somente para VPN)
                         self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline (somente para VPN)
                     break  # Sai do loop de tentativa de conexão
 
@@ -886,23 +891,25 @@ class ButtonManager:
             self.ssh_vpn_client.close()
             logger_test_command.info("Conexão SSH (vpn) fechada.")
             self.ssh_vpn_client = None
+            self.connection_established_ssh_omr_vpn.clear()
 
         if hasattr(self, 'ssh_jogo_client') and self.ssh_jogo_client is not None:
             self.ssh_jogo_client.close()
             logger_test_command.info("Conexão SSH (jogo) fechada.")
             self.ssh_jogo_client = None
+            self.connection_established_ssh__omr_jogo.clear()
 
-        """Fecha a conexão SSH aberta para VPS VPN."""
         if hasattr(self, 'ssh_vps_vpn_client') and self.ssh_vps_vpn_client is not None:
             self.ssh_vps_vpn_client.close()
             logger_test_command.info("Conexão SSH (vps_vpn) fechada.")
             self.ssh_vps_vpn_client = None
+            self.connection_established_ssh_vps_vpn.clear()
 
-        """Fecha a conexão SSH aberta para VPS Jogo."""
         if hasattr(self, 'ssh_vps_jogo_client') and self.ssh_vps_jogo_client is not None:
             self.ssh_vps_jogo_client.close()
             logger_test_command.info("Conexão SSH (vps_jogo) fechada.")
             self.ssh_vps_jogo_client = None
+            self.connection_established_ssh_vps_jogo.clear()
 
 # LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
     # Funções para os botões de teste
@@ -1573,11 +1580,14 @@ class ButtonManager:
 #LOGICA PARA BOTÕES DE REINICIAR GLORYTUN E XRAY NA 3° ABA.
     def reiniciar_glorytun_vpn(self):
         """Reinicia o serviço Glorytun através da conexão SSH já estabelecida."""
-        if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
+        if self.connection_established_ssh_omr_vpn.is_set():
             try:
                 self.ssh_vpn_client.exec_command("/etc/init.d/glorytun restart")
-            except Exception:
-                pass
+                logger_main.info("Serviço Glorytun reiniciado com sucesso.")
+            except Exception as e:
+                logger_main.error(f"Erro ao reiniciar o serviço Glorytun: {e}")
+        else:
+            logger_main.error("Não foi possível reiniciar o serviço Glorytun. Conexão SSH OMR VPN não está ativa.")
 
     def reiniciar_xray_jogo(self):
         """Reinicia o serviço Xray através da conexão SSH já estabelecida com confirmação do usuário."""
@@ -1589,11 +1599,14 @@ class ButtonManager:
                 4  # MB_YESNO
             )
             if resposta == 6:  # IDYES
-                if hasattr(self, 'ssh_jogo_client') and self.ssh_jogo_client is not None:
+                if self.connection_established_ssh__omr_jogo.is_set():
                     try:
-                        self.ssh_jogo_client.exec_command("/etc/init.d/xray restart")
-                    except Exception:
-                        pass
+                       self.ssh_jogo_client.exec_command("/etc/init.d/xray restart")
+                       logger_main.info("Serviço Xray reiniciado com sucesso.")
+                    except Exception as e:
+                        logger_main.error(f"Erro ao reiniciar o serviço Xray: {e}")
+                else:
+                    logger_main.error("Não foi possível reiniciar o serviço Xray. Conexão SSH OMR JOGO não está ativa.")
 
         confirmar_reiniciar()
 
@@ -3447,7 +3460,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 68.3 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 68.4 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
