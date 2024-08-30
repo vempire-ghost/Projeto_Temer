@@ -377,6 +377,15 @@ class ButtonManager:
         self.master.destroy()
 
 # FUNÇÃO PARA ENCONTRAR A LETRA DA UNIDADE ONDE O PROGRAMA SE ENCONTRA E UTILIZAR NAS FUNÇÕES DO MESMO.
+    def get_executable_dir(self):
+        """Obtém o diretório onde o executável ou script está localizado."""
+        if getattr(sys, 'frozen', False):
+            # Se o script está sendo executado a partir de um pacote PyInstaller
+            return os.path.dirname(os.path.abspath(sys.executable))
+        else:
+            # Se o script está sendo executado diretamente
+            return os.path.dirname(os.path.abspath(__file__))
+
     def get_drive_letter(self):
         """Retorna a letra da unidade onde o script está sendo executado."""
         if getattr(sys, 'frozen', False):  # Verifica se o código está congelado/compilado
@@ -528,10 +537,10 @@ class ButtonManager:
         self.coopera_status.grid(row=0, column=2, padx=5, pady=5, sticky=tk.W)
 
         # Inicia a atualização do status das conexões SSH com atraso
-        self.master.after(1000, lambda: threading.Thread(target=self.establish_ssh_vpn_connection).start())
-        self.master.after(2000, lambda: threading.Thread(target=self.establish_ssh_jogo_connection).start())
-        self.master.after(3000, lambda: threading.Thread(target=self.establish_ssh_vps_vpn_connection).start())
-        self.master.after(4000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_connection).start())
+        self.master.after(2000, lambda: threading.Thread(target=self.establish_ssh_vpn_connection).start())
+        self.master.after(4000, lambda: threading.Thread(target=self.establish_ssh_jogo_connection).start())
+        self.master.after(6000, lambda: threading.Thread(target=self.establish_ssh_vps_vpn_connection).start())
+        self.master.after(7000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_connection).start())
 
 
         # Cria o Notebook
@@ -694,7 +703,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.1", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -730,7 +739,7 @@ class ButtonManager:
             elif connection_type == 'jogo':
                 config = self.ssh_jogo_config
             elif connection_type == 'vps_vpn':
-               config = self.ssh_vps_vpn_config
+                config = self.ssh_vps_vpn_config
             elif connection_type == 'vps_jogo':
                 config = self.ssh_vps_jogo_config
             else:
@@ -754,15 +763,24 @@ class ButtonManager:
                         break
                     continue  # Tenta novamente após o tempo de espera
                 else:
-                    logger_test_command.error("Número máximo de tentativas de conexão atingido devido à falha na porta {port}.")
+                    logger_test_command.error(f"Número máximo de tentativas de conexão atingido devido à falha na porta {port}.")
                     self.connection_established.set()  # Marca a conexão como falhada
                     self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline
                     break
 
             ssh_client = paramiko.SSHClient()
             ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            key_dir = os.path.join(os.path.dirname(__file__), 'ssh_keys')
-            key_files = [os.path.join(key_dir, f) for f in os.listdir(key_dir) if os.path.isfile(os.path.join(key_dir, f))]
+
+            # Usar a função para obter o diretório do executável
+            exec_dir = self.get_executable_dir()
+            key_dir = os.path.join(exec_dir, 'ssh_keys')
+
+            # Verifica se o diretório de chaves existe
+            if os.path.isdir(key_dir):
+                key_files = [os.path.join(key_dir, f) for f in os.listdir(key_dir) if os.path.isfile(os.path.join(key_dir, f))]
+            else:
+                logger_test_command.error(f"Diretório de chaves não encontrado: {key_dir}")
+                key_files = []
 
             try:
                 # Tenta se conectar
@@ -772,8 +790,8 @@ class ButtonManager:
                     username=config['username'],
                     password=config['password'],
                     key_filename=key_files,  # Usa todos os arquivos de chave encontrados
-                    look_for_keys=False,
-                    allow_agent=False
+                    look_for_keys=True,
+                    allow_agent=True
                 )
 
                 if connection_type == 'vpn':
@@ -3392,7 +3410,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 68 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 68.1 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
