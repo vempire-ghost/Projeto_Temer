@@ -678,8 +678,8 @@ class ButtonManager:
         self.label_omr_jogo_cc = tk.Label(self.frame_omr_jogo, text="CC: Aguarde...")
         self.label_omr_jogo_cc.pack(anchor=tk.W)
 
-        # Botão para reiniciar o omr-tracker VPN
-        self.botao_atualizar_scheduler = tk.Button(self.frame_atualizar, text="Atualizar Scheduler e CC", command=self.atualizar_scheduler)
+        # Botão para Atualizar Scheduler e CC
+        self.botao_atualizar_scheduler = tk.Button(self.frame_atualizar, text="Atualizar Scheduler e CC", command=self.executar_comandos_scheduler)
         self.botao_atualizar_scheduler.grid(row=0, column=0, padx=10, pady=5, sticky='n')
 
         # Botão para abrir a visualização do log
@@ -715,7 +715,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.4", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.5", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -1511,12 +1511,15 @@ class ButtonManager:
             self.start_monitoring()
 
 #lOGICA PARA FUNÇÃO DE ATUALIZAÇÃO DO SCHEDULER NA 3° ABA.
-    def executar_comando_scheduler(self, comando):
+    def executar_comando_ssh(self, ssh_client, comando):
+        """Executa um comando via SSH e retorna a saída."""
         try:
-            resultado = subprocess.run(comando, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            if resultado.returncode != 0:
-                return f"Erro: {resultado.stderr.strip()}"
-            return resultado.stdout.strip()
+            stdin, stdout, stderr = ssh_client.exec_command(comando)
+            erro = stderr.read().decode().strip()
+            saida = stdout.read().decode().strip()
+            if erro:
+                return f"Erro: {erro}"
+            return saida
         except Exception as e:
             return f"Erro: {str(e)}"
 
@@ -1526,56 +1529,79 @@ class ButtonManager:
             return "Indisponível"
         return texto
 
+    def atualizar_label_scheduler(self, label_scheduler, label_cc, ssh_client, comando_scheduler, comando_cc, conexao_nome):
+        """Atualiza as labels com o resultado dos comandos SSH executados ou 'Offline' se a conexão não estiver estabelecida."""
+        if ssh_client is None or not ssh_client.get_transport().is_active():
+            # Atualiza o texto do label para "Offline" se a conexão não estiver estabelecida
+            print(f"Conexão SSH ({conexao_nome}) não está estabelecida. Atualizando labels para Offline.")
+            self.master.after(0, lambda: label_scheduler.config(text="Scheduler: Offline"))
+            self.master.after(0, lambda: label_cc.config(text="CC: Offline"))
+            return
 
-    def atualizar_label_scheduler(self, label_scheduler, label_cc, comando_scheduler, comando_cc):
-        resultado_scheduler = self.executar_comando_scheduler(comando_scheduler)
-        resultado_cc = self.executar_comando_scheduler(comando_cc)
-    
+        # Executa os comandos via SSH
+        resultado_scheduler = self.executar_comando_ssh(ssh_client, comando_scheduler)
+        resultado_cc = self.executar_comando_ssh(ssh_client, comando_cc)
+
         # Trunca os resultados se necessário
         resultado_scheduler_truncado = self.truncar_texto(resultado_scheduler)
         resultado_cc_truncado = self.truncar_texto(resultado_cc)
-    
-        # Atualiza as labels usando self.master
+
+        # Imprime a origem dos resultados
+        print(f"Resultado do comando scheduler ({conexao_nome}): {resultado_scheduler_truncado}")
+        print(f"Resultado do comando CC ({conexao_nome}): {resultado_cc_truncado}")
+
+        # Atualiza as labels com os resultados dos comandos
         self.master.after(0, lambda: label_scheduler.config(text=f"Scheduler: {resultado_scheduler_truncado}"))
         self.master.after(0, lambda: label_cc.config(text=f"CC: {resultado_cc_truncado}"))
 
     def executar_comandos_scheduler(self):
-       # Define os comandos a serem executados e as funções de execução SSH associadas
+        """Executa os comandos do scheduler e CC em paralelo usando a conexão SSH correta."""
+        # Define os comandos a serem executados e as conexões SSH associadas
         comandos = {
             (self.label_vps_vpn_scheduler, self.label_vps_vpn_cc): (
-                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP.tlp", "--", "cat", "/proc/sys/net/mptcp/mptcp_scheduler"],
-                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Oracle Ubuntu 22.04 Instance 2\\OpenMPTCP.tlp", "--", "cat", "/proc/sys/net/ipv4/tcp_congestion_control"]
+                self.ssh_vps_vpn_client, 
+                "cat /proc/sys/net/mptcp/mptcp_scheduler",
+                "cat /proc/sys/net/ipv4/tcp_congestion_control",
+                self.connection_established_ssh_vps_vpn,
+                "VPS VPN"
             ),
             (self.label_vps_jogo_scheduler, self.label_vps_jogo_cc): (
-                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP.tlp", "--", "cat", "/proc/sys/net/mptcp/mptcp_scheduler"],
-                ["start", "/B", "sexec", "-profile=J:\\Dropbox Compartilhado\\AmazonWS\\Google Debian 5.4 Instance 3\\OpenMPTCP.tlp", "--", "cat", "/proc/sys/net/ipv4/tcp_congestion_control"]
+                self.ssh_vps_jogo_client if hasattr(self, 'ssh_vps_jogo_client') else None, 
+                "cat /proc/sys/net/mptcp/mptcp_scheduler",
+                "cat /proc/sys/net/ipv4/tcp_congestion_control",
+                self.connection_established_ssh_vps_jogo,
+                "VPS Jogo"
             ),
             (self.label_omr_vpn_scheduler, self.label_omr_vpn_cc): (
-                ["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.101.1", "cat", "/proc/sys/net/mptcp/mptcp_scheduler"],
-                ["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.101.1", "cat", "/proc/sys/net/ipv4/tcp_congestion_control"]
+                self.ssh_vpn_client if hasattr(self, 'ssh_vpn_client') else None, 
+                "cat /proc/sys/net/mptcp/mptcp_scheduler",
+                "cat /proc/sys/net/ipv4/tcp_congestion_control",
+                self.connection_established_ssh_omr_vpn,
+                "VPN"
             ),
             (self.label_omr_jogo_scheduler, self.label_omr_jogo_cc): (
-                ["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.100.1", "cat", "/proc/sys/net/mptcp/mptcp_scheduler"],
-                ["ssh", "-o", "StrictHostKeyChecking=no", "root@192.168.100.1", "cat", "/proc/sys/net/ipv4/tcp_congestion_control"]
+                self.ssh_jogo_client if hasattr(self, 'ssh_jogo_client') else None, 
+                "cat /proc/sys/net/mptcp/mptcp_scheduler",
+                "cat /proc/sys/net/ipv4/tcp_congestion_control",
+                self.connection_established_ssh__omr_jogo,
+                "Jogo"
             ),
         }
 
         def processar_comandos():
-            for (label_scheduler, label_cc), (comando_scheduler, comando_cc) in comandos.items():
-                self.atualizar_label_scheduler(label_scheduler, label_cc, comando_scheduler, comando_cc)
+            for (label_scheduler, label_cc), (ssh_client, comando_scheduler, comando_cc, evento_conexao, conexao_nome) in comandos.items():
+                # Verifica se o evento de conexão está sinalizado e se o cliente SSH existe
+                if not evento_conexao.is_set() or ssh_client is None:
+                    print(f"Conexão SSH ({conexao_nome}) não está estabelecida ou cliente SSH não está definido. Atualizando labels para Offline.")
+                    self.master.after(0, lambda: label_scheduler.config(text="Scheduler: Offline"))
+                    self.master.after(0, lambda: label_cc.config(text="CC: Offline"))
+                    continue
+
+                # Atualiza as labels com os resultados dos comandos
+                self.atualizar_label_scheduler(label_scheduler, label_cc, ssh_client, comando_scheduler, comando_cc, conexao_nome)
 
         # Executar os comandos em uma thread separada para não bloquear a interface
         threading.Thread(target=processar_comandos).start()
-
-    def atualizar_scheduler(self):
-        # Finaliza o processo sexec.exe
-        os.system('taskkill /f /im sexec.exe /t')
-
-        # Aguarda 5 segundos
-        time.sleep(5)
-
-        # Executa os comandos do scheduler
-        self.executar_comandos_scheduler()
 
 #LOGICA PARA BOTÕES DE REINICIAR GLORYTUN E XRAY NA 3° ABA.
     def reiniciar_glorytun_vpn(self):
@@ -3460,7 +3486,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 68.4 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 68.5 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
