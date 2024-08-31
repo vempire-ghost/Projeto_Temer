@@ -16,6 +16,7 @@
 !LICENSE
 !checar scheduler e cc.py
 !Compilar checar scheduler e cc.ps1
+!Compilar com LOG.ps1
 
 # Não ignorar diretórios específicos e seus conteúdos
 !diretorio_que_quero_monitorar/

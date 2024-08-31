@@ -715,7 +715,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.6", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.7", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -1562,39 +1562,35 @@ class ButtonManager:
         # Define os comandos a serem executados e as conexões SSH associadas
         comandos = {
             (self.label_vps_vpn_scheduler, self.label_vps_vpn_cc): (
-                self.ssh_vps_vpn_client, 
+                self.ssh_vps_vpn_client if self.connection_established_ssh_vps_vpn.is_set() else None, 
                 "cat /proc/sys/net/mptcp/mptcp_scheduler",
                 "cat /proc/sys/net/ipv4/tcp_congestion_control",
-                self.connection_established_ssh_vps_vpn,
                 "VPS VPN"
             ),
             (self.label_vps_jogo_scheduler, self.label_vps_jogo_cc): (
-                self.ssh_vps_jogo_client if hasattr(self, 'ssh_vps_jogo_client') else None, 
+                self.ssh_vps_jogo_client if self.connection_established_ssh_vps_jogo.is_set() else None, 
                 "cat /proc/sys/net/mptcp/mptcp_scheduler",
                 "cat /proc/sys/net/ipv4/tcp_congestion_control",
-                self.connection_established_ssh_vps_jogo,
                 "VPS Jogo"
             ),
             (self.label_omr_vpn_scheduler, self.label_omr_vpn_cc): (
-                self.ssh_vpn_client if hasattr(self, 'ssh_vpn_client') else None, 
+                self.ssh_vpn_client if self.connection_established_ssh_omr_vpn.is_set() else None, 
                 "cat /proc/sys/net/mptcp/mptcp_scheduler",
                 "cat /proc/sys/net/ipv4/tcp_congestion_control",
-                self.connection_established_ssh_omr_vpn,
                 "VPN"
             ),
             (self.label_omr_jogo_scheduler, self.label_omr_jogo_cc): (
-                self.ssh_jogo_client if hasattr(self, 'ssh_jogo_client') else None, 
+                self.ssh_jogo_client if self.connection_established_ssh__omr_jogo.is_set() else None, 
                 "cat /proc/sys/net/mptcp/mptcp_scheduler",
                 "cat /proc/sys/net/ipv4/tcp_congestion_control",
-                self.connection_established_ssh__omr_jogo,
                 "Jogo"
             ),
         }
 
         def processar_comandos():
-            for (label_scheduler, label_cc), (ssh_client, comando_scheduler, comando_cc, evento_conexao, conexao_nome) in comandos.items():
-                # Verifica se o evento de conexão está sinalizado e se o cliente SSH existe
-                if not evento_conexao.is_set() or ssh_client is None:
+            for (label_scheduler, label_cc), (ssh_client, comando_scheduler, comando_cc, conexao_nome) in comandos.items():
+                # Verifica se o cliente SSH existe
+                if ssh_client is None:
                     print(f"Conexão SSH ({conexao_nome}) não está estabelecida ou cliente SSH não está definido. Atualizando labels para Offline.")
                     self.master.after(0, lambda: label_scheduler.config(text="Scheduler: Offline"))
                     self.master.after(0, lambda: label_cc.config(text="CC: Offline"))
@@ -3489,7 +3485,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 68.6 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 68.7 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
