@@ -715,7 +715,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.5", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.6", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -848,7 +848,7 @@ class ButtonManager:
                 logger_test_command.error(f"Erro de autenticação ao estabelecer conexão SSH ({connection_type}): {e}")
                 connection_event.clear()
 
-                if self.criar_usuario_ssh:
+                if self.criar_usuario_ssh and connection_type in ['vpn', 'jogo']:  # Criar usuário SSH apenas para vpn e jogo
                     try:
                         logger_test_command.info("Tentando criar usuário SSH via root...")
                         # Comando para criar o usuário via SSH como root
@@ -860,6 +860,9 @@ class ButtonManager:
                     except subprocess.CalledProcessError as err:
                         logger_test_command.error(f"Falha ao criar o usuário SSH: {err}")
                         break  # Se falhar, sair do loop de tentativa de conexão
+                elif connection_type in ['vps_vpn', 'vps_jogo']:
+                    logger_test_command.error(f"Falha na conexão com {connection_type}. Verifique os dados de login nas configurações e reinicie o programa.")
+                    break  # Sair do loop de tentativa de conexão
                 else:
                     logger_test_command.info("A opção Criar usuário SSH automaticamente não está marcada, marque a opção ou crie o usuário manualmente e reinicie o programa.")
                     break  # Sair do loop de tentativa de conexão
@@ -3486,7 +3489,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 68.5 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 68.6 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
