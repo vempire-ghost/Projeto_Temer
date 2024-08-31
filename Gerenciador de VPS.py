@@ -59,7 +59,7 @@ class ButtonManager:
         self.ping_forever = True # Variavel para ligar/desligar testes de ping.
         self.criar_usuario_ssh = True # Variavel para definir se cria ou não o usuario ssh no OMR
         self.connection_established_ssh_omr_vpn = threading.Event()  # Evento para sinalizar conexão estabelecida
-        self.connection_established_ssh__omr_jogo = threading.Event() # Evento para sinalizar conexão estabelecida
+        self.connection_established_ssh_omr_jogo = threading.Event() # Evento para sinalizar conexão estabelecida
         self.connection_established_ssh_vps_vpn = threading.Event() # Evento para sinalizar conexão estabelecida
         self.connection_established_ssh_vps_jogo = threading.Event() # Evento para sinalizar conexão estabelecida
         self.stop_event = threading.Event()
@@ -554,7 +554,6 @@ class ButtonManager:
         self.master.after(6000, lambda: threading.Thread(target=self.establish_ssh_vps_vpn_connection).start())
         self.master.after(7000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_connection).start())
 
-
         # Cria o Notebook
         self.notebook = ttk.Notebook(self.master)
         self.notebook.pack(expand=1, fill='both')
@@ -641,7 +640,7 @@ class ButtonManager:
         # Labels e resultados para VPS VPN
         self.frame_vps_vpn = tk.Frame(self.frame_vps, borderwidth=1, relief=tk.SOLID)
         self.frame_vps_vpn.grid(row=0, column=0, padx=10, pady=5, sticky=tk.W)
-        self.label_vps_vpn = tk.Label(self.frame_vps_vpn, text="VPS VPN:")
+        self.label_vps_vpn = tk.Label(self.frame_vps_vpn, text="VPS VPN: Off", fg="red")
         self.label_vps_vpn.pack(anchor=tk.W)
         self.label_vps_vpn_scheduler = tk.Label(self.frame_vps_vpn, text="Scheduler: Aguarde...")
         self.label_vps_vpn_scheduler.pack(anchor=tk.W)
@@ -651,7 +650,7 @@ class ButtonManager:
         # Labels e resultados para VPS JOGO
         self.frame_vps_jogo = tk.Frame(self.frame_vps, borderwidth=1, relief=tk.SOLID)
         self.frame_vps_jogo.grid(row=0, column=1, padx=10, pady=5, sticky=tk.W)
-        self.label_vps_jogo = tk.Label(self.frame_vps_jogo, text="VPS JOGO:")
+        self.label_vps_jogo = tk.Label(self.frame_vps_jogo, text="VPS JOGO: Off", fg="red")
         self.label_vps_jogo.pack(anchor=tk.W)
         self.label_vps_jogo_scheduler = tk.Label(self.frame_vps_jogo, text="Scheduler: Aguarde...")
         self.label_vps_jogo_scheduler.pack(anchor=tk.W)
@@ -661,7 +660,7 @@ class ButtonManager:
         # Labels e resultados para OMR VPN
         self.frame_omr_vpn = tk.Frame(self.frame_omr, borderwidth=1, relief=tk.SOLID)
         self.frame_omr_vpn.grid(row=0, column=0, padx=10, pady=5, sticky=tk.W)
-        self.label_omr_vpn = tk.Label(self.frame_omr_vpn, text="OMR VPN:")
+        self.label_omr_vpn = tk.Label(self.frame_omr_vpn, text="OMR VPN: Off", fg="red")
         self.label_omr_vpn.pack(anchor=tk.W)
         self.label_omr_vpn_scheduler = tk.Label(self.frame_omr_vpn, text="Scheduler: Aguarde...")
         self.label_omr_vpn_scheduler.pack(anchor=tk.W)
@@ -671,12 +670,15 @@ class ButtonManager:
         # Labels e resultados para OMR JOGO
         self.frame_omr_jogo = tk.Frame(self.frame_omr, borderwidth=1, relief=tk.SOLID)
         self.frame_omr_jogo.grid(row=0, column=1, padx=10, pady=5, sticky=tk.W)
-        self.label_omr_jogo = tk.Label(self.frame_omr_jogo, text="OMR JOGO:")
+        self.label_omr_jogo = tk.Label(self.frame_omr_jogo, text="OMR JOGO: Off", fg="red")
         self.label_omr_jogo.pack(anchor=tk.W)
         self.label_omr_jogo_scheduler = tk.Label(self.frame_omr_jogo, text="Scheduler: Aguarde...")
         self.label_omr_jogo_scheduler.pack(anchor=tk.W)
         self.label_omr_jogo_cc = tk.Label(self.frame_omr_jogo, text="CC: Aguarde...")
         self.label_omr_jogo_cc.pack(anchor=tk.W)
+
+        # Inicia a verificação periódica dos eventos
+        self.update_labels_ssh()
 
         # Botão para Atualizar Scheduler e CC
         self.botao_atualizar_scheduler = tk.Button(self.frame_atualizar, text="Atualizar Scheduler e CC", command=self.executar_comandos_scheduler)
@@ -715,7 +717,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.7", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.8", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -751,7 +753,7 @@ class ButtonManager:
                 connection_event = self.connection_established_ssh_omr_vpn
             elif connection_type == 'jogo':
                 config = self.ssh_jogo_config
-                connection_event = self.connection_established_ssh__omr_jogo
+                connection_event = self.connection_established_ssh_omr_jogo
             elif connection_type == 'vps_vpn':
                 config = self.ssh_vps_vpn_config
                 connection_event = self.connection_established_ssh_vps_vpn
@@ -900,7 +902,7 @@ class ButtonManager:
             self.ssh_jogo_client.close()
             logger_test_command.info("Conexão SSH (jogo) fechada.")
             self.ssh_jogo_client = None
-            self.connection_established_ssh__omr_jogo.clear()
+            self.connection_established_ssh_omr_jogo.clear()
 
         if hasattr(self, 'ssh_vps_vpn_client') and self.ssh_vps_vpn_client is not None:
             self.ssh_vps_vpn_client.close()
@@ -1016,16 +1018,18 @@ class ButtonManager:
 
     def show_vm_menu(self, vm_name):
         menu = Menu(self.master, tearoff=0)
+        menu.add_command(label="Ligar", command=lambda: self.run_command("startvm", vm_name))
+        menu.add_command(label="Salvar Estado", command=lambda: self.run_command("savestate", vm_name))
         menu.add_command(label="Desligar", command=lambda: self.run_command("acpipowerbutton", vm_name))
         menu.add_command(label="Forçar Desligamento", command=lambda: self.run_command("poweroff", vm_name))
-        menu.add_command(label="Ligar", command=lambda: self.run_command("startvm", vm_name))
         menu.post(self.master.winfo_pointerx(), self.master.winfo_pointery())
 
     def run_command(self, action, vm_name):
         commands = {
+            "startvm": f'"C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe" startvm "{vm_name}" --type headless',
+            "savestate": f'"C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe" controlvm "{vm_name}" savestate',
             "acpipowerbutton": f'"C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe" controlvm "{vm_name}" acpipowerbutton',
-            "poweroff": f'"C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe" controlvm "{vm_name}" poweroff',
-            "startvm": f'"C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe" startvm "{vm_name}" --type headless'
+            "poweroff": f'"C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe" controlvm "{vm_name}" poweroff'
         }
         command = commands.get(action)
         if command:
@@ -1580,7 +1584,7 @@ class ButtonManager:
                 "VPN"
             ),
             (self.label_omr_jogo_scheduler, self.label_omr_jogo_cc): (
-                self.ssh_jogo_client if self.connection_established_ssh__omr_jogo.is_set() else None, 
+                self.ssh_jogo_client if self.connection_established_ssh_omr_jogo.is_set() else None, 
                 "cat /proc/sys/net/mptcp/mptcp_scheduler",
                 "cat /proc/sys/net/ipv4/tcp_congestion_control",
                 "Jogo"
@@ -1601,6 +1605,34 @@ class ButtonManager:
 
         # Executar os comandos em uma thread separada para não bloquear a interface
         threading.Thread(target=processar_comandos).start()
+
+    def update_labels_ssh(self):
+        # Atualiza o status do VPS VPN
+        if self.connection_established_ssh_vps_vpn.is_set():
+            self.label_vps_vpn.config(text="VPS VPN: On", fg="green")
+        else:
+            self.label_vps_vpn.config(text="VPS VPN: Off", fg="red")
+
+        # Atualiza o status do VPS JOGO
+        if self.connection_established_ssh_vps_jogo.is_set():
+            self.label_vps_jogo.config(text="VPS JOGO: On", fg="green")
+        else:
+            self.label_vps_jogo.config(text="VPS JOGO: Off", fg="red")
+
+        # Atualiza o status do OMR VPN
+        if self.connection_established_ssh_omr_vpn.is_set():
+            self.label_omr_vpn.config(text="OMR VPN: On", fg="green")
+        else:
+            self.label_omr_vpn.config(text="OMR VPN: Off", fg="red")
+
+        # Atualiza o status do OMR JOGO
+        if self.connection_established_ssh_omr_jogo.is_set():
+            self.label_omr_jogo.config(text="OMR JOGO: On", fg="green")
+        else:
+            self.label_omr_jogo.config(text="OMR JOGO: Off", fg="red")
+
+        # Reagenda a verificação após 1000 ms (1 segundo)
+        self.master.after(1000, self.update_labels_ssh)
 
 #LOGICA PARA BOTÕES DE REINICIAR GLORYTUN E XRAY NA 3° ABA.
     def reiniciar_glorytun_vpn(self):
@@ -1624,7 +1656,7 @@ class ButtonManager:
                 4  # MB_YESNO
             )
             if resposta == 6:  # IDYES
-                if self.connection_established_ssh__omr_jogo.is_set():
+                if self.connection_established_ssh_omr_jogo.is_set():
                     try:
                        self.ssh_jogo_client.exec_command("/etc/init.d/xray restart")
                        logger_main.info("Serviço Xray reiniciado com sucesso.")
@@ -3485,7 +3517,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 68.7 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 68.8 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
