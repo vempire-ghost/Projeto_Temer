@@ -107,7 +107,7 @@ class ButtonManager:
         self.load_addresses()
         
         # Executa a checagem de scheduler ao selecionar a aba.
-        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_change)
+        #self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_change)
         
         # Inicia as threads de ping se os endereços estiverem configurados
         if (self.url_to_ping_vps_jogo and self.url_to_ping_vps_vpn and 
@@ -454,13 +454,13 @@ class ButtonManager:
         """
         window.evaluate_js(js_code)
 
-    def on_tab_change(self, event):
+    #def on_tab_change(self, event):
         # Obtemos a aba selecionada
-        current_tab = self.notebook.select()
+        #current_tab = self.notebook.select()
     
-        if self.notebook.tab(current_tab, "text") == "Scheduler":
+        #if self.notebook.tab(current_tab, "text") == "Scheduler":
             # Executa os comandos apenas quando a aba Scheduler é selecionada
-            self.executar_comandos_scheduler()
+            #self.executar_comandos_scheduler()
 
     def create_widgets(self):
         # Cria o frame superior
@@ -717,7 +717,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.9", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.10", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -815,17 +815,21 @@ class ButtonManager:
 
                 if connection_type == 'vpn':
                     self.ssh_vpn_client = ssh_client
+                    self.master.after(1000, self.executar_comandos_scheduler)
                     if hasattr(self, 'update_status_labels'):
                         self.master.after(1000, self.update_status_labels)
                     logger_test_command.info("Conexão SSH (vpn) estabelecida com sucesso iniciando teste das conexões.")
                 elif connection_type == 'jogo':
                     self.ssh_jogo_client = ssh_client
+                    self.master.after(1000, self.executar_comandos_scheduler)
                     logger_test_command.info("Conexão SSH (jogo) estabelecida com sucesso.")
                 elif connection_type == 'vps_vpn':
                     self.ssh_vps_vpn_client = ssh_client
+                    self.master.after(1000, self.executar_comandos_scheduler)
                     logger_test_command.info("Conexão SSH (vps_vpn) estabelecida com sucesso.")
                 elif connection_type == 'vps_jogo':
                     self.ssh_vps_jogo_client = ssh_client
+                    self.master.after(1000, self.executar_comandos_scheduler)
                     logger_test_command.info("Conexão SSH (vps_jogo) estabelecida com sucesso.")
 
                 connection_event.set()  # Marca a conexão como estabelecida
@@ -3534,7 +3538,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 68.9 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 68.10 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
