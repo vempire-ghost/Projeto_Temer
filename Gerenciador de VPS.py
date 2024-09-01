@@ -717,7 +717,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.8", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.9", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -1352,6 +1352,14 @@ class ButtonManager:
                                     return
                                 time.sleep(1)
 
+                            # Realiza um novo teste de conexão antes de reiniciar o Glorytun
+                            logger_main.info("Realizando um novo teste de conexão antes de reiniciar o Glorytun...")
+                            status_vpn_recheck, _ = self.ping_glorytun_vpn(self.url_to_ping_omr_vpn)
+                            if status_vpn_recheck == "ON":
+                                logger_main.info("Conexão restaurada. Reinicialização do Glorytun cancelada.")
+                                break  # Sai do loop e não reinicia o Glorytun
+
+                            # Se a conexão ainda estiver off, reinicia o Glorytun
                             if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
                                 try:
                                     self.ssh_vpn_client.exec_command("/etc/init.d/glorytun restart")
@@ -1421,12 +1429,21 @@ class ButtonManager:
                                     return
                                 time.sleep(1)
 
-                            if hasattr(self, 'ssh_jogo_client') and self.ssh_jogo_client is not None:
-                                try:
-                                    self.ssh_jogo_client.exec_command("/etc/init.d/xray restart")
-                                except Exception:
-                                    pass
-                            logger_main.info("Comando de reinício do Xray executado.")
+                            # Realiza um novo teste antes de reiniciar o Xray
+                            logger_main.info("Realizando novo teste de conexão com o Xray Jogo antes do reinício...")
+                            status_xray, _ = self.ping_xray_jogo(self.url_to_ping_omr_jogo)
+
+                            if status_xray == "ON":
+                                logger_main.info("Novo teste bem-sucedido, não será necessário reiniciar o Xray Jogo.")
+                            else:
+                                logger_main.error("Novo teste falhou, reiniciando Xray Jogo...")
+                                if hasattr(self, 'ssh_jogo_client') and self.ssh_jogo_client is not None:
+                                    try:
+                                        self.ssh_jogo_client.exec_command("/etc/init.d/xray restart")
+                                    except Exception:
+                                        pass
+                                logger_main.info("Comando de reinício do Xray executado.")
+
                         except Exception as e:
                             logger_main.error(f"Erro ao executar o comando de reinício do Xray: {e}")
                     else:
@@ -3517,7 +3534,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 68.8 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 68.9 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
