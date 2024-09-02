@@ -1,5 +1,6 @@
 # Ignorar todos os arquivos
 *
+Scripts Locais\teste.bat
 
 # Não ignorar o próprio arquivo .gitignore
 !.gitignore
@@ -27,3 +28,6 @@
 !Scripts Locais/**
 !Sobre/
 !Sobre/**
+
+# Ignorar arquivo específico dentro de Scripts Locais
+Scripts Locais/teste.bat
