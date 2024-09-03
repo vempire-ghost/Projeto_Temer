@@ -779,7 +779,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 69", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 69.1", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -3073,6 +3073,10 @@ class OMRManagerDialog:
         # Rótulo de texto logo abaixo dos frames
         tk.Label(frame_user_config, text="Os arquivos das chaves privadas devem ser salvos na pasta 'ssh_keys' na raiz do programa.", anchor=tk.W).grid(row=4, column=0, columnspan=5, pady=0, sticky=tk.W)
 
+        # Botão para abrir a pasta 'ssh_keys'
+        open_folder_button = tk.Button(frame_user_config, text="Abrir Pasta 'ssh_keys'", command=self.open_ssh_keys_folder)
+        open_folder_button.grid(row=5, column=0, columnspan=2, pady=10, sticky=tk.W)
+
         # Rótulo de texto acima do botão alinhado à esquerda
         tk.Label(frame_user_config, text="", anchor=tk.W).grid(row=6, column=0, columnspan=5, pady=20, sticky=tk.W)
         tk.Label(frame_user_config, text="Marcar esta opção irá criar um usuario e senha no OMR de acordo com as configurações definidas acima.", anchor=tk.W).grid(row=8, column=0, columnspan=5, pady=0, sticky=tk.W)
@@ -3092,6 +3096,18 @@ class OMRManagerDialog:
         self.top.protocol("WM_DELETE_WINDOW", self.on_close)
 
 # METODO PARA SALVAR USUARIO E SENHA PARA CONEXÃO SSH COM OMR
+    def open_ssh_keys_folder(self):
+        # Define o caminho da pasta 'ssh_keys'
+        path = os.path.join(os.getcwd(), 'ssh_keys')
+        
+        # Tenta abrir a pasta usando o explorador de arquivos padrão
+        try:
+            os.startfile(path)
+        except FileNotFoundError:
+            print("A pasta 'ssh_keys' não foi encontrada.")
+        except Exception as e:
+            print(f"Erro ao tentar abrir a pasta: {e}")
+
     def toggle_criar_usuario_ssh(self):
         """Alterna o valor de criar_usuario_ssh e salva no arquivo de configuração."""
         self.ButtonManager.criar_usuario_ssh = self.criar_usuario_ssh_var.get()
@@ -3601,7 +3617,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 69 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 69.1 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
