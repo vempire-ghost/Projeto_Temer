@@ -21,6 +21,41 @@ import paramiko
 import configparser
 from datetime import datetime
 from PIL import Image, ImageTk
+
+# Caminho para o arquivo de bloqueio
+LOCK_FILE = 'program.lock'
+
+def check_lock_file():
+    """Verifica se o arquivo de bloqueio já existe e pergunta ao usuário o que fazer."""
+    if os.path.isfile(LOCK_FILE):
+        # Cria a caixa de diálogo
+        resposta = ctypes.windll.user32.MessageBoxW(
+            0,
+            "Já existe uma instância do programa em execução. Deseja continuar?",
+            "Aviso",
+            1  # MB_YESNO
+        )
+        # IDYES é 6 e IDNO é 7
+        if resposta == 7:  # IDNO
+            print("Programa encerrado.")
+            sys.exit()  # Encerra a nova instância
+
+def create_lock_file():
+    """Cria o arquivo de bloqueio com o ID do processo atual."""
+    with open(LOCK_FILE, 'w') as f:
+        f.write(str(os.getpid()))
+
+def remove_lock_file():
+    """Remove o arquivo de bloqueio ao encerrar o programa."""
+    if os.path.isfile(LOCK_FILE):
+        os.remove(LOCK_FILE)
+
+# Verifica se o programa já está em execução
+check_lock_file()
+
+# Cria o arquivo de bloqueio
+create_lock_file()
+
 # Configuração básica do logging para salvar em dois arquivos diferentes
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%d/%m/%Y %H:%M:%S')
 
@@ -127,6 +162,32 @@ class ButtonManager:
         if not os.path.exists('ssh_keys'):
             os.makedirs('ssh_keys')
 
+    def delete_file(self):
+        # Define o caminho do arquivo que você deseja deletar
+        file_path = 'program.lock'
+        self.delete_lock_file(file_path)
+
+    def delete_lock_file(self, file_path):
+        """
+        Tenta deletar o arquivo especificado pelo file_path.
+        Se o arquivo existir, ele será removido.
+        Se o arquivo não existir, uma mensagem será exibida.
+        Caso ocorra algum erro, uma mensagem de erro será exibida.
+        """
+        # Verifica se file_path é uma string
+        if not isinstance(file_path, str):
+            print("Erro: o caminho do arquivo deve ser uma string.")
+            return
+
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                print(f"Arquivo '{file_path}' deletado com sucesso.")
+            else:
+                print(f"Arquivo '{file_path}' não encontrado.")
+        except Exception as e:
+            print(f"Ocorreu um erro ao tentar deletar o arquivo: {e}")
+            
 #FUNÇÃO RELACIONADAS A ARQUIVO .INI
     # Função para ler e criar o arquivo ini
     def create_default_config(self):
@@ -335,6 +396,7 @@ class ButtonManager:
 
         # Colocar aqui toda chamada de encerramento de threads que estiverem sendo executadas de forma initerrupta e qualquer função a ser chamada no encerramento do programa.
         # Sinaliza para as threads que devem encerrar
+        self.delete_file()
         self.stop_event.set()
         self.close_ssh_connection()
         self.stop_pinging_threads()
@@ -717,7 +779,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 68.11", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 69", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -3539,7 +3601,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 68.11 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 69 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
