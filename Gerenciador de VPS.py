@@ -19,6 +19,7 @@ import winreg
 import queue
 import paramiko
 import configparser
+import re
 from datetime import datetime
 from PIL import Image, ImageTk
 
@@ -93,6 +94,7 @@ class ButtonManager:
         self.verificar_vm = True  # Variável que controla a verificação das VMs
         self.ping_forever = True # Variavel para ligar/desligar testes de ping.
         self.criar_usuario_ssh = True # Variavel para definir se cria ou não o usuario ssh no OMR
+        self.ping_provedor = True # Variavel para executar o teste de ping nas interfaces de cada provedor
         self.connection_established_ssh_omr_vpn = threading.Event()  # Evento para sinalizar conexão estabelecida
         self.connection_established_ssh_omr_jogo = threading.Event() # Evento para sinalizar conexão estabelecida
         self.connection_established_ssh_vps_vpn = threading.Event() # Evento para sinalizar conexão estabelecida
@@ -200,13 +202,14 @@ class ButtonManager:
         self.config.set('ssh_jogo', 'password', '')
         self.config.set('ssh_jogo', 'port', '')
 
+        # Adiciona a seção 'ssh_vps_vpn'
         self.config.add_section('ssh_vps_vpn')
         self.config.set('ssh_vps_vpn', 'host', '')
         self.config.set('ssh_vps_vpn', 'username', '')
         self.config.set('ssh_vps_vpn', 'password', '')
         self.config.set('ssh_vps_vpn', 'port', '')
 
-        # Adiciona a seção 'ssh_jogo'
+        # Adiciona a seção 'ssh_vps_jogo'
         self.config.add_section('ssh_vps_jogo')
         self.config.set('ssh_vps_jogo', 'host', '')
         self.config.set('ssh_vps_jogo', 'username', '')
@@ -586,15 +589,24 @@ class ButtonManager:
 
         # Botão para Unifique
         self.unifique_status = tk.Button(self.status_frame, text="UNIFIQUE: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=self.test_unifique)
-        self.unifique_status.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
+        self.unifique_status.grid(row=0, column=0, padx=5, pady=2, sticky=tk.W)
+        # Ping para Unifique
+        self.unifique_status_label = tk.Label(self.status_frame, text="--", bg='lightgray')
+        self.unifique_status_label.grid(row=1, column=0, padx=5, pady=0, sticky=tk.N)
 
         # Botão para Claro
         self.claro_status = tk.Button(self.status_frame, text="CLARO: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=self.test_claro)
-        self.claro_status.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
+        self.claro_status.grid(row=0, column=1, padx=5, pady=2, sticky=tk.W)
+        # Ping para Claro
+        self.claro_status_label = tk.Label(self.status_frame, text="--", bg='lightgray')
+        self.claro_status_label.grid(row=1, column=1, padx=5, pady=0, sticky=tk.N)
 
         # Botão para Coopera
         self.coopera_status = tk.Button(self.status_frame, text="COOPERA: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=self.test_coopera)
-        self.coopera_status.grid(row=0, column=2, padx=5, pady=5, sticky=tk.W)
+        self.coopera_status.grid(row=0, column=2, padx=5, pady=2, sticky=tk.W)
+        # Ping para Cooper
+        self.coopera_status_label = tk.Label(self.status_frame, text="--", bg='lightgray')
+        self.coopera_status_label.grid(row=1, column=2, padx=5, pady=0, sticky=tk.N)
 
         # Inicia a atualização do status das conexões SSH com atraso
         self.master.after(2000, lambda: threading.Thread(target=self.establish_ssh_vpn_connection).start())
@@ -765,7 +777,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 69.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 69.3", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -864,6 +876,8 @@ class ButtonManager:
                 if connection_type == 'vpn':
                     self.ssh_vpn_client = ssh_client
                     self.master.after(1000, self.executar_comandos_scheduler)
+                    #self.ping_provedor = True
+                    #self.master.after(2000, self.run_vps_vpn_pings)
                     if hasattr(self, 'update_status_labels'):
                         self.master.after(1000, self.update_status_labels)
                     logger_test_command.info("Conexão SSH (vpn) estabelecida com sucesso iniciando teste das conexões.")
@@ -877,6 +891,8 @@ class ButtonManager:
                     logger_test_command.info("Conexão SSH (vps_vpn) estabelecida com sucesso.")
                 elif connection_type == 'vps_jogo':
                     self.ssh_vps_jogo_client = ssh_client
+                    self.ping_provedor = True
+                    self.master.after(2000, self.run_vps_vpn_pings)
                     self.master.after(1000, self.executar_comandos_scheduler)
                     logger_test_command.info("Conexão SSH (vps_jogo) estabelecida com sucesso.")
 
@@ -886,8 +902,10 @@ class ButtonManager:
                 while not self.stop_event.is_set():
                     try:
                         # Realiza uma operação simples para verificar a conexão
-                        ssh_client.exec_command('echo test')
+                        logger_test_command.info(f"Verificando conexão SSH ({connection_type})...")
+                        ssh_client.exec_command('uptime')  # Verifica o tempo de atividade do sistema
                         if self.stop_event.wait(5):  # Espera 5 segundos ou até o evento ser setado
+                            logger_test_command.info("Parada do monitoramento de conexão detectada.")
                             break
                     except Exception as e:
                         # Se uma exceção for lançada, significa que a conexão foi perdida
@@ -896,6 +914,9 @@ class ButtonManager:
                         connection_event.clear()  # Limpa o sinal de conexão estabelecida
                         if connection_type == 'vpn':
                             self.update_all_statuses_offline()
+                            self.ping_provedor = False
+                        elif connection_type == 'vps_jogo':
+                            self.ping_provedor = False
                         break # Sai do loop para tentar reconectar a conexão
 
             except paramiko.AuthenticationException as e:
@@ -946,6 +967,7 @@ class ButtonManager:
         """Fecha todas as conexões SSH abertas."""
         if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
             self.ssh_vpn_client.close()
+            self.ping_provedor = False
             logger_test_command.info("Conexão SSH (vpn) fechada.")
             self.ssh_vpn_client = None
             self.connection_established_ssh_omr_vpn.clear()
@@ -964,11 +986,57 @@ class ButtonManager:
 
         if hasattr(self, 'ssh_vps_jogo_client') and self.ssh_vps_jogo_client is not None:
             self.ssh_vps_jogo_client.close()
+            self.ping_provedor = False
             logger_test_command.info("Conexão SSH (vps_jogo) fechada.")
             self.ssh_vps_jogo_client = None
             self.connection_established_ssh_vps_jogo.clear()
 
 # LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
+    # Função para ping nas interfaces
+    def run_vps_vpn_pings(self):
+        """Executa os comandos ping na conexão SSH vpn e atualiza a UI."""
+        interfaces = ['eth2', 'eth4', 'eth5']
+        labels = [self.unifique_status_label, self.claro_status_label, self.coopera_status_label]
+
+        for interface, label in zip(interfaces, labels):
+            threading.Thread(target=self.execute_ping_command, args=(interface, label)).start()
+
+    def execute_ping_command(self, interface, label):
+        """Executa o comando ping via SSH indefinidamente e atualiza a label com a latência."""
+        if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
+            try:
+                # Executa o ping sem limite de contagem (-c) e em modo indefinido
+                stdin, stdout, stderr = self.ssh_vpn_client.exec_command(f"ping -I {interface} {self.ssh_vps_jogo_config['host']}")
+
+                while self.ping_provedor:
+                    line = stdout.readline().strip()  # Lê cada linha de saída do comando
+                    if not line:
+                        continue
+
+                    # Filtra a latência usando regex
+                    match = re.search(r'time=(\d+\.?\d*) ms', line)
+                    if match:
+                        latency = match.group(1) + " ms"
+                    else:
+                        latency = "--"
+
+                    # Atualiza a label com a latência ou com traços
+                    self.update_ping_result(label, latency)
+
+                # Após a interrupção do teste, define a label para "--"
+                self.update_ping_result(label, "--")
+
+            except Exception as e:
+                logger_provedor_test.error(f"Falha ao executar ping em {interface}: {e}")
+                self.update_ping_result(label, "--")  # Atualiza para "--" em caso de erro
+        else:
+            logger_provedor_test.error(f"SSH não está conectado para {interface}.")
+            self.update_ping_result(label, "--")  # Atualiza para "--" se SSH não estiver conectado
+
+    def update_ping_result(self, label, result):
+        """Atualiza o texto da label com o resultado do ping."""
+        label.config(text=result)
+
     # Funções para os botões de teste
     def test_unifique(self):
         """Executa o teste para a conexão UNIFIQUE usando a conexão SSH VPN."""
@@ -3603,7 +3671,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 69.2 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 69.3 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
