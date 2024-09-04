@@ -168,12 +168,6 @@ class ButtonManager:
         self.delete_lock_file(file_path)
 
     def delete_lock_file(self, file_path):
-        """
-        Tenta deletar o arquivo especificado pelo file_path.
-        Se o arquivo existir, ele será removido.
-        Se o arquivo não existir, uma mensagem será exibida.
-        Caso ocorra algum erro, uma mensagem de erro será exibida.
-        """
         # Verifica se file_path é uma string
         if not isinstance(file_path, str):
             print("Erro: o caminho do arquivo deve ser uma string.")
@@ -271,20 +265,12 @@ class ButtonManager:
 
 # FUNÇÃO PARA VERIFICA INSTALAÇÃO DE PROGRAMAS NECESSARIOS PARA O FUNCIONAMENTO DO SISTEMA
     def check_software_installation(self):
-        """Verifica se o Bitvise e o VirtualBox estão instalados no sistema."""
-        bitvise_installed = self.is_program_installed("BvSsh.exe")
+        """Verifica se o VirtualBox está instalado no sistema."""
         virtualbox_installed = self.is_program_installed("VirtualBox.exe", check_registry=True)
         
-        if not bitvise_installed or not virtualbox_installed:
-            missing_programs = []
-            if not bitvise_installed:
-                missing_programs.append("Bitvise")
-            if not virtualbox_installed:
-                missing_programs.append("VirtualBox")
-            
-            # Exibe a mensagem com opção para fechar o programa
-            msg = f"Os seguintes programas não estão instalados: {', '.join(missing_programs)}. Por favor, instale-os para continuar."
-            if messagebox.askokcancel("Programas faltando", msg, icon="warning"):
+        if not virtualbox_installed:
+            msg = "O VirtualBox não está instalado. Por favor, instale-o para continuar."
+            if messagebox.askokcancel("Programa faltando", msg, icon="warning"):
                 self.master.destroy()  # Fecha a janela principal, encerrando o programa
                 return False  # Retorna False para indicar falha na checagem
         
@@ -779,7 +765,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 69.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 69.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -3617,7 +3603,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 69.1 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 69.2 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
