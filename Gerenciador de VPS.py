@@ -94,7 +94,8 @@ class ButtonManager:
         self.verificar_vm = True  # Variável que controla a verificação das VMs
         self.ping_forever = True # Variavel para ligar/desligar testes de ping.
         self.criar_usuario_ssh = True # Variavel para definir se cria ou não o usuario ssh no OMR
-        self.ping_provedor = True # Variavel para executar o teste de ping nas interfaces de cada provedor
+        self.ping_provedor = False # Variavel para executar o teste de ping nas interfaces de cada provedor
+        self.stop_ping_provedor = threading.Event() # Variavel para parar o teste de ping nas interfaces de cada provedor
         self.connection_established_ssh_omr_vpn = threading.Event()  # Evento para sinalizar conexão estabelecida
         self.connection_established_ssh_omr_jogo = threading.Event() # Evento para sinalizar conexão estabelecida
         self.connection_established_ssh_vps_vpn = threading.Event() # Evento para sinalizar conexão estabelecida
@@ -777,7 +778,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 69.3", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 69.4", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -797,7 +798,7 @@ class ButtonManager:
         """Estabelece e mantém uma conexão SSH persistente para VPS Jogo."""
         self.establish_ssh_connection('vps_jogo')
 
-    def establish_ssh_connection(self, connection_type):
+    def establish_ssh_connection(self, connection_type, bind_ip=None):
         """Estabelece e mantém uma conexão SSH persistente com tentativas de reconexão contínuas."""
         max_retries = 50000
         retry_delay = 5
@@ -829,12 +830,21 @@ class ButtonManager:
 
             # Adicionando o teste de conexão na porta definida usando socket
             try:
-                socket_info = socket.getaddrinfo(config['host'], port, socket.AF_INET, socket.SOCK_STREAM)
-                conn = socket.create_connection(socket_info[0][4], timeout=2)
-                conn.close()
-                logger_test_command.info(f"Conexão TCP na porta {port} com {config['host']} bem-sucedida.")
+                if bind_ip:
+                    # Cria e vincula o socket ao IP especificado
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.bind((bind_ip, 0))  # Vincula o socket ao IP especificado e a qualquer porta disponível
+                    sock.connect((config['host'], port))
+                    sock.close()
+                    logger_test_command.info(f"Conexão TCP com bind IP ({bind_ip}) na porta {port} com {config['host']} bem-sucedida.")
+                else:
+                    # Conexão padrão
+                    socket_info = socket.getaddrinfo(config['host'], port, socket.AF_INET, socket.SOCK_STREAM)
+                    conn = socket.create_connection(socket_info[0][4], timeout=2)
+                    conn.close()
+                    logger_test_command.info(f"Conexão TCP na porta {port} com {config['host']} bem-sucedida.")
             except (socket.timeout, socket.error) as e:
-                logger_test_command.warning(f"Falha na conexão TCP na porta {port} com {config['host']}: {e}. Tentando novamente em {retry_delay} segundos...")
+                logger_test_command.warning(f"Falha na conexão TCP {'com bind IP' if bind_ip else ''} na porta {port} com {config['host']}: {e}. Tentando novamente em {retry_delay} segundos...")
                 attempt += 1
                 if attempt < max_retries:
                     if self.stop_event.wait(retry_delay):
@@ -845,7 +855,7 @@ class ButtonManager:
                     connection_event.clear()  # Marca a conexão como falhada
                     if connection_type == 'vpn':
                         self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline (somente para VPN)
-                    break
+                    break  # Sai do loop de tentativa de conexão
 
             ssh_client = paramiko.SSHClient()
             ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -862,22 +872,51 @@ class ButtonManager:
                 key_files = []
 
             try:
-               # Tenta se conectar
-                ssh_client.connect(
-                    config['host'],
-                    port=port,  # Usa a porta carregada do arquivo ini
-                    username=config['username'],
-                    password=config['password'],
-                    key_filename=key_files,  # Usa todos os arquivos de chave encontrados
-                    look_for_keys=True,
-                    allow_agent=True
-                )
+                if bind_ip:
+                    print(f"Attempting to bind socket to IP: {bind_ip}")
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    try:
+                        sock.bind((bind_ip, 0))  # Vincula o socket ao IP especificado e a qualquer porta disponível
+                        print(f"Socket bound to IP {bind_ip}")
+                    except Exception as e:
+                        print(f"Failed to bind socket to IP {bind_ip}: {e}")
+                        raise
+
+                    sock_port = sock.getsockname()[1]
+                    print(f"Socket bound to port {sock_port}")
+
+                    print(f"Connecting to {config['host']} on port {port} using bind IP {bind_ip}")
+                    ssh_client.connect(
+                        config['host'],
+                        port=port,
+                        username=config['username'],
+                        password=config['password'],
+                        key_filename=key_files,
+                        look_for_keys=True,
+                        allow_agent=True,
+                        sock=sock  # Passa o socket vinculado
+                    )
+                    print("Connection established using bound socket.")
+                else:
+                    print(f"Connecting to {config['host']} on port {port} without bind IP")
+                    ssh_client.connect(
+                        config['host'],
+                        port=port,
+                        username=config['username'],
+                        password=config['password'],
+                        key_filename=key_files,
+                        look_for_keys=True,
+                        allow_agent=True
+                    )
+                    print("Connection established without binding.")
 
                 if connection_type == 'vpn':
                     self.ssh_vpn_client = ssh_client
                     self.master.after(1000, self.executar_comandos_scheduler)
+                    self.stop_ping_provedor.clear()
+                    #self.run_vps_vpn_pings()
+                    self.master.after(1000, self.run_vps_vpn_pings)
                     #self.ping_provedor = True
-                    #self.master.after(2000, self.run_vps_vpn_pings)
                     if hasattr(self, 'update_status_labels'):
                         self.master.after(1000, self.update_status_labels)
                     logger_test_command.info("Conexão SSH (vpn) estabelecida com sucesso iniciando teste das conexões.")
@@ -891,8 +930,10 @@ class ButtonManager:
                     logger_test_command.info("Conexão SSH (vps_vpn) estabelecida com sucesso.")
                 elif connection_type == 'vps_jogo':
                     self.ssh_vps_jogo_client = ssh_client
-                    self.ping_provedor = True
-                    self.master.after(2000, self.run_vps_vpn_pings)
+                    self.stop_ping_provedor.clear()
+                    #self.run_vps_vpn_pings()
+                    self.master.after(1000, self.run_vps_vpn_pings)
+                    #self.ping_provedor = True
                     self.master.after(1000, self.executar_comandos_scheduler)
                     logger_test_command.info("Conexão SSH (vps_jogo) estabelecida com sucesso.")
 
@@ -902,7 +943,7 @@ class ButtonManager:
                 while not self.stop_event.is_set():
                     try:
                         # Realiza uma operação simples para verificar a conexão
-                        logger_test_command.info(f"Verificando conexão SSH ({connection_type})...")
+                        #logger_test_command.info(f"Verificando conexão SSH ({connection_type})...")
                         ssh_client.exec_command('uptime')  # Verifica o tempo de atividade do sistema
                         if self.stop_event.wait(5):  # Espera 5 segundos ou até o evento ser setado
                             logger_test_command.info("Parada do monitoramento de conexão detectada.")
@@ -915,8 +956,10 @@ class ButtonManager:
                         if connection_type == 'vpn':
                             self.update_all_statuses_offline()
                             self.ping_provedor = False
+                            self.stop_ping_provedor.set()
                         elif connection_type == 'vps_jogo':
                             self.ping_provedor = False
+                            self.stop_ping_provedor.set()
                         break # Sai do loop para tentar reconectar a conexão
 
             except paramiko.AuthenticationException as e:
@@ -968,6 +1011,7 @@ class ButtonManager:
         if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
             self.ssh_vpn_client.close()
             self.ping_provedor = False
+            self.stop_ping_provedor.set()
             logger_test_command.info("Conexão SSH (vpn) fechada.")
             self.ssh_vpn_client = None
             self.connection_established_ssh_omr_vpn.clear()
@@ -987,6 +1031,7 @@ class ButtonManager:
         if hasattr(self, 'ssh_vps_jogo_client') and self.ssh_vps_jogo_client is not None:
             self.ssh_vps_jogo_client.close()
             self.ping_provedor = False
+            self.stop_ping_provedor.set()
             logger_test_command.info("Conexão SSH (vps_jogo) fechada.")
             self.ssh_vps_jogo_client = None
             self.connection_established_ssh_vps_jogo.clear()
@@ -994,21 +1039,53 @@ class ButtonManager:
 # LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
     # Função para ping nas interfaces
     def run_vps_vpn_pings(self):
-        """Executa os comandos ping na conexão SSH vpn e atualiza a UI."""
+        """Executa os comandos ping na conexão SSH VPN e atualiza a UI."""
+        
+        # Checa se a variável ping_provedor está True
+        if self.ping_provedor:
+            logger_test_command.info("O teste de ping dos provedores já está em execução, parando...")
+            return  # Não executa o restante da função
+
+        # Verifica se o host está online antes de continuar
+        host = self.ssh_vps_jogo_config['host']
+        port = 65222
+        timeout = 5
+
+        try:
+            # Tenta obter as informações de socket e criar a conexão TCP
+            socket_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+            conn = socket.create_connection(socket_info[0][4], timeout=timeout)
+            conn.close()
+            logger_provedor_test.info(f"Conexão TCP na porta {port} com {host} bem-sucedida.")
+        except (OSError, socket.timeout):
+            logger_test_command.info(f"Não foi possível conectar ao host {host} na porta {port}. O host pode estar offline.")
+            time.sleep(2)  # Aguarda 2 segundos antes de alterar a variável
+            self.ping_provedor = False  # Atualiza a variável para False
+            logger_test_command.info("A variável ping_provedor foi definida como False.")  # Log da alteração
+            time.sleep(2)  # Aguarda mais 2 segundos
+            # Verifica e exibe o estado real da variável
+            if not self.ping_provedor:
+                logger_test_command.info(f"O estado final da variável ping_provedor é {self.ping_provedor}.")
+            return  # Não executa o restante da função
+
+        # Continua com a execução se ping_provedor for False e o host estiver online
         interfaces = ['eth2', 'eth4', 'eth5']
         labels = [self.unifique_status_label, self.claro_status_label, self.coopera_status_label]
 
         for interface, label in zip(interfaces, labels):
-            threading.Thread(target=self.execute_ping_command, args=(interface, label)).start()
+            self.ping_thread = threading.Thread(target=self.execute_ping_command, args=(interface, label, self.stop_ping_provedor))
+            self.ping_thread.start()
 
-    def execute_ping_command(self, interface, label):
+    def execute_ping_command(self, interface, label, stop_ping_provedor):
         """Executa o comando ping via SSH indefinidamente e atualiza a label com a latência."""
         if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
             try:
                 # Executa o ping sem limite de contagem (-c) e em modo indefinido
                 stdin, stdout, stderr = self.ssh_vpn_client.exec_command(f"ping -I {interface} {self.ssh_vps_jogo_config['host']}")
+                logger_test_command.info("Ping iniciado com sucesso")
 
-                while self.ping_provedor:
+                # Loop para ler as respostas do ping até que o `stop_ping_provedor` seja acionado
+                while not stop_ping_provedor.is_set():
                     line = stdout.readline().strip()  # Lê cada linha de saída do comando
                     if not line:
                         continue
@@ -1036,6 +1113,7 @@ class ButtonManager:
     def update_ping_result(self, label, result):
         """Atualiza o texto da label com o resultado do ping."""
         label.config(text=result)
+        #self.master.after(2000, lambda: setattr(self, 'ping_provedor', True))
 
     # Funções para os botões de teste
     def test_unifique(self):
@@ -1613,7 +1691,7 @@ class ButtonManager:
         if not self.monitor_xray:
             logger_main.info("Aguardando 40 segundos antes de iniciar o monitoramento...")
             self.monitor_xray = True  # Use a variável existente
-            # Agendar a execução do restante da função após 20 segundos
+            # Agendar a execução do restante da função após 40 segundos
             self.botao_alternar.config(text="Parar Monitoramento do OMR")
             self.botao_alternar.after(40000, self.start_ping_direto_monitoring)
 
@@ -1951,12 +2029,22 @@ class ButtonManager:
             update_func(status, color)
             time.sleep(interval)
 
-    def update_status_vps_jogo(self, status, color):
-        self.status_label_vps_jogo.config(text=status, fg=color)
+    def update_status_vps_vpn(self, status=None, color=None):
+        # Atualiza o status do VPS VPN usando a lógica de conexão SSH
+        if self.connection_established_ssh_vps_vpn.is_set():
+            self.status_label_vps_vpn.config(text="ON", fg="green")
+        else:
+            self.status_label_vps_vpn.config(text="OFF", fg="red")
+
         self.update_general_status()
 
-    def update_status_vps_vpn(self, status, color):
-        self.status_label_vps_vpn.config(text=status, fg=color)
+    def update_status_vps_jogo(self, status=None, color=None):
+        # Atualiza o status do VPS JOGO usando a lógica de conexão SSH
+        if self.connection_established_ssh_vps_jogo.is_set():
+            self.status_label_vps_jogo.config(text="ON", fg="green")
+        else:
+            self.status_label_vps_jogo.config(text="OFF", fg="red")
+
         self.update_general_status()
 
     def update_status_omr_vpn(self, status, color):
@@ -3671,7 +3759,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 69.3 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 69.4 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
