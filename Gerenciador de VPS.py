@@ -100,6 +100,8 @@ class ButtonManager:
         self.connection_established_ssh_omr_jogo = threading.Event() # Evento para sinalizar conexão estabelecida
         self.connection_established_ssh_vps_vpn = threading.Event() # Evento para sinalizar conexão estabelecida
         self.connection_established_ssh_vps_jogo = threading.Event() # Evento para sinalizar conexão estabelecida
+        self.connection_established_ssh_vps_vpn_bind = threading.Event() # Evento para sinalizar conexão estabelecida
+        self.connection_established_ssh_vps_jogo_bind = threading.Event() # Evento para sinalizar conexão estabelecida
         self.stop_event = threading.Event()
         self.thread = None
         self.buttons = []
@@ -614,6 +616,8 @@ class ButtonManager:
         self.master.after(4000, lambda: threading.Thread(target=self.establish_ssh_jogo_connection).start())
         self.master.after(6000, lambda: threading.Thread(target=self.establish_ssh_vps_vpn_connection).start())
         self.master.after(7000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_connection).start())
+        self.master.after(8000, lambda: threading.Thread(target=self.establish_ssh_vps_vpn_bind_connection).start())
+        self.master.after(9000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_bind_connection).start())
 
         # Cria o Notebook
         self.notebook = ttk.Notebook(self.master)
@@ -778,7 +782,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 69.5", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 70", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -797,6 +801,14 @@ class ButtonManager:
     def establish_ssh_vps_jogo_connection(self):
         """Estabelece e mantém uma conexão SSH persistente para VPS Jogo."""
         self.establish_ssh_connection('vps_jogo')
+
+    def establish_ssh_vps_vpn_bind_connection(self, bind_ip='192.168.100.2'):
+        """Estabelece e mantém uma conexão SSH persistente para VPS VPN."""
+        self.establish_ssh_connection('vps_vpn_bind', bind_ip)
+
+    def establish_ssh_vps_jogo_bind_connection(self, bind_ip='192.168.101.2'):
+        """Estabelece e mantém uma conexão SSH persistente para VPS Jogo."""
+        self.establish_ssh_connection('vps_jogo_bind', bind_ip)
 
     def establish_ssh_connection(self, connection_type, bind_ip=None):
         """Estabelece e mantém uma conexão SSH persistente com tentativas de reconexão contínuas."""
@@ -821,6 +833,12 @@ class ButtonManager:
             elif connection_type == 'vps_jogo':
                 config = self.ssh_vps_jogo_config
                 connection_event = self.connection_established_ssh_vps_jogo
+            elif connection_type == 'vps_vpn_bind':
+                config = self.ssh_vps_vpn_config
+                connection_event = self.connection_established_ssh_vps_vpn_bind
+            elif connection_type == 'vps_jogo_bind':
+                config = self.ssh_vps_jogo_config
+                connection_event = self.connection_established_ssh_vps_jogo_bind
             else:
                 logger_test_command.error("Tipo de conexão inválido.")
                 return
@@ -875,28 +893,34 @@ class ButtonManager:
                 if bind_ip:
                     print(f"Attempting to bind socket to IP: {bind_ip}")
                     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    
                     try:
-                        sock.bind((bind_ip, 0))  # Vincula o socket ao IP especificado e a qualquer porta disponível
-                        print(f"Socket bound to IP {bind_ip}")
+                        sock.bind((bind_ip, 0))  
+                        logger_test_command.info(f"Socket bound to IP {bind_ip}")
                     except Exception as e:
-                        print(f"Failed to bind socket to IP {bind_ip}: {e}")
+                        logger_test_command.info(f"Failed to bind socket to IP {bind_ip}: {e}")
                         raise
 
-                    sock_port = sock.getsockname()[1]
-                    print(f"Socket bound to port {sock_port}")
+                    sock.connect((config['host'], port))
+                    transport = paramiko.Transport(sock)
+                    transport.start_client()
 
-                    print(f"Connecting to {config['host']} on port {port} using bind IP {bind_ip}")
-                    ssh_client.connect(
-                        config['host'],
-                        port=port,
-                        username=config['username'],
-                        password=config['password'],
-                        key_filename=key_files,
-                        look_for_keys=True,
-                        allow_agent=True,
-                        sock=sock  # Passa o socket vinculado
-                    )
-                    print("Connection established using bound socket.")
+                    # Autenticação
+                    if key_files:
+                        private_key = paramiko.RSAKey(filename=key_files[0])
+                        transport.auth_publickey(config['username'], private_key)
+                    else:
+                        transport.auth_password(config['username'], config['password'], look_for_keys=True)
+
+                    logger_test_command.info("Connection established using bound socket.")
+
+                    # Abrir uma sessão após a autenticação
+                    try:
+                        session = transport.open_session()
+                        session.exec_command('uptime')  # Verifica o tempo de atividade do sistema
+                    except Exception as e:
+                        logger_test_command.error(f"Erro ao executar comando na sessão SSH: {e}")
+                        
                 else:
                     print(f"Connecting to {config['host']} on port {port} without bind IP")
                     ssh_client.connect(
@@ -936,23 +960,49 @@ class ButtonManager:
                     self.ping_provedor.set()
                     self.master.after(1000, self.executar_comandos_scheduler)
                     logger_test_command.info("Conexão SSH (vps_jogo) estabelecida com sucesso.")
+                elif connection_type == 'vps_vpn_bind':
+                    self.ssh_vps_vpn_bind_client = ssh_client
+                    logger_test_command.info("Conexão SSH (vps_vpn_bind) estabelecida com sucesso.")
+                elif connection_type == 'vps_jogo_bind':
+                    self.ssh_vps_jogo_bind_client = ssh_client
+                    logger_test_command.info("Conexão SSH (vps_jogo_bind) estabelecida com sucesso.")
 
                 connection_event.set()  # Marca a conexão como estabelecida
 
                 # Aguarda até que a conexão seja interrompida ou o programa seja fechado
                 while not self.stop_event.is_set():
                     try:
-                        # Realiza uma operação simples para verificar a conexão
-                        #logger_test_command.info(f"Verificando conexão SSH ({connection_type})...")
-                        ssh_client.exec_command('uptime')  # Verifica o tempo de atividade do sistema
-                        if self.stop_event.wait(5):  # Espera 5 segundos ou até o evento ser setado
-                            logger_test_command.info("Parada do monitoramento de conexão detectada.")
-                            break
+                        # Verificação da conexão: Transport ou SSHClient
+                        if bind_ip:
+                            # Se estivermos usando o Transport, abre uma sessão para verificar a conexão
+                            #logger_test_command.info(f"Verificando conexão SSH via Transport ({connection_type})...")
+                            session = transport.open_session()
+                            session.exec_command('uptime')  # Verifica o tempo de atividade do sistema
+
+                            # Espera até que a conexão seja interrompida ou o stop_event seja setado
+                            if self.stop_event.wait(5):
+                                logger_test_command.info("Parada do monitoramento de conexão detectada.")
+                                session.close()
+                                break
+                        else:
+                            # Se estivermos usando SSHClient, realiza uma verificação de comando
+                            #logger_test_command.info(f"Verificando conexão SSH ({connection_type})...")
+                            ssh_client.exec_command('uptime')  # Verifica o tempo de atividade do sistema
+                            
+                            if self.stop_event.wait(5):
+                                logger_test_command.info("Parada do monitoramento de conexão detectada.")
+                                break
                     except Exception as e:
                         # Se uma exceção for lançada, significa que a conexão foi perdida
                         logger_test_command.error(f"Conexão SSH ({connection_type}) perdida: {e}")
-                        ssh_client.close()
+                        
+                        if bind_ip:
+                            transport.close()  # Fecha o transport se estiver usando bind_ip
+                        else:
+                            ssh_client.close()  # Fecha o ssh_client
+
                         connection_event.clear()  # Limpa o sinal de conexão estabelecida
+                        
                         if connection_type == 'vpn':
                             self.update_all_statuses_offline()
                             self.ping_provedor.clear()
@@ -960,7 +1010,8 @@ class ButtonManager:
                         elif connection_type == 'vps_jogo':
                             self.ping_provedor.clear()
                             self.stop_ping_provedor.set()
-                        break # Sai do loop para tentar reconectar a conexão
+
+                        break  # Sai do loop para tentar reconectar a conexão
 
             except paramiko.AuthenticationException as e:
                 logger_test_command.error(f"Erro de autenticação ao estabelecer conexão SSH ({connection_type}): {e}")
@@ -978,7 +1029,7 @@ class ButtonManager:
                     except subprocess.CalledProcessError as err:
                         logger_test_command.error(f"Falha ao criar o usuário SSH: {err}")
                         break  # Se falhar, sair do loop de tentativa de conexão
-                elif connection_type in ['vps_vpn', 'vps_jogo']:
+                elif connection_type in ['vps_vpn', 'vps_jogo', 'vps_vpn_bind', 'vps_jogo_bind']:
                     logger_test_command.error(f"Falha na conexão com {connection_type}. Verifique os dados de login nas configurações e reinicie o programa.")
                     break  # Sair do loop de tentativa de conexão
                 else:
@@ -1035,6 +1086,18 @@ class ButtonManager:
             logger_test_command.info("Conexão SSH (vps_jogo) fechada.")
             self.ssh_vps_jogo_client = None
             self.connection_established_ssh_vps_jogo.clear()
+            
+        if hasattr(self, 'ssh_vps_vpn_bind_client') and self.ssh_vps_vpn_bind_client is not None:
+            self.ssh_vps_vpn_bind_client.close()
+            logger_test_command.info("Conexão SSH (vps_vpn_bind) fechada.")
+            self.ssh_vps_vpn_bind_client = None
+            self.connection_established_ssh_vps_vpn_bind.clear()
+
+        if hasattr(self, 'ssh_vps_jogo_bind_client') and self.ssh_vps_jogo_bind_client is not None:
+            self.ssh_vps_jogo_bind_client.close()
+            logger_test_command.info("Conexão SSH (vps_jogo_bind) fechada.")
+            self.ssh_vps_jogo_bind_client = None
+            self.connection_established_ssh_vps_jogo_bind.clear()
 
 # LOGICA PARA TESTAR ESTADO DAS CONEXÕES A INTERNET.
     # Função para ping nas interfaces
@@ -1886,8 +1949,8 @@ class ButtonManager:
     # Inicia o looping de monitoramento de ping.
     def start_pinging_threads(self):
         interval = 2  # Define o intervalo de 2 segundos para os pings
-        threading.Thread(target=self.ping_forever_direto, args=(self.url_to_ping_vps_vpn, self.update_status_vps_vpn), daemon=True).start()
-        threading.Thread(target=self.ping_forever_direto, args=(self.url_to_ping_vps_jogo, self.update_status_vps_jogo), daemon=True).start()
+        threading.Thread(target=self.ping_forever_direto, args=(self.update_status_vps_vpn, interval), daemon=True).start()
+        threading.Thread(target=self.ping_forever_direto, args=(self.update_status_vps_jogo, interval), daemon=True).start()
         threading.Thread(target=self.ping_forever_omr_vpn, args=(self.url_to_ping_omr_vpn, self.update_status_omr_vpn), daemon=True).start()
         threading.Thread(target=self.ping_forever_omr_jogo, args=(self.url_to_ping_omr_jogo, self.update_status_omr_jogo), daemon=True).start()
 
@@ -2022,10 +2085,11 @@ class ButtonManager:
         except (socket.timeout, socket.error):
             return "OFF", "red"
 
-    def ping_forever_direto(self, url, update_func, interval=1):
-        while self.ping_forever:
-            status, color = self.ping_direto(url)
-            update_func(status, color)
+    def ping_forever_direto(self, update_func, interval=1):
+        while self.ping_forever_direto:
+            # Certifique-se de que está passando uma função, não um valor booleano
+            if callable(update_func):
+                update_func()
             time.sleep(interval)
 
     def update_status_vps_vpn(self, status=None, color=None):
@@ -3758,7 +3822,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 69.5 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 70 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
