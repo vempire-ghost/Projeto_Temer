@@ -94,7 +94,7 @@ class ButtonManager:
         self.verificar_vm = True  # Variável que controla a verificação das VMs
         self.ping_forever = True # Variavel para ligar/desligar testes de ping.
         self.criar_usuario_ssh = True # Variavel para definir se cria ou não o usuario ssh no OMR
-        self.ping_provedor = False # Variavel para executar o teste de ping nas interfaces de cada provedor
+        self.ping_provedor = threading.Event() # Variavel para executar o teste de ping nas interfaces de cada provedor
         self.stop_ping_provedor = threading.Event() # Variavel para parar o teste de ping nas interfaces de cada provedor
         self.connection_established_ssh_omr_vpn = threading.Event()  # Evento para sinalizar conexão estabelecida
         self.connection_established_ssh_omr_jogo = threading.Event() # Evento para sinalizar conexão estabelecida
@@ -778,7 +778,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 69.4", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 69.5", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -914,9 +914,9 @@ class ButtonManager:
                     self.ssh_vpn_client = ssh_client
                     self.master.after(1000, self.executar_comandos_scheduler)
                     self.stop_ping_provedor.clear()
-                    #self.run_vps_vpn_pings()
-                    self.master.after(1000, self.run_vps_vpn_pings)
-                    #self.ping_provedor = True
+                    ping_thread = threading.Thread(target=self.run_vps_vpn_pings)
+                    ping_thread.start()
+                    self.ping_provedor.set()
                     if hasattr(self, 'update_status_labels'):
                         self.master.after(1000, self.update_status_labels)
                     logger_test_command.info("Conexão SSH (vpn) estabelecida com sucesso iniciando teste das conexões.")
@@ -931,9 +931,9 @@ class ButtonManager:
                 elif connection_type == 'vps_jogo':
                     self.ssh_vps_jogo_client = ssh_client
                     self.stop_ping_provedor.clear()
-                    #self.run_vps_vpn_pings()
-                    self.master.after(1000, self.run_vps_vpn_pings)
-                    #self.ping_provedor = True
+                    ping_thread = threading.Thread(target=self.run_vps_vpn_pings)
+                    ping_thread.start()
+                    self.ping_provedor.set()
                     self.master.after(1000, self.executar_comandos_scheduler)
                     logger_test_command.info("Conexão SSH (vps_jogo) estabelecida com sucesso.")
 
@@ -955,10 +955,10 @@ class ButtonManager:
                         connection_event.clear()  # Limpa o sinal de conexão estabelecida
                         if connection_type == 'vpn':
                             self.update_all_statuses_offline()
-                            self.ping_provedor = False
+                            self.ping_provedor.clear()
                             self.stop_ping_provedor.set()
                         elif connection_type == 'vps_jogo':
-                            self.ping_provedor = False
+                            self.ping_provedor.clear()
                             self.stop_ping_provedor.set()
                         break # Sai do loop para tentar reconectar a conexão
 
@@ -1010,7 +1010,7 @@ class ButtonManager:
         """Fecha todas as conexões SSH abertas."""
         if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
             self.ssh_vpn_client.close()
-            self.ping_provedor = False
+            self.ping_provedor.clear()
             self.stop_ping_provedor.set()
             logger_test_command.info("Conexão SSH (vpn) fechada.")
             self.ssh_vpn_client = None
@@ -1030,8 +1030,8 @@ class ButtonManager:
 
         if hasattr(self, 'ssh_vps_jogo_client') and self.ssh_vps_jogo_client is not None:
             self.ssh_vps_jogo_client.close()
-            self.ping_provedor = False
             self.stop_ping_provedor.set()
+            self.ping_provedor.clear()
             logger_test_command.info("Conexão SSH (vps_jogo) fechada.")
             self.ssh_vps_jogo_client = None
             self.connection_established_ssh_vps_jogo.clear()
@@ -1040,9 +1040,9 @@ class ButtonManager:
     # Função para ping nas interfaces
     def run_vps_vpn_pings(self):
         """Executa os comandos ping na conexão SSH VPN e atualiza a UI."""
-        
-        # Checa se a variável ping_provedor está True
-        if self.ping_provedor:
+
+        # Checa se o evento ping_provedor está setado (True)
+        if self.ping_provedor.is_set():
             logger_test_command.info("O teste de ping dos provedores já está em execução, parando...")
             return  # Não executa o restante da função
 
@@ -1059,16 +1059,16 @@ class ButtonManager:
             logger_provedor_test.info(f"Conexão TCP na porta {port} com {host} bem-sucedida.")
         except (OSError, socket.timeout):
             logger_test_command.info(f"Não foi possível conectar ao host {host} na porta {port}. O host pode estar offline.")
-            time.sleep(2)  # Aguarda 2 segundos antes de alterar a variável
-            self.ping_provedor = False  # Atualiza a variável para False
-            logger_test_command.info("A variável ping_provedor foi definida como False.")  # Log da alteração
+            time.sleep(2)  # Aguarda 2 segundos antes de alterar o evento
+            self.ping_provedor.clear()  # Limpa o evento para False
+            logger_test_command.info("O evento ping_provedor foi definido como False.")  # Log da alteração
             time.sleep(2)  # Aguarda mais 2 segundos
-            # Verifica e exibe o estado real da variável
-            if not self.ping_provedor:
-                logger_test_command.info(f"O estado final da variável ping_provedor é {self.ping_provedor}.")
+            # Verifica e exibe o estado real do evento
+            if not self.ping_provedor.is_set():
+                logger_test_command.info(f"O estado final do evento ping_provedor é {self.ping_provedor.is_set()}.")
             return  # Não executa o restante da função
 
-        # Continua com a execução se ping_provedor for False e o host estiver online
+        # Continua com a execução se o evento ping_provedor não estiver setado (False) e o host estiver online
         interfaces = ['eth2', 'eth4', 'eth5']
         labels = [self.unifique_status_label, self.claro_status_label, self.coopera_status_label]
 
@@ -1113,7 +1113,6 @@ class ButtonManager:
     def update_ping_result(self, label, result):
         """Atualiza o texto da label com o resultado do ping."""
         label.config(text=result)
-        #self.master.after(2000, lambda: setattr(self, 'ping_provedor', True))
 
     # Funções para os botões de teste
     def test_unifique(self):
@@ -3759,7 +3758,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 69.4 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 69.5 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
