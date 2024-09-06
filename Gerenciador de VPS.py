@@ -783,7 +783,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 70.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 70.3", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -813,7 +813,7 @@ class ButtonManager:
 
     def establish_ssh_connection(self, connection_type, bind_ip=None):
         """Estabelece e mantém uma conexão SSH persistente com tentativas de reconexão contínuas."""
-        max_retries = 50000
+        max_retries = 500000
         retry_delay = 5
         attempt = 0
 
@@ -854,14 +854,48 @@ class ButtonManager:
                     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     sock.bind((bind_ip, 0))  # Vincula o socket ao IP especificado e a qualquer porta disponível
                     sock.connect((config['host'], port))
-                    sock.close()
+
+                    # Teste de envio de dados ao host
+                    test_message = b'ping'  # Mensagem simples de teste
+                    sock.sendall(test_message)  # Envia a mensagem para o host
+
+                    # Tenta receber uma resposta (tempo limite de 2 segundos)
+                    sock.settimeout(2)
+                    response = sock.recv(1024)  # Recebe até 1024 bytes de resposta
+
+                    if response:
+                        logger_test_command.info(f"Resposta do host recebida na porta {port} com bind IP ({bind_ip}).")
+                        sock.close()
+                    else:
+                        logger_test_command.warning(f"Nenhuma resposta do host ao tentar envio de dados na porta {port} com bind IP ({bind_ip}).")
+                        sock.close()
+                        raise socket.error("Sem resposta do host.")
+                    
                     logger_test_command.info(f"Conexão TCP com bind IP ({bind_ip}) na porta {port} com {config['host']} bem-sucedida.")
+                
                 else:
                     # Conexão padrão
                     socket_info = socket.getaddrinfo(config['host'], port, socket.AF_INET, socket.SOCK_STREAM)
                     conn = socket.create_connection(socket_info[0][4], timeout=2)
-                    conn.close()
+
+                    # Teste de envio de dados ao host
+                    test_message = b'ping'  # Mensagem simples de teste
+                    conn.sendall(test_message)  # Envia a mensagem para o host
+
+                    # Tenta receber uma resposta (tempo limite de 2 segundos)
+                    conn.settimeout(2)
+                    response = conn.recv(1024)  # Recebe até 1024 bytes de resposta
+
+                    if response:
+                        logger_test_command.info(f"Resposta do host recebida na porta {port} sem bind IP.")
+                        conn.close()
+                    else:
+                        logger_test_command.warning(f"Nenhuma resposta do host ao tentar envio de dados na porta {port} sem bind IP.")
+                        conn.close()
+                        raise socket.error("Sem resposta do host.")
+
                     logger_test_command.info(f"Conexão TCP na porta {port} com {config['host']} bem-sucedida.")
+
             except (socket.timeout, socket.error) as e:
                 logger_test_command.warning(f"Falha na conexão TCP {'com bind IP' if bind_ip else ''} na porta {port} com {config['host']}: {e}. Tentando novamente em {retry_delay} segundos...")
                 attempt += 1
@@ -3819,7 +3853,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 70.2 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 70.3 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
