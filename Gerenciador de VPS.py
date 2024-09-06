@@ -783,7 +783,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 70.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 70.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -1048,7 +1048,24 @@ class ButtonManager:
             except paramiko.SSHException as e:
                 # Captura erros específicos relacionados ao banner SSH
                 if "banner" in str(e).lower():
-                    logger_test_command.error(f"Erro de porta SSH ao estabelecer conexão ({connection_type}): {e}")
+                    logger_test_command.error(f"Erro de banner SSH ao estabelecer conexão ({connection_type}): {e}")
+                    
+                    # Se a conexão for com bind IP, reinicia o loop para tentar novamente
+                    if bind_ip:
+                        logger_test_command.warning("Erro de banner SSH detectado em conexão com bind IP. Tentando reconectar...")
+                        attempt += 1
+                        if attempt < max_retries:
+                            if self.stop_event.wait(retry_delay):
+                                break
+                            continue  # Retorna ao início do loop de reconexão
+                        else:
+                            logger_test_command.error("Número máximo de tentativas de conexão atingido devido a erro de banner SSH.")
+                            connection_event.clear()  # Marca a conexão como falhada
+                            if connection_type == 'vpn':
+                                self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline (somente para VPN)
+                            break  # Sai do loop de tentativa de conexão
+                    
+                    # Se não for uma conexão com bind IP, interrompe o loop como antes
                     logger_test_command.error("Verifique a configuração da porta SSH nas configurações e corrija o problema.")
                     break  # Sai do loop de tentativa de conexão
 
@@ -3802,7 +3819,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 70.1 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 70.2 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
