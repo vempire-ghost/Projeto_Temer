@@ -388,6 +388,7 @@ class ButtonManager:
 
         # Colocar aqui toda chamada de encerramento de threads que estiverem sendo executadas de forma initerrupta e qualquer função a ser chamada no encerramento do programa.
         # Sinaliza para as threads que devem encerrar
+        self.ping_forever = False
         self.delete_file()
         self.stop_event.set()
         self.close_ssh_connection()
@@ -612,12 +613,12 @@ class ButtonManager:
         self.coopera_status_label.grid(row=1, column=2, padx=5, pady=0, sticky=tk.N)
 
         # Inicia a atualização do status das conexões SSH com atraso
-        self.master.after(2000, lambda: threading.Thread(target=self.establish_ssh_vpn_connection).start())
-        self.master.after(4000, lambda: threading.Thread(target=self.establish_ssh_jogo_connection).start())
-        self.master.after(6000, lambda: threading.Thread(target=self.establish_ssh_vps_vpn_connection).start())
-        self.master.after(7000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_connection).start())
-        self.master.after(8000, lambda: threading.Thread(target=self.establish_ssh_vps_vpn_bind_connection).start())
-        self.master.after(9000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_bind_connection).start())
+        self.master.after(1000, lambda: threading.Thread(target=self.establish_ssh_vpn_connection).start())
+        self.master.after(2000, lambda: threading.Thread(target=self.establish_ssh_jogo_connection).start())
+        self.master.after(3000, lambda: threading.Thread(target=self.establish_ssh_vps_vpn_connection).start())
+        self.master.after(4000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_connection).start())
+        self.master.after(5000, lambda: threading.Thread(target=self.establish_ssh_vps_vpn_bind_connection).start())
+        self.master.after(6000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_bind_connection).start())
 
         # Cria o Notebook
         self.notebook = ttk.Notebook(self.master)
@@ -782,7 +783,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 70", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 70.1", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -905,21 +906,29 @@ class ButtonManager:
                     transport = paramiko.Transport(sock)
                     transport.start_client()
 
-                    # Autenticação
+                    # Tentativa de autenticação com todas as chaves disponíveis
                     if key_files:
-                        private_key = paramiko.RSAKey(filename=key_files[0])
-                        transport.auth_publickey(config['username'], private_key)
+                        authenticated = False
+                        for key_file in key_files:
+                            try:
+                                private_key = paramiko.RSAKey(filename=key_file)
+                                transport.auth_publickey(config['username'], private_key)
+                                logger_test_command.info(f"Autenticação bem-sucedida com a chave: {key_file}")
+                                authenticated = True
+                                break  # Sai do loop se a autenticação for bem-sucedida
+                            except paramiko.AuthenticationException as e:
+                                logger_test_command.warning(f"Falha de autenticação com a chave {key_file}: {e}")
+                                continue  # Tenta a próxima chave
+
+                        if not authenticated:
+                            logger_test_command.error("Falha de autenticação com todas as chaves. Tentando com senha...")
+                            transport.auth_password(config['username'], config['password'], look_for_keys=True)
                     else:
+                        # Se não houver arquivos de chave, tenta autenticação com senha diretamente
+                        logger_test_command.info("Nenhuma chave encontrada. Tentando autenticação com senha...")
                         transport.auth_password(config['username'], config['password'], look_for_keys=True)
 
                     logger_test_command.info("Connection established using bound socket.")
-
-                    # Abrir uma sessão após a autenticação
-                    try:
-                        session = transport.open_session()
-                        session.exec_command('uptime')  # Verifica o tempo de atividade do sistema
-                    except Exception as e:
-                        logger_test_command.error(f"Erro ao executar comando na sessão SSH: {e}")
                         
                 else:
                     print(f"Connecting to {config['host']} on port {port} without bind IP")
@@ -1992,19 +2001,10 @@ class ButtonManager:
         if not test_connection('192.168.101.1', 80, timeout):
             return "OFF", "red"
 
-        # Teste de conexão ao host fornecido na porta 80
-        try:
-            start_time = time.time()
-            # Cria um socket e faz o bind ao IP de origem
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
-                conn.bind(('192.168.101.2', 0))  # Bind ao IP de origem com uma porta qualquer
-                conn.settimeout(timeout)
-                conn.connect((host, port))
-                
-            end_time = time.time()
-            response_time = int((end_time - start_time) * 1000)  # Converte para milissegundos e arredonda para inteiro
-            return f"ON ({response_time} ms)", "green"
-        except (socket.timeout, socket.error):
+        # Modificação da lógica para verificar o estado da conexão SSH/VPN
+        if self.connection_established_ssh_vps_vpn_bind.is_set():
+            return "ON", "green"
+        else:
             return "OFF", "blue"
 
     def ping_forever_omr_vpn(self, url, update_func, interval=1):
@@ -2029,30 +2029,10 @@ class ButtonManager:
         if not test_connection('192.168.100.1', 80, timeout):
             return "OFF", "red"
 
-        # Teste de conexão ao host fornecido na porta 65222
-        try:
-            start_time = time.time()
-            # Cria um socket e faz o bind ao IP de origem
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
-                conn.bind(('192.168.100.2', 0))  # Bind ao IP de origem com uma porta qualquer
-                conn.settimeout(timeout)
-                conn.connect((host, port))
-                
-                # Envia alguns bytes de dados
-                conn.sendall(b'PING')
-                
-                # Recebe alguns bytes de dados
-                response = conn.recv(1024)
-                
-            end_time = time.time()
-            response_time = int((end_time - start_time) * 1000 / 2)  # Converte para milissegundos e arredonda para inteiro
-
-            # Verifica se a resposta é válida
-            if response:
-                return f"ON ({response_time} ms)", "green"
-            else:
-                return "OFF", "blue"
-        except (socket.timeout, socket.error):
+        # Modificação da lógica para verificar o estado da conexão SSH/VPN
+        if self.connection_established_ssh_vps_vpn_bind.is_set():
+            return "ON", "green"
+        else:
             return "OFF", "blue"
 
     def ping_forever_omr_jogo(self, url, update_func, interval=1):
@@ -2086,7 +2066,7 @@ class ButtonManager:
             return "OFF", "red"
 
     def ping_forever_direto(self, update_func, interval=1):
-        while self.ping_forever_direto:
+        while self.ping_forever:
             # Certifique-se de que está passando uma função, não um valor booleano
             if callable(update_func):
                 update_func()
@@ -3822,7 +3802,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 70 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 70.1 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
