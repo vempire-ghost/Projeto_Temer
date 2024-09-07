@@ -21,7 +21,8 @@ import paramiko
 import configparser
 import re
 from datetime import datetime
-from PIL import Image, ImageTk
+from pystray import Icon, MenuItem, Menu
+from PIL import Image, ImageTk, ImageDraw
 
 # Caminho para o arquivo de bloqueio
 LOCK_FILE = 'program.lock'
@@ -155,6 +156,24 @@ class ButtonManager:
             self.start_pinging_threads()
         else:
             messagebox.showinfo("Info", "Por favor, configure todos os endereços de ping nas opções.")
+
+        # Criação de um evento para capturar quando a janela for minimizada
+        self.master.bind("<Unmap>", self.on_minimize)
+
+        # Carregar o ícone da bandeja (substitua pelo seu caminho da imagem)
+        self.icon_image = Image.open("omr-logo.png")  # Carrega a imagem "omr-logo.png"
+
+        # Criar o ícone da bandeja
+        self.tray_icon = Icon("MeuApp", self.icon_image, menu=Menu(
+            MenuItem('Restaurar', self.restore_window),
+            MenuItem('Sair', self.on_close)
+        ))
+
+        # Iniciar o ícone da bandeja em uma thread separada
+        threading.Thread(target=self.tray_icon.run, daemon=True).start()
+
+        # Definir o comportamento ao clicar com o botão esquerdo no ícone da bandeja
+        self.tray_icon.on_left_click = self.restore_window  # Restaurar janela ao clicar no ícone
         
         # Configura o tratamento para fechar a janela
         self.master.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -186,6 +205,22 @@ class ButtonManager:
                 print(f"Arquivo '{file_path}' não encontrado.")
         except Exception as e:
             print(f"Ocorreu um erro ao tentar deletar o arquivo: {e}")
+
+# FUNÇÃO PARA MINIMIZAR E RESTAURAR O PROGRAMA NO SYSTEM TRAY
+    def on_minimize(self, event):
+        """Captura o evento de minimizar a janela."""
+        if self.master.state() == "iconic":  # Verifica se a janela foi minimizada
+            self.minimize_to_tray()
+
+    def minimize_to_tray(self):
+        """Minimiza o aplicativo para a bandeja do sistema."""
+        self.master.withdraw()  # Oculta a janela principal
+
+    def restore_window(self, icon=None, item=None):
+        """Restaura a janela principal."""
+        self.master.deiconify()  # Restaura a janela principal
+        self.master.lift()  # Traz a janela para o topo
+
             
 #FUNÇÃO RELACIONADAS A ARQUIVO .INI
     # Função para ler e criar o arquivo ini
@@ -454,6 +489,7 @@ class ButtonManager:
                 json.dump(position, f)
 
     def destroy_widget(self):
+        self.tray_icon.stop()
         self.master.destroy()
 
 # FUNÇÃO PARA ENCONTRAR A LETRA DA UNIDADE ONDE O PROGRAMA SE ENCONTRA E UTILIZAR NAS FUNÇÕES DO MESMO.
@@ -796,7 +832,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 70.5", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 70.6", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -3984,7 +4020,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 70.5 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 70.6 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
