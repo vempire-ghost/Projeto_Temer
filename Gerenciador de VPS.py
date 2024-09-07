@@ -219,6 +219,13 @@ class ButtonManager:
         self.config.set('ssh_vps_jogo', 'password', '')
         self.config.set('ssh_vps_jogo', 'port', '')
 
+        # Adiciona a seção 'ssh_xubuntu'
+        self.config.add_section('ssh_xubuntu')
+        self.config.set('ssh_xubuntu', 'host', '')
+        self.config.set('ssh_xubuntu', 'username', '')
+        self.config.set('ssh_xubuntu', 'password', '')
+        self.config.set('ssh_xubuntu', 'port', '')
+
         # Adiciona a seção 'general' para configurações gerais
         self.config.add_section('general')
         self.config.set('general', 'criar_usuario_ssh', str(self.criar_usuario_ssh))
@@ -264,6 +271,12 @@ class ButtonManager:
             'username': self.config.get('ssh_vps_jogo', 'username', fallback=''),
             'password': self.config.get('ssh_vps_jogo', 'password', fallback=''),
             'port': self.config.get('ssh_vps_jogo', 'port', fallback='')
+        }
+        self.ssh_xubuntu_config = {
+            'host': self.config.get('ssh_xubuntu', 'host', fallback=''),
+            'username': self.config.get('ssh_xubuntu', 'username', fallback=''),
+            'password': self.config.get('ssh_xubuntu', 'password', fallback=''),
+            'port': self.config.get('ssh_xubuntu', 'port', fallback='')
         }
         self.load_general_config()  # Carrega as configurações gerais
 
@@ -538,31 +551,31 @@ class ButtonManager:
         frame_vps_vpn = tk.Frame(self.top_frame, bg='lightgray')
         frame_vps_vpn.grid(row=0, column=1, padx=5, pady=5, sticky=tk.E+tk.W)
         btn_vps_vpn = tk.Button(frame_vps_vpn, text=" VPS  VPN: ", bg='lightgray', justify=tk.CENTER, command=self.abrir_arquivo_vps_vpn, width=9, height=1).pack(side=tk.LEFT)
-        self.status_label_vps_vpn = tk.Label(frame_vps_vpn, text="Aguarde...", bg='lightgray', justify=tk.CENTER)
-        self.status_label_vps_vpn.pack(side=tk.LEFT)
+        self.status_label_vps_vpn = tk.Label(frame_vps_vpn, text="Aguarde...", bg='lightgray', fg='white', justify=tk.CENTER, borderwidth=1, relief=tk.GROOVE, width=9, height=1)
+        self.status_label_vps_vpn.pack(side=tk.LEFT, padx=5)
 
         # Label e valor para VPS JOGO
         frame_vps_jogo = tk.Frame(self.top_frame, bg='lightgray')
         frame_vps_jogo.grid(row=0, column=2, padx=5, pady=5, sticky=tk.E+tk.W)
         btn_vps_jogo = tk.Button(frame_vps_jogo, text=" VPS  JOGO: ", bg='lightgray', justify=tk.CENTER, command=self.abrir_arquivo_vps_jogo, width=9, height=1).pack(side=tk.LEFT)
-        self.status_label_vps_jogo = tk.Label(frame_vps_jogo, text="Aguarde...", bg='lightgray', justify=tk.CENTER)
-        self.status_label_vps_jogo.pack(side=tk.LEFT)
+        self.status_label_vps_jogo = tk.Label(frame_vps_jogo, text="Aguarde...", bg='lightgray', fg='white', justify=tk.CENTER, borderwidth=1, relief=tk.GROOVE, width=9, height=1)
+        self.status_label_vps_jogo.pack(side=tk.LEFT, padx=5)
 
         # Label (aparência de botão) para OMR VPN
         frame_omr_vpn = tk.Frame(self.top_frame, bg='lightgray')
         frame_omr_vpn.grid(row=1, column=1, padx=5, pady=5, sticky=tk.E+tk.W)
         btn_omr_vpn = tk.Button(frame_omr_vpn, text="OMR VPN:", bg='lightgray', justify=tk.CENTER, command=self.open_OMR_VPN, width=9, height=1)
         btn_omr_vpn.pack(side=tk.LEFT)
-        self.status_label_omr_vpn = tk.Label(frame_omr_vpn, text="Aguarde...", bg='lightgray', fg='black', justify=tk.CENTER)
-        self.status_label_omr_vpn.pack(side=tk.LEFT)
+        self.status_label_omr_vpn = tk.Label(frame_omr_vpn, text="Aguarde...", bg='lightgray', fg='white', justify=tk.CENTER, width=9, height=1)
+        self.status_label_omr_vpn.pack(side=tk.LEFT, padx=5)
 
         # Label (aparência de botão) para OMR JOGO
         frame_omr_jogo = tk.Frame(self.top_frame, bg='lightgray')
         frame_omr_jogo.grid(row=1, column=2, padx=5, pady=5, sticky=tk.E+tk.W)
         btn_omr_jogo = tk.Button(frame_omr_jogo, text="OMR JOGO:", bg='lightgray', justify=tk.CENTER, command=self.open_OMR_JOGO, width=9, height=1)
         btn_omr_jogo.pack(side=tk.LEFT)
-        self.status_label_omr_jogo = tk.Label(frame_omr_jogo, text="Aguarde...", bg='lightgray', fg='black', justify=tk.CENTER)
-        self.status_label_omr_jogo.pack(side=tk.LEFT)
+        self.status_label_omr_jogo = tk.Label(frame_omr_jogo, text="Aguarde...", bg='lightgray', fg='white', justify=tk.CENTER, borderwidth=1, relief=tk.GROOVE, width=9, height=1)
+        self.status_label_omr_jogo.pack(side=tk.LEFT, padx=5)
 
         # Frame para VM VPN com fundo lightgray
         frame_vm_vpn = tk.Frame(self.top_frame, bg='lightgray')
@@ -783,7 +796,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 70.3", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 70.4", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -803,11 +816,11 @@ class ButtonManager:
         """Estabelece e mantém uma conexão SSH persistente para VPS Jogo."""
         self.establish_ssh_connection('vps_jogo')
 
-    def establish_ssh_vps_vpn_bind_connection(self, bind_ip='192.168.100.2'):
+    def establish_ssh_vps_vpn_bind_connection(self, bind_ip='192.168.101.2'):
         """Estabelece e mantém uma conexão SSH persistente para VPS VPN."""
         self.establish_ssh_connection('vps_vpn_bind', bind_ip)
 
-    def establish_ssh_vps_jogo_bind_connection(self, bind_ip='192.168.101.2'):
+    def establish_ssh_vps_jogo_bind_connection(self, bind_ip='192.168.100.2'):
         """Estabelece e mantém uma conexão SSH persistente para VPS Jogo."""
         self.establish_ssh_connection('vps_jogo_bind', bind_ip)
 
@@ -835,10 +848,10 @@ class ButtonManager:
                 config = self.ssh_vps_jogo_config
                 connection_event = self.connection_established_ssh_vps_jogo
             elif connection_type == 'vps_vpn_bind':
-                config = self.ssh_vps_vpn_config
+                config = self.ssh_xubuntu_config
                 connection_event = self.connection_established_ssh_vps_vpn_bind
             elif connection_type == 'vps_jogo_bind':
-                config = self.ssh_vps_jogo_config
+                config = self.ssh_xubuntu_config
                 connection_event = self.connection_established_ssh_vps_jogo_bind
             else:
                 logger_test_command.error("Tipo de conexão inválido.")
@@ -864,15 +877,15 @@ class ButtonManager:
                     response = sock.recv(1024)  # Recebe até 1024 bytes de resposta
 
                     if response:
-                        logger_test_command.info(f"Resposta do host recebida na porta {port} com bind IP ({bind_ip}).")
+                        logger_test_command.info(f"Resposta do host '{config['host']}' recebida na porta {port} com bind IP ({bind_ip}).")
                         sock.close()
                     else:
-                        logger_test_command.warning(f"Nenhuma resposta do host ao tentar envio de dados na porta {port} com bind IP ({bind_ip}).")
+                        logger_test_command.warning(f"Nenhuma resposta do host '{config['host']}' ao tentar envio de dados na porta {port} com bind IP ({bind_ip}).")
                         sock.close()
-                        raise socket.error("Sem resposta do host.")
-                    
-                    logger_test_command.info(f"Conexão TCP com bind IP ({bind_ip}) na porta {port} com {config['host']} bem-sucedida.")
-                
+                        raise socket.error(f"Sem resposta do host '{config['host']}'.")
+
+                    logger_test_command.info(f"Conexão TCP com bind IP ({bind_ip}) na porta {port} com '{config['host']}' bem-sucedida.")
+
                 else:
                     # Conexão padrão
                     socket_info = socket.getaddrinfo(config['host'], port, socket.AF_INET, socket.SOCK_STREAM)
@@ -887,24 +900,24 @@ class ButtonManager:
                     response = conn.recv(1024)  # Recebe até 1024 bytes de resposta
 
                     if response:
-                        logger_test_command.info(f"Resposta do host recebida na porta {port} sem bind IP.")
+                        logger_test_command.info(f"Resposta do host '{config['host']}' recebida na porta {port} sem bind IP.")
                         conn.close()
                     else:
-                        logger_test_command.warning(f"Nenhuma resposta do host ao tentar envio de dados na porta {port} sem bind IP.")
+                        logger_test_command.warning(f"Nenhuma resposta do host '{config['host']}' ao tentar envio de dados na porta {port} sem bind IP.")
                         conn.close()
-                        raise socket.error("Sem resposta do host.")
+                        raise socket.error(f"Sem resposta do host '{config['host']}'.")
 
-                    logger_test_command.info(f"Conexão TCP na porta {port} com {config['host']} bem-sucedida.")
+                    logger_test_command.info(f"Conexão TCP na porta {port} com '{config['host']}' bem-sucedida.")
 
             except (socket.timeout, socket.error) as e:
-                logger_test_command.warning(f"Falha na conexão TCP {'com bind IP' if bind_ip else ''} na porta {port} com {config['host']}: {e}. Tentando novamente em {retry_delay} segundos...")
+                logger_test_command.warning(f"Falha na conexão TCP {'com bind IP' if bind_ip else ''} na porta {port} com '{config['host']}': {e}. Tentando novamente em {retry_delay} segundos...")
                 attempt += 1
                 if attempt < max_retries:
                     if self.stop_event.wait(retry_delay):
                         break
                     continue  # Tenta novamente após o tempo de espera
                 else:
-                    logger_test_command.error(f"Número máximo de tentativas de conexão atingido devido à falha na porta {port}.")
+                    logger_test_command.error(f"Número máximo de tentativas de conexão atingido devido à falha na porta {port} com '{config['host']}'.")
                     connection_event.clear()  # Marca a conexão como falhada
                     if connection_type == 'vpn':
                         self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline (somente para VPN)
@@ -1041,10 +1054,13 @@ class ButtonManager:
                         
                         if bind_ip:
                             transport.close()  # Fecha o transport se estiver usando bind_ip
+                            logger_test_command.info("Transport fechado devido à perda de conexão.")
                         else:
                             ssh_client.close()  # Fecha o ssh_client
+                            logger_test_command.info("SSHClient fechado devido à perda de conexão.")
 
                         connection_event.clear()  # Limpa o sinal de conexão estabelecida
+                        logger_test_command.info(f"Evento de conexão limpo para o tipo de conexão: {connection_type}")
                         
                         if connection_type == 'vpn':
                             self.update_all_statuses_offline()
@@ -1641,6 +1657,30 @@ class ButtonManager:
             logger_main.error(f"Falha na conexão com o host {host} (exceção).")
             return "OFF", "blue"
 
+    def ping_direto(self, host, port=65222, timeout=1):
+        try:
+            start_time = time.time()
+            socket_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+            conn = socket.create_connection(socket_info[0][4], timeout=timeout)
+            
+            # Envia alguns bytes de dados
+            conn.sendall(b'PING')
+            
+            # Recebe alguns bytes de dados
+            response = conn.recv(1024)
+            
+            conn.close()
+            end_time = time.time()
+            response_time = int((end_time - start_time) * 1000/2)  # Converte para milissegundos e arredonda para inteiro
+            
+            # Verifica se a resposta é válida
+            if response:
+                return f"ON ({response_time} ms)", "green"
+            else:
+                return "OFF", "red"
+        except (socket.timeout, socket.error):
+            return "OFF", "red"
+
     def monitor_loop(self):
         first_failure_vpn = True
         first_failure_xray = True
@@ -2009,8 +2049,8 @@ class ButtonManager:
     # Inicia o looping de monitoramento de ping.
     def start_pinging_threads(self):
         interval = 2  # Define o intervalo de 2 segundos para os pings
-        threading.Thread(target=self.ping_forever_direto, args=(self.update_status_vps_vpn, interval), daemon=True).start()
-        threading.Thread(target=self.ping_forever_direto, args=(self.update_status_vps_jogo, interval), daemon=True).start()
+        threading.Thread(target=self.ping_forever_vps_vpn, args=(self.url_to_ping_vps_vpn, self.update_status_vps_vpn), daemon=True).start()
+        threading.Thread(target=self.ping_forever_vps_jogo, args=(self.url_to_ping_vps_jogo, self.update_status_vps_jogo), daemon=True).start()
         threading.Thread(target=self.ping_forever_omr_vpn, args=(self.url_to_ping_omr_vpn, self.update_status_omr_vpn), daemon=True).start()
         threading.Thread(target=self.ping_forever_omr_jogo, args=(self.url_to_ping_omr_jogo, self.update_status_omr_jogo), daemon=True).start()
 
@@ -2050,13 +2090,31 @@ class ButtonManager:
 
         # Teste inicial de conexão ao endereço 192.168.101.1 na porta 80
         if not test_connection('192.168.101.1', 80, timeout):
-            return "OFF", "red"
+            # Se falhar no teste inicial, retorna OFF em vermelho
+            return "Desligado", "red"
 
-        # Modificação da lógica para verificar o estado da conexão SSH/VPN
-        if self.connection_established_ssh_vps_vpn_bind.is_set():
-            return "ON", "green"
-        else:
-            return "OFF", "blue"
+        # Looping de ping até que a conexão SSH/VPN seja estabelecida
+        while not self.connection_established_ssh_vps_vpn_bind.is_set():
+            # Teste de conexão ao host fornecido na porta 80 (ping)
+            try:
+                # Cria um socket e faz o bind ao IP de origem
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
+                    conn.bind(('192.168.101.2', 0))  # Bind ao IP de origem com uma porta qualquer
+                    conn.settimeout(timeout)
+                    conn.connect((host, port))
+
+                # Se o ping for bem-sucedido, verifica se a conexão SSH já foi estabelecida
+                if self.connection_established_ssh_vps_vpn_bind.is_set():
+                    # Se a conexão SSH/VPN estiver ativa, retorna ON (verde) e para os testes
+                    return "Conectado", "green"
+                # Caso contrário, retorna ON (amarelo)
+                return "Conectando", "#B8860B"
+            except (socket.timeout, socket.error):
+                # Se o teste de ping falhar, atualiza para OFF em azul
+                return "Ligado", "blue"
+
+        # Se a conexão SSH/VPN estiver ativa, retorna ON (verde) diretamente
+        return "Conectado", "green"
 
     def ping_forever_omr_vpn(self, url, update_func, interval=1):
         while self.ping_forever:
@@ -2078,13 +2136,38 @@ class ButtonManager:
 
         # Teste inicial de conexão ao endereço 192.168.100.1 na porta 80
         if not test_connection('192.168.100.1', 80, timeout):
-            return "OFF", "red"
+            return "Desligado", "red"
 
-        # Modificação da lógica para verificar o estado da conexão SSH/VPN
-        if self.connection_established_ssh_vps_vpn_bind.is_set():
-            return "ON", "green"
-        else:
-            return "OFF", "blue"
+        # Loop de ping até que a conexão SSH/VPN seja estabelecida
+        while not self.connection_established_ssh_vps_jogo_bind.is_set():
+            # Teste de conexão ao host fornecido na porta 65222
+            try:
+                # Cria um socket e faz o bind ao IP de origem
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
+                    conn.bind(('192.168.100.2', 0))  # Bind ao IP de origem com uma porta qualquer
+                    conn.settimeout(timeout)
+                    conn.connect((host, port))
+                    
+                    # Envia alguns bytes de dados
+                    conn.sendall(b'PING')
+                    
+                    # Recebe alguns bytes de dados
+                    response = conn.recv(1024)
+
+                # Verifica se a resposta é válida
+                if response:
+                    # Se a conexão SSH/VPN estiver ativa, retorna ON (verde) e para os testes
+                    if self.connection_established_ssh_vps_jogo_bind.is_set():
+                        return "Conectado", "green"
+                    # Caso contrário, retorna ON (amarelo)
+                    return "Conectando", "#B8860B"
+                else:
+                    return "Ligado", "blue"
+            except (socket.timeout, socket.error):
+                return "Ligado", "blue"
+
+        # Se a conexão SSH/VPN estiver ativa, retorna ON (verde) diretamente
+        return "Conectado", "green"
 
     def ping_forever_omr_jogo(self, url, update_func, interval=1):
         while self.ping_forever:
@@ -2092,10 +2175,18 @@ class ButtonManager:
             update_func(status, color)
             time.sleep(interval)
 
-    def ping_direto(self, host, port=65222, timeout=1):
+    def ping_vps_vpn(self, host, port=65222, timeout=1):
+        # Verifica se a conexão SSH/VPN já está estabelecida
+        if self.connection_established_ssh_vps_vpn.is_set():
+            # Se a conexão SSH/VPN estiver ativa, retorna ON (verde)
+            return "Ligado", "green"
+        
+        # Caso a conexão SSH/VPN não esteja ativa, realiza o teste de ping
         try:
-            start_time = time.time()
+            # Obtém as informações do socket
             socket_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+            
+            # Cria a conexão
             conn = socket.create_connection(socket_info[0][4], timeout=timeout)
             
             # Envia alguns bytes de dados
@@ -2104,59 +2195,96 @@ class ButtonManager:
             # Recebe alguns bytes de dados
             response = conn.recv(1024)
             
+            # Fecha a conexão
             conn.close()
-            end_time = time.time()
-            response_time = int((end_time - start_time) * 1000/2)  # Converte para milissegundos e arredonda para inteiro
-            
+
             # Verifica se a resposta é válida
             if response:
-                return f"ON ({response_time} ms)", "green"
+                # Se o ping foi bem-sucedido, retorna ON (amarelo)
+                return "Ligando", "#B8860B"
             else:
-                return "OFF", "red"
+                return "Desligado", "red"
         except (socket.timeout, socket.error):
-            return "OFF", "red"
+            return "Desligado", "red"
 
-    def ping_forever_direto(self, update_func, interval=1):
+    def ping_forever_vps_vpn(self, url, update_func, interval=1):
         while self.ping_forever:
-            # Certifique-se de que está passando uma função, não um valor booleano
-            if callable(update_func):
-                update_func()
+            status, color = self.ping_vps_vpn(url)
+            update_func(status, color)
             time.sleep(interval)
 
-    def update_status_vps_vpn(self, status=None, color=None):
-        # Atualiza o status do VPS VPN usando a lógica de conexão SSH
-        if self.connection_established_ssh_vps_vpn.is_set():
-            self.status_label_vps_vpn.config(text="ON", fg="green")
-        else:
-            self.status_label_vps_vpn.config(text="OFF", fg="red")
+    def ping_vps_jogo(self, host, port=65222, timeout=1):
+        # Verifica se a conexão SSH já está estabelecida
+        if self.connection_established_ssh_vps_jogo.is_set():
+            # Se a conexão SSH estiver ativa, retorna ON (verde)
+            return "Ligado", "green"
+        
+        # Caso a conexão SSH não esteja ativa, realiza o teste de ping
+        try:
+            # Obtém as informações do socket
+            socket_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+            
+            # Cria a conexão
+            conn = socket.create_connection(socket_info[0][4], timeout=timeout)
+            
+            # Envia alguns bytes de dados
+            conn.sendall(b'PING')
+            
+            # Recebe alguns bytes de dados
+            response = conn.recv(1024)
+            
+            # Fecha a conexão
+            conn.close()
 
+            # Verifica se a resposta é válida
+            if response:
+                # Se o ping foi bem-sucedido, retorna ON (amarelo)
+                return "Ligando", "#B8860B"
+            else:
+                return "Desligado", "red"
+        except (socket.timeout, socket.error):
+            return "Desligado", "red"
+
+    def ping_forever_vps_jogo(self, url, update_func, interval=1):
+        while self.ping_forever:
+            status, color = self.ping_vps_jogo(url)
+            update_func(status, color)
+            time.sleep(interval)
+
+    def update_status_vps_jogo(self, status, color):
+        # Define a fonte em negrito diretamente aqui
+        bold_font = ("Segoe UI", 10, "underline")
+        self.status_label_vps_jogo.config(text=status, bg=color)
         self.update_general_status()
 
-    def update_status_vps_jogo(self, status=None, color=None):
-        # Atualiza o status do VPS JOGO usando a lógica de conexão SSH
-        if self.connection_established_ssh_vps_jogo.is_set():
-            self.status_label_vps_jogo.config(text="ON", fg="green")
-        else:
-            self.status_label_vps_jogo.config(text="OFF", fg="red")
-
+    def update_status_vps_vpn(self, status, color):
+        bold_font = ("Segoe UI", 8, "bold")
+        self.status_label_vps_vpn.config(text=status, fg=color)
         self.update_general_status()
 
     def update_status_omr_vpn(self, status, color):
-        self.status_label_omr_vpn.config(text=status, fg=color)
+        bold_font = ("Segoe UI", 8, "bold") # font=bold_font
+        self.status_label_omr_vpn.config(text=status, fg=color, font=bold_font)
         self.update_general_status()
 
     def update_status_omr_jogo(self, status, color):
-        self.status_label_omr_jogo.config(text=status, fg=color)
+        bold_font = ("Segoe UI", 8, "bold")
+        self.status_label_omr_jogo.config(text=status, bg=color)
         self.update_general_status()
 
     def update_general_status(self):
+        # Captura as cores de fundo dos status individuais
         statuses = [
-            self.status_label_vps_vpn.cget("text"),
-            self.status_label_vps_jogo.cget("text"),
-            self.status_label_omr_vpn.cget("text"),
-            self.status_label_omr_jogo.cget("text")
+            self.status_label_vps_vpn.cget("fg"),
+            self.status_label_vps_jogo.cget("bg"),
+            self.status_label_omr_vpn.cget("fg"),
+            self.status_label_omr_jogo.cget("bg")
         ]
-        if all("OFF" in status for status in statuses):
+
+        valid_colors = ["green", "yellow", "#B8860B", "blue"]  # Cores dos status para serem usadas na função abaixo, devem ser as cores das defs pings acima.
+
+        # Se todos estiverem com cor vermelha
+        if all(status == "red" for status in statuses):
             if self.script_finished:
                 self.general_status_frame.config(bg="yellow")
                 self.general_status_label.config(bg="yellow")
@@ -2164,8 +2292,10 @@ class ButtonManager:
             else:
                 self.general_status_frame.config(bg="red")
                 self.general_status_label.config(text="Desconectado", bg="red", fg="black")
-        elif any("ON" in status for status in statuses):
-            if all("ON" in status for status in statuses):
+        # Se qualquer um estiver com cor verde ou amarelo
+        elif any(status in valid_colors for status in statuses):
+            # Se todos estiverem com cor verde
+            if all(status == "green" for status in statuses):
                 self.general_status_frame.config(bg="green")
                 self.general_status_label.config(bg="green")
                 self.script_finished = False
@@ -2175,6 +2305,7 @@ class ButtonManager:
                 self.general_status_label.config(bg="yellow")
                 self.script_finished = False
                 self.display_connection_status("Conectando")  # Atualiza para "Conectando"
+        # Caso nenhum esteja verde ou amarelo, mantenha o desconectado
         else:
             self.general_status_frame.config(bg="red")
             self.general_status_label.config(text="Desconectado", bg="red", fg="black")
@@ -3853,7 +3984,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 70.3 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 70.4 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
