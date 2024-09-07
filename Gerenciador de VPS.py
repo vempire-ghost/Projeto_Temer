@@ -104,6 +104,8 @@ class ButtonManager:
         self.connection_established_ssh_vps_vpn_bind = threading.Event() # Evento para sinalizar conexão estabelecida
         self.connection_established_ssh_vps_jogo_bind = threading.Event() # Evento para sinalizar conexão estabelecida
         self.stop_event = threading.Event()
+        self.transport_lock = threading.Lock()
+        self.transport = None
         self.thread = None
         self.buttons = []
         self.button_frame = None
@@ -832,7 +834,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 70.6", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 71", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -844,9 +846,9 @@ class ButtonManager:
         """Estabelece e mantém uma conexão SSH persistente para Jogo."""
         self.establish_ssh_connection('jogo')
 
-    def establish_ssh_vps_vpn_connection(self):
+    def establish_ssh_vps_vpn_connection(self, bind_ip=None, port_local='8888'):
         """Estabelece e mantém uma conexão SSH persistente para VPS VPN."""
-        self.establish_ssh_connection('vps_vpn')
+        self.establish_ssh_connection('vps_vpn', bind_ip, port_local)
 
     def establish_ssh_vps_jogo_connection(self):
         """Estabelece e mantém uma conexão SSH persistente para VPS Jogo."""
@@ -860,7 +862,7 @@ class ButtonManager:
         """Estabelece e mantém uma conexão SSH persistente para VPS Jogo."""
         self.establish_ssh_connection('vps_jogo_bind', bind_ip)
 
-    def establish_ssh_connection(self, connection_type, bind_ip=None):
+    def establish_ssh_connection(self, connection_type, bind_ip=None, port_local=None):
         """Estabelece e mantém uma conexão SSH persistente com tentativas de reconexão contínuas."""
         max_retries = 500000
         retry_delay = 5
@@ -988,7 +990,7 @@ class ButtonManager:
                     sock.connect((config['host'], port))
                     transport = paramiko.Transport(sock)
                     transport.start_client()
-
+        
                     # Tentativa de autenticação com todas as chaves disponíveis
                     if key_files:
                         authenticated = False
@@ -1026,38 +1028,59 @@ class ButtonManager:
                     )
                     print("Connection established without binding.")
 
-                if connection_type == 'vpn':
-                    self.ssh_vpn_client = ssh_client
-                    self.master.after(1000, self.executar_comandos_scheduler)
-                    self.stop_ping_provedor.clear()
-                    ping_thread = threading.Thread(target=self.run_vps_vpn_pings)
-                    ping_thread.start()
-                    self.ping_provedor.set()
-                    if hasattr(self, 'update_status_labels'):
-                        self.master.after(1000, self.update_status_labels)
-                    logger_test_command.info("Conexão SSH (vpn) estabelecida com sucesso iniciando teste das conexões.")
-                elif connection_type == 'jogo':
-                    self.ssh_jogo_client = ssh_client
-                    self.master.after(1000, self.executar_comandos_scheduler)
-                    logger_test_command.info("Conexão SSH (jogo) estabelecida com sucesso.")
-                elif connection_type == 'vps_vpn':
-                    self.ssh_vps_vpn_client = ssh_client
-                    self.master.after(1000, self.executar_comandos_scheduler)
-                    logger_test_command.info("Conexão SSH (vps_vpn) estabelecida com sucesso.")
-                elif connection_type == 'vps_jogo':
-                    self.ssh_vps_jogo_client = ssh_client
-                    self.stop_ping_provedor.clear()
-                    ping_thread = threading.Thread(target=self.run_vps_vpn_pings)
-                    ping_thread.start()
-                    self.ping_provedor.set()
-                    self.master.after(1000, self.executar_comandos_scheduler)
-                    logger_test_command.info("Conexão SSH (vps_jogo) estabelecida com sucesso.")
-                elif connection_type == 'vps_vpn_bind':
-                    self.ssh_vps_vpn_bind_client = ssh_client
-                    logger_test_command.info("Conexão SSH (vps_vpn_bind) estabelecida com sucesso.")
-                elif connection_type == 'vps_jogo_bind':
-                    self.ssh_vps_jogo_bind_client = ssh_client
-                    logger_test_command.info("Conexão SSH (vps_jogo_bind) estabelecida com sucesso.")
+                # Usar lock para proteger o acesso ao cliente SSH e transporte
+                with self.transport_lock:
+                    if connection_type == 'vpn':
+                        self.ssh_vpn_client = ssh_client
+                        self.master.after(1000, self.executar_comandos_scheduler)
+                        self.stop_ping_provedor.clear()
+                        ping_thread = threading.Thread(target=self.run_vps_vpn_pings)
+                        ping_thread.start()
+                        self.ping_provedor.set()
+                        if hasattr(self, 'update_status_labels'):
+                            self.master.after(1000, self.update_status_labels)
+                        logger_test_command.info("Conexão SSH (vpn) estabelecida com sucesso iniciando teste das conexões.")
+                    elif connection_type == 'jogo':
+                        self.ssh_jogo_client = ssh_client
+                        self.master.after(1000, self.executar_comandos_scheduler)
+                        logger_test_command.info("Conexão SSH (jogo) estabelecida com sucesso.")
+                    elif connection_type == 'vps_vpn':
+                        self.ssh_vps_vpn_client = ssh_client
+                        self.master.after(1000, self.executar_comandos_scheduler)
+                        logger_test_command.info("Conexão SSH (vps_vpn) estabelecida com sucesso.")
+                    elif connection_type == 'vps_jogo':
+                        self.ssh_vps_jogo_client = ssh_client
+                        self.stop_ping_provedor.clear()
+                        ping_thread = threading.Thread(target=self.run_vps_vpn_pings)
+                        ping_thread.start()
+                        self.ping_provedor.set()
+                        self.master.after(1000, self.executar_comandos_scheduler)
+                        logger_test_command.info("Conexão SSH (vps_jogo) estabelecida com sucesso.")
+                    elif connection_type == 'vps_vpn_bind':
+                        self.ssh_vps_vpn_bind_client = ssh_client
+                        logger_test_command.info("Conexão SSH (vps_vpn_bind) estabelecida com sucesso.")
+                    elif connection_type == 'vps_jogo_bind':
+                        self.ssh_vps_jogo_bind_client = ssh_client
+                        logger_test_command.info("Conexão SSH (vps_jogo_bind) estabelecida com sucesso.")
+
+                    #self.transport = ssh_client.get_transport()
+
+                    # Inicia o túnel SOCKS se `port_local` for fornecido
+                    if port_local:
+                        self.transport = ssh_client.get_transport()
+                        # Verifica se o transporte SSH está disponível
+                        if self.transport is None:
+                            logger_test_command.error("O transporte SSH não foi inicializado corretamente.")
+                            return
+
+                        # Configura keepalive para o transporte
+                        self.transport.set_keepalive(30)  # Envia pacotes keepalive a cada 30 segundos
+                        logger_test_command.info("Keepalive configurado para o transporte SSH.")
+
+                        logger_test_command.info(f"Iniciando túnel SSH na porta local {port_local}.")
+                        threading.Thread(target=self.start_socks_proxy, args=(port_local,)).start()
+
+                    connection_event.set()  # Marca a conexão como estabelecida
 
                 connection_event.set()  # Marca a conexão como estabelecida
 
@@ -1168,6 +1191,140 @@ class ButtonManager:
                     if connection_type == 'vpn':
                         self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline (somente para VPN)
                     break  # Sai do loop de tentativa de conexão
+
+    def start_socks_proxy(self, port_local):
+        """Inicia um proxy SOCKS usando a conexão SSH."""
+        try:
+            # Verifique se self.transport é válido
+            if self.transport is None:
+                logger_test_command.error("Transport SSH não está disponível.")
+                return
+
+            # Log para confirmar a presença do transport
+            logger_test_command.info(f"Transport SSH está disponível e correto: {self.transport}")
+
+            # Convertendo para inteiro se necessário
+            if isinstance(port_local, str):
+                try:
+                    port_local = int(port_local)
+                except ValueError:
+                    logger_test_command.error(f"Porta local inválida: {port_local}")
+                    return
+
+            if not isinstance(port_local, int):
+                logger_test_command.error(f"Porta local deve ser um número inteiro, mas recebeu: {port_local}")
+                return
+
+            # Cria o servidor SOCKS local
+            server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            server.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)    # Tempo em segundos
+            server.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)    # Intervalo em segundos
+            server.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 6)      # Contador de pacotes
+            server.bind(('0.0.0.0', port_local))
+            server.listen(5)
+
+            logger_test_command.info(f"Proxy SOCKS iniciado na porta {port_local}.")
+
+            while not self.stop_event.is_set():
+                client_socket, _ = server.accept()
+                logger_test_command.info("Nova conexão SOCKS aceita.")
+                threading.Thread(target=self.handle_socks_connection, args=(client_socket,)).start()
+
+        except Exception as e:
+            logger_test_command.error(f"Erro ao iniciar o proxy SOCKS: {e}")
+            self.connection_established_ssh_omr_vpn.clear()
+        
+    def handle_socks_connection(self, client_socket):
+        try:
+            if self.transport is None:
+                logger_test_command.error("Transport SSH não está disponível.")
+                client_socket.close()
+                return
+
+            logger_test_command.info("Transport SSH está disponível durante o manuseio da conexão SOCKS.")
+
+            # Handshake SOCKS5
+            handshake = client_socket.recv(2)
+            if len(handshake) < 2:
+                logger_test_command.warning(f"Handshake incompleto recebido: {handshake}")
+                client_socket.close()
+                return
+
+            version, n_methods = handshake
+            if version != 0x05:
+                logger_test_command.warning(f"Versão SOCKS não suportada: {version}")
+                client_socket.close()
+                return
+
+            methods = client_socket.recv(n_methods)
+            client_socket.sendall(b'\x05\x00')
+
+            # Recebe o pedido SOCKS
+            request = client_socket.recv(4)
+            if len(request) < 4:
+                logger_test_command.warning(f"Pedido SOCKS incompleto recebido: {request}")
+                client_socket.close()
+                return
+
+            version, cmd, reserved, addr_type = request
+            if version != 0x05:
+                logger_test_command.warning(f"Versão SOCKS não suportada no pedido: {version}")
+                client_socket.close()
+                return
+
+            # Obtém o endereço de destino
+            if addr_type == 0x01:  # IPv4
+                addr = socket.inet_ntoa(client_socket.recv(4))
+            elif addr_type == 0x03:  # Domínio
+                addr_len = client_socket.recv(1)[0]
+                addr = client_socket.recv(addr_len).decode()
+            elif addr_type == 0x04:  # IPv6
+                addr = socket.inet_ntop(socket.AF_INET6, client_socket.recv(16))
+            else:
+                logger_test_command.warning("Tipo de endereço não suportado.")
+                client_socket.close()
+                return
+
+            # Recebe a porta de destino
+            port = int.from_bytes(client_socket.recv(2), 'big')
+
+            logger_test_command.info(f"Encaminhando para {addr}:{port}")
+
+            # Responde ao cliente SOCKS
+            client_socket.sendall(b'\x05\x00\x00\x01' + socket.inet_aton('0.0.0.0') + b'\x00\x00')
+
+            # Estabelece a conexão no túnel SSH
+            remote_socket = self.transport.open_channel('direct-tcpip', (addr, port), client_socket.getpeername())
+            if remote_socket is not None:
+                logger_test_command.info("Canal SSH aberto com sucesso.")
+                threading.Thread(target=self.forward_data, args=(client_socket, remote_socket)).start()
+                threading.Thread(target=self.forward_data, args=(remote_socket, client_socket)).start()
+            else:
+                logger_test_command.error("Falha ao abrir o canal: remote_socket é None")
+                client_socket.close()
+        except paramiko.SSHException as e:
+            logger_test_command.error(f"Falha ao abrir o canal: {e}")
+            client_socket.close()
+        except Exception as e:
+            logger_test_command.error(f"Erro ao lidar com a conexão SOCKS: {e}")
+            client_socket.close()
+
+    def forward_data(self, source, destination):
+        try:
+            while True:
+                data = source.recv(4096)
+                if len(data) == 0:
+                    print("Nenhum dado recebido, fechando conexão.")
+                    break
+                destination.send(data)
+        except OSError as e:
+            print(f"Erro de soquete: {e}")
+        except Exception as e:
+            print(f"Erro no encaminhamento de dados: {e}")
+        finally:
+            source.close()
+            destination.close()
 
     def close_ssh_connection(self):
         """Fecha todas as conexões SSH abertas."""
@@ -4020,7 +4177,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 70.6 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 71 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
