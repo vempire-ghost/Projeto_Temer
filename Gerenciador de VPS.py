@@ -566,7 +566,7 @@ class ButtonManager:
         frame_omr_vpn.grid(row=1, column=1, padx=5, pady=5, sticky=tk.E+tk.W)
         btn_omr_vpn = tk.Button(frame_omr_vpn, text="OMR VPN:", bg='lightgray', justify=tk.CENTER, command=self.open_OMR_VPN, width=9, height=1)
         btn_omr_vpn.pack(side=tk.LEFT)
-        self.status_label_omr_vpn = tk.Label(frame_omr_vpn, text="Aguarde...", bg='lightgray', fg='white', justify=tk.CENTER, width=9, height=1)
+        self.status_label_omr_vpn = tk.Label(frame_omr_vpn, text="Aguarde...", bg='lightgray', fg='white', justify=tk.CENTER, borderwidth=1, relief=tk.GROOVE, width=9, height=1)
         self.status_label_omr_vpn.pack(side=tk.LEFT, padx=5)
 
         # Label (aparência de botão) para OMR JOGO
@@ -583,7 +583,7 @@ class ButtonManager:
         self.label_vm_vpn = tk.Button(frame_vm_vpn, text="VM VPN:", bg='lightgray', justify=tk.CENTER, borderwidth=2, relief=tk.RAISED, command=self.show_vm_vpn_menu, width=9, height=1)
         self.label_vm_vpn.pack(side=tk.LEFT)
         self.value_vm_vpn = tk.Label(frame_vm_vpn, text="Aguarde...", bg='lightgray', justify=tk.CENTER)
-        self.value_vm_vpn.pack(side=tk.LEFT)
+        self.value_vm_vpn.pack(side=tk.LEFT, padx=5)
 
         # Frame para VM JOGO com fundo lightgray
         frame_vm_jogo = tk.Frame(self.top_frame, bg='lightgray')
@@ -591,7 +591,7 @@ class ButtonManager:
         self.label_vm_jogo = tk.Button(frame_vm_jogo, text="VM JOGO:", bg='lightgray', justify=tk.CENTER, borderwidth=2, relief=tk.RAISED, command=self.show_vm_jogo_menu, width=9, height=1)
         self.label_vm_jogo.pack(side=tk.LEFT)
         self.value_vm_jogo = tk.Label(frame_vm_jogo, text="Aguarde...", bg='lightgray', justify=tk.CENTER)
-        self.value_vm_jogo.pack(side=tk.LEFT)
+        self.value_vm_jogo.pack(side=tk.LEFT, padx=5)
 
         # Carregar os nomes da VMs e iniciar a atualização dos valores das VMs
         self.load_vm_names()
@@ -796,7 +796,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 70.4", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 70.5", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -2136,7 +2136,7 @@ class ButtonManager:
 
         # Teste inicial de conexão ao endereço 192.168.100.1 na porta 80
         if not test_connection('192.168.100.1', 80, timeout):
-            return "Desligado", "red"
+            return "DESLIGADO", "red"
 
         # Loop de ping até que a conexão SSH/VPN seja estabelecida
         while not self.connection_established_ssh_vps_jogo_bind.is_set():
@@ -2259,12 +2259,12 @@ class ButtonManager:
 
     def update_status_vps_vpn(self, status, color):
         bold_font = ("Segoe UI", 8, "bold")
-        self.status_label_vps_vpn.config(text=status, fg=color)
+        self.status_label_vps_vpn.config(text=status, bg=color)
         self.update_general_status()
 
     def update_status_omr_vpn(self, status, color):
         bold_font = ("Segoe UI", 8, "bold") # font=bold_font
-        self.status_label_omr_vpn.config(text=status, fg=color, font=bold_font)
+        self.status_label_omr_vpn.config(text=status, bg=color)
         self.update_general_status()
 
     def update_status_omr_jogo(self, status, color):
@@ -2275,9 +2275,9 @@ class ButtonManager:
     def update_general_status(self):
         # Captura as cores de fundo dos status individuais
         statuses = [
-            self.status_label_vps_vpn.cget("fg"),
+            self.status_label_vps_vpn.cget("bg"),
             self.status_label_vps_jogo.cget("bg"),
-            self.status_label_omr_vpn.cget("fg"),
+            self.status_label_omr_vpn.cget("bg"),
             self.status_label_omr_jogo.cget("bg")
         ]
 
@@ -3984,7 +3984,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 70.4 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 70.5 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
