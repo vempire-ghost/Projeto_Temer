@@ -21,7 +21,7 @@ import paramiko
 import configparser
 import re
 from datetime import datetime
-from pystray import Icon, MenuItem, Menu
+from pystray import Icon, MenuItem, Menu as TrayMenu
 from PIL import Image, ImageTk, ImageDraw
 
 # Caminho para o arquivo de bloqueio
@@ -85,6 +85,12 @@ provedor_test_handler.setLevel(logging.INFO)
 provedor_test_handler.setFormatter(formatter)  # Aplicando o Formatter
 logger_provedor_test.addHandler(provedor_test_handler)
 
+# Logger para proxy
+logger_proxy = logging.getLogger('proxy_logger')
+proxy_handler = logging.FileHandler('proxy.log')
+proxy_handler.setLevel(logging.INFO)
+proxy_handler.setFormatter(formatter)  # Aplicando o Formatter
+logger_proxy.addHandler(proxy_handler)
 
 class ButtonManager:
     def __init__(self, master):
@@ -116,6 +122,7 @@ class ButtonManager:
         self.clear_log_file('app.log')  # Limpa o arquivo de log ao iniciar o programa
         self.clear_log_file('test_command.log')  # Limpa o arquivo de log ao iniciar o programa
         self.clear_log_file('provedor_test.log')  # Limpa o arquivo de log ao iniciar o programa
+        self.clear_log_file('proxy.log')  # Limpa o arquivo de log ao iniciar o programa
 
         # Verifica e cria o arquivo de configuração se não existir
         self.config_file = 'config.ini'
@@ -165,8 +172,8 @@ class ButtonManager:
         # Carregar o ícone da bandeja (substitua pelo seu caminho da imagem)
         self.icon_image = Image.open("omr-logo.png")  # Carrega a imagem "omr-logo.png"
 
-        # Criar o ícone da bandeja
-        self.tray_icon = Icon("MeuApp", self.icon_image, menu=Menu(
+        # Criar o ícone da bandeja usando TrayMenu em vez de Menu
+        self.tray_icon = Icon("MeuApp", self.icon_image, menu=TrayMenu(
             MenuItem('Restaurar', self.restore_window),
             MenuItem('Sair', self.on_close)
         ))
@@ -834,7 +841,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 71", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 71.1", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -1063,21 +1070,19 @@ class ButtonManager:
                         self.ssh_vps_jogo_bind_client = ssh_client
                         logger_test_command.info("Conexão SSH (vps_jogo_bind) estabelecida com sucesso.")
 
-                    #self.transport = ssh_client.get_transport()
-
                     # Inicia o túnel SOCKS se `port_local` for fornecido
                     if port_local:
                         self.transport = ssh_client.get_transport()
                         # Verifica se o transporte SSH está disponível
                         if self.transport is None:
-                            logger_test_command.error("O transporte SSH não foi inicializado corretamente.")
+                            logger_proxy.error("O transporte SSH não foi inicializado corretamente.")
                             return
 
                         # Configura keepalive para o transporte
                         self.transport.set_keepalive(30)  # Envia pacotes keepalive a cada 30 segundos
-                        logger_test_command.info("Keepalive configurado para o transporte SSH.")
+                        logger_proxy.info("Keepalive configurado para o transporte SSH.")
 
-                        logger_test_command.info(f"Iniciando túnel SSH na porta local {port_local}.")
+                        logger_proxy.info(f"Iniciando túnel SSH na porta local {port_local}.")
                         threading.Thread(target=self.start_socks_proxy, args=(port_local,)).start()
 
                     connection_event.set()  # Marca a conexão como estabelecida
@@ -1197,22 +1202,22 @@ class ButtonManager:
         try:
             # Verifique se self.transport é válido
             if self.transport is None:
-                logger_test_command.error("Transport SSH não está disponível.")
+                logger_proxy.error("Transport SSH não está disponível.")
                 return
 
             # Log para confirmar a presença do transport
-            logger_test_command.info(f"Transport SSH está disponível e correto: {self.transport}")
+            logger_proxy.info(f"Transport SSH está disponível e correto: {self.transport}")
 
             # Convertendo para inteiro se necessário
             if isinstance(port_local, str):
                 try:
                     port_local = int(port_local)
                 except ValueError:
-                    logger_test_command.error(f"Porta local inválida: {port_local}")
+                    logger_proxy.error(f"Porta local inválida: {port_local}")
                     return
 
             if not isinstance(port_local, int):
-                logger_test_command.error(f"Porta local deve ser um número inteiro, mas recebeu: {port_local}")
+                logger_proxy.error(f"Porta local deve ser um número inteiro, mas recebeu: {port_local}")
                 return
 
             # Cria o servidor SOCKS local
@@ -1224,36 +1229,36 @@ class ButtonManager:
             server.bind(('0.0.0.0', port_local))
             server.listen(5)
 
-            logger_test_command.info(f"Proxy SOCKS iniciado na porta {port_local}.")
+            logger_proxy.info(f"Proxy SOCKS iniciado na porta {port_local}.")
 
             while not self.stop_event.is_set():
                 client_socket, _ = server.accept()
-                logger_test_command.info("Nova conexão SOCKS aceita.")
+                logger_proxy.info("Nova conexão SOCKS aceita.")
                 threading.Thread(target=self.handle_socks_connection, args=(client_socket,)).start()
 
         except Exception as e:
-            logger_test_command.error(f"Erro ao iniciar o proxy SOCKS: {e}")
+            logger_proxy.error(f"Erro ao iniciar o proxy SOCKS: {e}")
             self.connection_established_ssh_omr_vpn.clear()
         
     def handle_socks_connection(self, client_socket):
         try:
             if self.transport is None:
-                logger_test_command.error("Transport SSH não está disponível.")
+                logger_proxy.error("Transport SSH não está disponível.")
                 client_socket.close()
                 return
 
-            logger_test_command.info("Transport SSH está disponível durante o manuseio da conexão SOCKS.")
+            logger_proxy.info("Transport SSH está disponível durante o manuseio da conexão SOCKS.")
 
             # Handshake SOCKS5
             handshake = client_socket.recv(2)
             if len(handshake) < 2:
-                logger_test_command.warning(f"Handshake incompleto recebido: {handshake}")
+                logger_proxy.warning(f"Handshake incompleto recebido: {handshake}")
                 client_socket.close()
                 return
 
             version, n_methods = handshake
             if version != 0x05:
-                logger_test_command.warning(f"Versão SOCKS não suportada: {version}")
+                logger_proxy.warning(f"Versão SOCKS não suportada: {version}")
                 client_socket.close()
                 return
 
@@ -1263,13 +1268,13 @@ class ButtonManager:
             # Recebe o pedido SOCKS
             request = client_socket.recv(4)
             if len(request) < 4:
-                logger_test_command.warning(f"Pedido SOCKS incompleto recebido: {request}")
+                logger_proxy.warning(f"Pedido SOCKS incompleto recebido: {request}")
                 client_socket.close()
                 return
 
             version, cmd, reserved, addr_type = request
             if version != 0x05:
-                logger_test_command.warning(f"Versão SOCKS não suportada no pedido: {version}")
+                logger_proxy.warning(f"Versão SOCKS não suportada no pedido: {version}")
                 client_socket.close()
                 return
 
@@ -1282,14 +1287,14 @@ class ButtonManager:
             elif addr_type == 0x04:  # IPv6
                 addr = socket.inet_ntop(socket.AF_INET6, client_socket.recv(16))
             else:
-                logger_test_command.warning("Tipo de endereço não suportado.")
+                logger_proxy.warning("Tipo de endereço não suportado.")
                 client_socket.close()
                 return
 
             # Recebe a porta de destino
             port = int.from_bytes(client_socket.recv(2), 'big')
 
-            logger_test_command.info(f"Encaminhando para {addr}:{port}")
+            logger_proxy.info(f"Encaminhando para {addr}:{port}")
 
             # Responde ao cliente SOCKS
             client_socket.sendall(b'\x05\x00\x00\x01' + socket.inet_aton('0.0.0.0') + b'\x00\x00')
@@ -1297,17 +1302,17 @@ class ButtonManager:
             # Estabelece a conexão no túnel SSH
             remote_socket = self.transport.open_channel('direct-tcpip', (addr, port), client_socket.getpeername())
             if remote_socket is not None:
-                logger_test_command.info("Canal SSH aberto com sucesso.")
+                logger_proxy.info("Canal SSH aberto com sucesso.")
                 threading.Thread(target=self.forward_data, args=(client_socket, remote_socket)).start()
                 threading.Thread(target=self.forward_data, args=(remote_socket, client_socket)).start()
             else:
-                logger_test_command.error("Falha ao abrir o canal: remote_socket é None")
+                logger_proxy.error("Falha ao abrir o canal: remote_socket é None")
                 client_socket.close()
         except paramiko.SSHException as e:
-            logger_test_command.error(f"Falha ao abrir o canal: {e}")
+            logger_proxy.error(f"Falha ao abrir o canal: {e}")
             client_socket.close()
         except Exception as e:
-            logger_test_command.error(f"Erro ao lidar com a conexão SOCKS: {e}")
+            logger_proxy.error(f"Erro ao lidar com a conexão SOCKS: {e}")
             client_socket.close()
 
     def forward_data(self, source, destination):
@@ -1664,6 +1669,12 @@ class ButtonManager:
         log_text_provedor.pack(expand=1, fill=tk.BOTH)
         notebook.add(log_frame_provedor, text='Logs de teste de Provedores')
 
+        # Aba 4: Logs do Proxy
+        log_frame_proxy = tk.Frame(notebook)
+        log_text_proxy = scrolledtext.ScrolledText(log_frame_proxy, wrap=tk.WORD, state=tk.NORMAL)
+        log_text_proxy.pack(expand=1, fill=tk.BOTH)
+        notebook.add(log_frame_proxy, text='Logs do Proxy')
+
         # Variável para controlar o scroll automático
         self.auto_scroll = True
         self.update_logs_id = None
@@ -1688,6 +1699,13 @@ class ButtonManager:
                 log_text_provedor.delete(1.0, tk.END)
                 log_text_provedor.insert(tk.END, logs_provedor)
                 log_text_provedor.see(tk.END)
+
+                # Novo: Carregar os logs do Proxy
+                with open('proxy.log', 'r') as file:
+                    logs_proxy = file.read()
+                log_text_proxy.delete(1.0, tk.END)
+                log_text_proxy.insert(tk.END, logs_proxy)
+                log_text_proxy.see(tk.END)
 
             # Agendar a próxima atualização
             self.update_logs_id = log_window.after(1000, update_logs)
@@ -4177,7 +4195,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 71 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 71.1 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
