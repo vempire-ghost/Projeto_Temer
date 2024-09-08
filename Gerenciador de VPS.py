@@ -20,6 +20,7 @@ import queue
 import paramiko
 import configparser
 import re
+import select
 from datetime import datetime
 from pystray import Icon, MenuItem, Menu as TrayMenu
 from PIL import Image, ImageTk, ImageDraw
@@ -95,6 +96,7 @@ logger_proxy.addHandler(proxy_handler)
 class ButtonManager:
     def __init__(self, master):
         self.master = master
+        self.command_timeout = 5  # Timeout em segundos
         self.script_finished = False  # Inicializa a variável de controle para o término do script
         self.monitor_xray = False # Variável para rastrear o estado do monitoramento do Xray JOGO
         self.botao_monitorar_xray = True  # Variável para rastrear o estado do botão monitoramento do Xray JOGO
@@ -109,7 +111,8 @@ class ButtonManager:
         self.connection_established_ssh_vps_jogo = threading.Event() # Evento para sinalizar conexão estabelecida
         self.connection_established_ssh_vps_vpn_bind = threading.Event() # Evento para sinalizar conexão estabelecida
         self.connection_established_ssh_vps_jogo_bind = threading.Event() # Evento para sinalizar conexão estabelecida
-        self.stop_event = threading.Event()
+        self.stop_event_ssh = threading.Event()
+        self.stop_event_proxy = threading.Event()
         self.transport_lock = threading.Lock()
         self.transport = None
         self.thread = None
@@ -447,7 +450,7 @@ class ButtonManager:
         # Sinaliza para as threads que devem encerrar
         self.ping_forever = False
         self.delete_file()
-        self.stop_event.set()
+        self.stop_event_ssh.set()
         self.close_ssh_connection()
         self.stop_pinging_threads()
         self.stop_verificar_vm()
@@ -841,7 +844,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 71.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 71.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -853,17 +856,17 @@ class ButtonManager:
         """Estabelece e mantém uma conexão SSH persistente para Jogo."""
         self.establish_ssh_connection('jogo')
 
-    def establish_ssh_vps_vpn_connection(self, bind_ip=None, port_local='8888'):
+    def establish_ssh_vps_vpn_connection(self):
         """Estabelece e mantém uma conexão SSH persistente para VPS VPN."""
-        self.establish_ssh_connection('vps_vpn', bind_ip, port_local)
+        self.establish_ssh_connection('vps_vpn')
 
     def establish_ssh_vps_jogo_connection(self):
         """Estabelece e mantém uma conexão SSH persistente para VPS Jogo."""
         self.establish_ssh_connection('vps_jogo')
 
-    def establish_ssh_vps_vpn_bind_connection(self, bind_ip='192.168.101.2'):
+    def establish_ssh_vps_vpn_bind_connection(self, bind_ip='192.168.101.2', port_local='8888'):
         """Estabelece e mantém uma conexão SSH persistente para VPS VPN."""
-        self.establish_ssh_connection('vps_vpn_bind', bind_ip)
+        self.establish_ssh_connection('vps_vpn_bind', bind_ip, port_local)
 
     def establish_ssh_vps_jogo_bind_connection(self, bind_ip='192.168.100.2'):
         """Estabelece e mantém uma conexão SSH persistente para VPS Jogo."""
@@ -875,7 +878,7 @@ class ButtonManager:
         retry_delay = 5
         attempt = 0
 
-        while not self.stop_event.is_set():
+        while not self.stop_event_ssh.is_set():
             # Recarregar configurações antes de tentar conectar
             self.load_ssh_configurations()
 
@@ -958,7 +961,7 @@ class ButtonManager:
                 logger_test_command.warning(f"Falha na conexão TCP {'com bind IP' if bind_ip else ''} na porta {port} com '{config['host']}': {e}. Tentando novamente em {retry_delay} segundos...")
                 attempt += 1
                 if attempt < max_retries:
-                    if self.stop_event.wait(retry_delay):
+                    if self.stop_event_ssh.wait(retry_delay):
                         break
                     continue  # Tenta novamente após o tempo de espera
                 else:
@@ -995,32 +998,33 @@ class ButtonManager:
                         raise
 
                     sock.connect((config['host'], port))
-                    transport = paramiko.Transport(sock)
-                    transport.start_client()
-        
+                    self.transport = paramiko.Transport(sock)  # Use self.transport para garantir que está atribuindo corretamente
+
                     # Tentativa de autenticação com todas as chaves disponíveis
                     if key_files:
                         authenticated = False
                         for key_file in key_files:
                             try:
                                 private_key = paramiko.RSAKey(filename=key_file)
-                                transport.auth_publickey(config['username'], private_key)
+                                self.transport.connect(username=config['username'], pkey=private_key)
                                 logger_test_command.info(f"Autenticação bem-sucedida com a chave: {key_file}")
                                 authenticated = True
-                                break  # Sai do loop se a autenticação for bem-sucedida
+                                break
                             except paramiko.AuthenticationException as e:
                                 logger_test_command.warning(f"Falha de autenticação com a chave {key_file}: {e}")
-                                continue  # Tenta a próxima chave
+                                continue
 
                         if not authenticated:
                             logger_test_command.error("Falha de autenticação com todas as chaves. Tentando com senha...")
-                            transport.auth_password(config['username'], config['password'], look_for_keys=True)
+                            self.transport.connect(username=config['username'], password=config['password'])
                     else:
-                        # Se não houver arquivos de chave, tenta autenticação com senha diretamente
                         logger_test_command.info("Nenhuma chave encontrada. Tentando autenticação com senha...")
-                        transport.auth_password(config['username'], config['password'], look_for_keys=True)
+                        self.transport.connect(username=config['username'], password=config['password'])
 
                     logger_test_command.info("Connection established using bound socket.")
+
+                    # Configura keep-alive
+                    #self.transport.set_keepalive(30)
                         
                 else:
                     print(f"Connecting to {config['host']} on port {port} without bind IP")
@@ -1070,62 +1074,89 @@ class ButtonManager:
                         self.ssh_vps_jogo_bind_client = ssh_client
                         logger_test_command.info("Conexão SSH (vps_jogo_bind) estabelecida com sucesso.")
 
-                    # Inicia o túnel SOCKS se `port_local` for fornecido
+                    # Verifica se `port_local` foi fornecido
                     if port_local:
-                        self.transport = ssh_client.get_transport()
-                        # Verifica se o transporte SSH está disponível
-                        if self.transport is None:
-                            logger_proxy.error("O transporte SSH não foi inicializado corretamente.")
-                            return
+                        # Verifica o tipo de conexão
+                        if connection_type in ['vps_vpn_bind', 'vps_jogo_bind']:
+                            if self.transport is None:
+                                logger_proxy.error("O transporte SSH não foi inicializado corretamente.")
+                                return
 
-                        # Configura keepalive para o transporte
-                        self.transport.set_keepalive(30)  # Envia pacotes keepalive a cada 30 segundos
-                        logger_proxy.info("Keepalive configurado para o transporte SSH.")
+                            self.transport.set_keepalive(30)  # Envia pacotes keepalive a cada 30 segundos
+                            logger_proxy.info("Keepalive configurado para o transporte SSH.")
 
-                        logger_proxy.info(f"Iniciando túnel SSH na porta local {port_local}.")
-                        threading.Thread(target=self.start_socks_proxy, args=(port_local,)).start()
+                            logger_proxy.info(f"Iniciando túnel SSH na porta local {port_local} para o tipo de conexão {connection_type}.")
+                            # Passa a instância atual de `self.transport` para o SOCKS proxy
+                            threading.Thread(target=self.start_socks_proxy, args=(port_local, connection_type, self.transport)).start()
+
+                        else:
+                            self.transport = ssh_client.get_transport()
+                            if self.transport is None:
+                                logger_proxy.error("O transporte SSH não foi inicializado corretamente.")
+                                return
+
+                            self.transport.set_keepalive(30)  # Envia pacotes keepalive a cada 30 segundos
+                            logger_proxy.info("Keepalive configurado para o transporte SSH.")
+
+                            logger_proxy.info(f"Iniciando túnel SSH na porta local {port_local} para o tipo de conexão {connection_type}.")
+                            # Passa a instância atual de `self.transport` para o SOCKS proxy
+                            threading.Thread(target=self.start_socks_proxy, args=(port_local, connection_type, self.transport)).start()
 
                     connection_event.set()  # Marca a conexão como estabelecida
 
                 connection_event.set()  # Marca a conexão como estabelecida
 
                 # Aguarda até que a conexão seja interrompida ou o programa seja fechado
-                while not self.stop_event.is_set():
+                while not self.stop_event_ssh.is_set():
                     try:
                         # Verificação da conexão: Transport ou SSHClient
                         if bind_ip:
-                            # Se estivermos usando o Transport, abre uma sessão para verificar a conexão
-                            #logger_test_command.info(f"Verificando conexão SSH via Transport ({connection_type})...")
-                            session = transport.open_session()
-                            session.exec_command('uptime')  # Verifica o tempo de atividade do sistema
+                            # Verifica se o transporte está ativo
+                            if self.transport is None or not self.transport.is_active():
+                                raise Exception("Conexão SSH perdida (Transport)")
+                            else:
+                                logger_test_command.info(f"Conexão SSH via Transport ({connection_type}) está ativa.")
+
+                            # Monitora usando pacotes keepalive para manter a conexão ativa
+                            self.transport.set_keepalive(30)  # Envia pacotes keepalive a cada 30 segundos
 
                             # Espera até que a conexão seja interrompida ou o stop_event seja setado
-                            if self.stop_event.wait(5):
+                            if self.stop_event_ssh.wait(5):
                                 logger_test_command.info("Parada do monitoramento de conexão detectada.")
-                                session.close()
                                 break
                         else:
-                            # Se estivermos usando SSHClient, realiza uma verificação de comando
-                            #logger_test_command.info(f"Verificando conexão SSH ({connection_type})...")
-                            ssh_client.exec_command('uptime')  # Verifica o tempo de atividade do sistema
+                            # Verifica se o canal SSH ainda está ativo usando ssh_client.get_transport().is_active()
+                            if ssh_client is None or ssh_client.get_transport() is None:
+                                raise Exception("Conexão SSH perdida (SSHClient)")
                             
-                            if self.stop_event.wait(5):
+                            transport = ssh_client.get_transport()
+                            if not transport.is_active():
+                                raise Exception("Conexão SSH perdida (SSHClient)")
+                            else:
+                                logger_test_command.info(f"Conexão SSH via Transport ({connection_type}) está ativa.")
+                            # Monitora usando pacotes keepalive para manter a conexão ativa
+                            transport.set_keepalive(30)
+
+                            if self.stop_event_ssh.wait(5):
                                 logger_test_command.info("Parada do monitoramento de conexão detectada.")
                                 break
+
                     except Exception as e:
                         # Se uma exceção for lançada, significa que a conexão foi perdida
                         logger_test_command.error(f"Conexão SSH ({connection_type}) perdida: {e}")
-                        
+
                         if bind_ip:
-                            transport.close()  # Fecha o transport se estiver usando bind_ip
-                            logger_test_command.info("Transport fechado devido à perda de conexão.")
+                            if self.transport:
+                                self.transport.close()  # Fecha o transport se estiver usando bind_ip
+                                logger_test_command.info("Transport fechado devido à perda de conexão.")
                         else:
-                            ssh_client.close()  # Fecha o ssh_client
-                            logger_test_command.info("SSHClient fechado devido à perda de conexão.")
+                            if ssh_client:
+                                ssh_client.close()  # Fecha o ssh_client
+                                logger_test_command.info("SSHClient fechado devido à perda de conexão.")
 
                         connection_event.clear()  # Limpa o sinal de conexão estabelecida
                         logger_test_command.info(f"Evento de conexão limpo para o tipo de conexão: {connection_type}")
-                        
+
                         if connection_type == 'vpn':
                             self.update_all_statuses_offline()
                             self.ping_provedor.clear()
@@ -1133,8 +1164,7 @@ class ButtonManager:
                         elif connection_type == 'vps_jogo':
                             self.ping_provedor.clear()
                             self.stop_ping_provedor.set()
-
-                        break  # Sai do loop para tentar reconectar a conexão
+                        break 
 
             except paramiko.AuthenticationException as e:
                 logger_test_command.error(f"Erro de autenticação ao estabelecer conexão SSH ({connection_type}): {e}")
@@ -1169,7 +1199,7 @@ class ButtonManager:
                         logger_test_command.warning("Erro de banner SSH detectado em conexão com bind IP. Tentando reconectar...")
                         attempt += 1
                         if attempt < max_retries:
-                            if self.stop_event.wait(retry_delay):
+                            if self.stop_event_ssh.wait(retry_delay):
                                 break
                             continue  # Retorna ao início do loop de reconexão
                         else:
@@ -1188,7 +1218,7 @@ class ButtonManager:
                 attempt += 1
                 if attempt < max_retries:
                     logger_test_command.info(f"Tentando novamente em {retry_delay} segundos...")
-                    if self.stop_event.wait(retry_delay):
+                    if self.stop_event_ssh.wait(retry_delay):
                         break
                 else:
                     logger_test_command.error("Número máximo de tentativas de conexão atingido.")
@@ -1197,16 +1227,15 @@ class ButtonManager:
                         self.update_all_statuses_offline()  # Atualiza o status de todas as conexões para offline (somente para VPN)
                     break  # Sai do loop de tentativa de conexão
 
-    def start_socks_proxy(self, port_local):
+    def start_socks_proxy(self, port_local, connection_type, transport):
         """Inicia um proxy SOCKS usando a conexão SSH."""
         try:
-            # Verifique se self.transport é válido
-            if self.transport is None:
+            # Verifique se o transporte passado como argumento é válido
+            if transport is None:
                 logger_proxy.error("Transport SSH não está disponível.")
                 return
 
-            # Log para confirmar a presença do transport
-            logger_proxy.info(f"Transport SSH está disponível e correto: {self.transport}")
+            logger_proxy.info(f"Transport SSH está disponível e correto: {transport}")
 
             # Convertendo para inteiro se necessário
             if isinstance(port_local, str):
@@ -1220,6 +1249,9 @@ class ButtonManager:
                 logger_proxy.error(f"Porta local deve ser um número inteiro, mas recebeu: {port_local}")
                 return
 
+            # Log incluindo o connection_type
+            logger_proxy.info(f"Proxy SOCKS iniciado na porta {port_local} para o tipo de conexão {connection_type}.")
+
             # Cria o servidor SOCKS local
             server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
@@ -1229,20 +1261,25 @@ class ButtonManager:
             server.bind(('0.0.0.0', port_local))
             server.listen(5)
 
-            logger_proxy.info(f"Proxy SOCKS iniciado na porta {port_local}.")
+            logger_proxy.info(f"Proxy SOCKS na porta {port_local} está aguardando conexões.")
 
-            while not self.stop_event.is_set():
+            while not self.stop_event_proxy.is_set():
                 client_socket, _ = server.accept()
                 logger_proxy.info("Nova conexão SOCKS aceita.")
-                threading.Thread(target=self.handle_socks_connection, args=(client_socket,)).start()
+                # Passa a instância de transporte específica para a função de conexão
+                threading.Thread(target=self.handle_socks_connection, args=(client_socket, transport)).start()
 
         except Exception as e:
             logger_proxy.error(f"Erro ao iniciar o proxy SOCKS: {e}")
-            self.connection_established_ssh_omr_vpn.clear()
+            
+            # Fecha o socket do servidor caso ocorra um erro
+            if server:
+                server.close()
         
-    def handle_socks_connection(self, client_socket):
+    def handle_socks_connection(self, client_socket, transport):
+        """Lida com uma conexão SOCKS usando o transporte SSH específico."""
         try:
-            if self.transport is None:
+            if transport is None:
                 logger_proxy.error("Transport SSH não está disponível.")
                 client_socket.close()
                 return
@@ -1300,7 +1337,7 @@ class ButtonManager:
             client_socket.sendall(b'\x05\x00\x00\x01' + socket.inet_aton('0.0.0.0') + b'\x00\x00')
 
             # Estabelece a conexão no túnel SSH
-            remote_socket = self.transport.open_channel('direct-tcpip', (addr, port), client_socket.getpeername())
+            remote_socket = transport.open_channel('direct-tcpip', (addr, port), client_socket.getpeername())
             if remote_socket is not None:
                 logger_proxy.info("Canal SSH aberto com sucesso.")
                 threading.Thread(target=self.forward_data, args=(client_socket, remote_socket)).start()
@@ -1417,25 +1454,30 @@ class ButtonManager:
         """Executa o comando ping via SSH indefinidamente e atualiza a label com a latência."""
         if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
             try:
-                # Executa o ping sem limite de contagem (-c) e em modo indefinido
+                # Executa o ping com limite de tempo ou pacotes
                 stdin, stdout, stderr = self.ssh_vpn_client.exec_command(f"ping -I {interface} {self.ssh_vps_jogo_config['host']}")
                 logger_test_command.info("Ping iniciado com sucesso")
 
                 # Loop para ler as respostas do ping até que o `stop_ping_provedor` seja acionado
                 while not stop_ping_provedor.is_set():
-                    line = stdout.readline().strip()  # Lê cada linha de saída do comando
-                    if not line:
-                        continue
+                    # Usa select para esperar com timeout
+                    if select.select([stdout.channel], [], [], 5)[0]:  # Timeout de 5 segundos
+                        line = stdout.readline().strip()  # Lê cada linha de saída do comando
+                        if not line:
+                            continue
 
-                    # Filtra a latência usando regex
-                    match = re.search(r'time=(\d+\.?\d*) ms', line)
-                    if match:
-                        latency = match.group(1) + " ms"
+                        # Filtra a latência usando regex
+                        match = re.search(r'time=(\d+\.?\d*) ms', line)
+                        if match:
+                            latency = match.group(1) + " ms"
+                        else:
+                            latency = "--"
+
+                        # Atualiza a label com a latência ou com traços
+                        self.update_ping_result(label, latency)
                     else:
-                        latency = "--"
-
-                    # Atualiza a label com a latência ou com traços
-                    self.update_ping_result(label, latency)
+                        logger_test_command.info("Timeout na leitura do ping")
+                        break  # Sai do loop se houver timeout na leitura
 
                 # Após a interrupção do teste, define a label para "--"
                 self.update_ping_result(label, "--")
@@ -1477,7 +1519,7 @@ class ButtonManager:
         threading.Thread(target=self.check_interface_status, args=('eth5', self.coopera_status, 'COOPERA', self.ssh_vpn_client)).start()
 
     def run_provedor_test(self, ssh_client, interface, output_queue, test_name):
-        """Executa um comando utilizando a conexão SSH estabelecida."""
+        """Executa um comando utilizando a conexão SSH estabelecida com um timeout."""
         if ssh_client is None:
             logger_provedor_test.error(f"{test_name}: Conexão SSH não está estabelecida.")
             output_queue.put(None)
@@ -1486,14 +1528,34 @@ class ButtonManager:
         command = f'curl --interface {interface} ipinfo.io'
         logger_provedor_test.info(f"Testando conexão com {test_name} na {interface}: {command}")
 
-        try:
-            stdin, stdout, stderr = ssh_client.exec_command(command)
-            output = stdout.read().decode()
-            logger_provedor_test.info(f"Teste de conexão com {test_name}: {output}")
-            output_queue.put(output)
-        except Exception as e:
-            logger_provedor_test.error(f"{test_name}: Erro ao executar comando: {e}")
+        def run_command():
+            try:
+                stdin, stdout, stderr = ssh_client.exec_command(command)
+                output = stdout.read().decode()
+                error_output = stderr.read().decode()
+
+                if output:
+                    logger_provedor_test.info(f"Teste de conexão com {test_name}: {output}")
+                    output_queue.put(output)
+                else:
+                    logger_provedor_test.error(f"{test_name}: Saída vazia. Erro: {error_output}")
+                    output_queue.put(None)
+            except Exception as e:
+                logger_provedor_test.error(f"{test_name}: Erro ao executar comando: {e}")
+                output_queue.put(None)
+
+        # Cria e inicia a thread para executar o comando
+        command_thread = threading.Thread(target=run_command)
+        command_thread.start()
+
+        # Espera pelo comando com timeout
+        command_thread.join(timeout=self.command_timeout)
+
+        # Verifica se a thread ainda está ativa
+        if command_thread.is_alive():
+            logger_provedor_test.error(f"{test_name}: Timeout na execução do comando.")
             output_queue.put(None)
+            # Aqui você pode adicionar qualquer lógica adicional necessária para finalizar a execução, se possível
 
     def update_all_statuses_offline(self):
         """Atualiza o status de todas as conexões para offline."""
@@ -2108,16 +2170,40 @@ class ButtonManager:
 
 #lOGICA PARA FUNÇÃO DE ATUALIZAÇÃO DO SCHEDULER NA 3° ABA.
     def executar_comando_ssh(self, ssh_client, comando):
-        """Executa um comando via SSH e retorna a saída."""
+        """Executa um comando via SSH e retorna a saída com um timeout."""
+        output_queue = queue.Queue()
+
+        def run_command():
+            try:
+                stdin, stdout, stderr = ssh_client.exec_command(comando)
+                erro = stderr.read().decode().strip()
+                saida = stdout.read().decode().strip()
+                if erro:
+                    output_queue.put(f"Erro: {erro}")
+                else:
+                    output_queue.put(saida)
+            except Exception as e:
+                output_queue.put(f"Erro: {str(e)}")
+
+        # Cria e inicia a thread para executar o comando
+        command_thread = threading.Thread(target=run_command)
+        command_thread.start()
+
+        # Espera pelo comando com timeout
+        command_thread.join(timeout=5)  # Timeout de 5 segundos
+
+        if command_thread.is_alive():
+            # Timeout ocorreu, encerra a thread e retorna erro
+            command_thread.join(0)  # Espera a thread terminar, se possível
+            return "Erro: Timeout na execução do comando."
+
+        # Obtém a saída da fila
         try:
-            stdin, stdout, stderr = ssh_client.exec_command(comando)
-            erro = stderr.read().decode().strip()
-            saida = stdout.read().decode().strip()
-            if erro:
-                return f"Erro: {erro}"
-            return saida
-        except Exception as e:
-            return f"Erro: {str(e)}"
+            result = output_queue.get_nowait()
+        except queue.Empty:
+            result = "Erro: Timeout na execução do comando."
+
+        return result
 
     def truncar_texto(self, texto, limite=12):
         """Retorna 'Indisponível' se o texto exceder o limite, caso contrário retorna o texto."""
@@ -2134,7 +2220,7 @@ class ButtonManager:
             self.master.after(0, lambda: label_cc.config(text="CC: Offline"))
             return
 
-        # Executa os comandos via SSH
+        # Executa os comandos via SSH com timeout
         resultado_scheduler = self.executar_comando_ssh(ssh_client, comando_scheduler)
         resultado_cc = self.executar_comando_ssh(ssh_client, comando_cc)
 
@@ -4195,7 +4281,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 71.1 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 71.2 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
