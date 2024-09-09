@@ -844,7 +844,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 71.3", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 71.4", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -1114,25 +1114,51 @@ class ButtonManager:
                             # Se estivermos usando o Transport, abre uma sessão para verificar a conexão
                             logger_test_command.info(f"Verificando conexão SSH via Transport ({connection_type})...")
                             session = self.transport.open_session()
-                            session.exec_command('uptime')  # Verifica o tempo de atividade do sistema
+                            session.exec_command('ping -c 1 127.0.0.1')  # Executa um ping para verificar a conexão
 
-                            # Espera até que a conexão seja interrompida ou o stop_event seja setado
-                            if self.stop_event_ssh.wait(5):
-                                logger_test_command.info("Parada do monitoramento de conexão detectada.")
+                            # Aguarda resposta ou timeout de 6 segundos
+                            ready = select.select([session], [], [], 9)[0]
+                            if not ready:
+                                raise TimeoutError("Nenhum retorno do comando 'ping' dentro do tempo limite.")
+                            
+                            output = session.recv(1024)
+                            while not output:
+                                if self.stop_event_ssh.is_set():
+                                    session.close()
+                                    return
+                                ready = select.select([session], [], [], 9)[0]
+                                if not ready:
+                                    raise TimeoutError("Nenhum retorno do comando 'ping' dentro do tempo limite.")
+                                output = session.recv(1024)
                                 session.close()
-                                break
+                            time.sleep(10)
+
                         else:
                             # Se estivermos usando SSHClient, realiza uma verificação de comando
                             logger_test_command.info(f"Verificando conexão SSH ({connection_type})...")
-                            ssh_client.exec_command('uptime')  # Verifica o tempo de atividade do sistema
+                            stdin, stdout, stderr = ssh_client.exec_command('ping -c 1 127.0.0.1')  # Executa um ping para verificar a conexão
+
+                            # Aguarda resposta ou timeout de 6 segundos
+                            ready = select.select([stdout.channel], [], [], 6)[0]
+                            if not ready:
+                                raise TimeoutError("Nenhum retorno do comando 'ping' dentro do tempo limite.")
                             
-                            if self.stop_event_ssh.wait(5):
-                                logger_test_command.info("Parada do monitoramento de conexão detectada.")
-                                break
+                            output = stdout.read(1024)
+                            while not output:
+                                if self.stop_event_ssh.is_set():
+                                    return
+                                ready = select.select([stdout.channel], [], [], 6)[0]
+                                if not ready:
+                                    raise TimeoutError("Nenhum retorno do comando 'ping' dentro do tempo limite.")
+                                output = stdout.read(1024)
+                            
+                            time.sleep(10)
+
                     except Exception as e:
                         # Se uma exceção for lançada, significa que a conexão foi perdida
                         logger_test_command.error(f"Conexão SSH ({connection_type}) perdida: {e}")
-                        
+
+                        # Fechamento e limpeza de acordo com o tipo de conexão
                         if connection_type == 'vpn':
                             self.ssh_vpn_client.close()
                             self.update_all_statuses_offline()
@@ -4280,7 +4306,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 71.3 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 71.4 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
