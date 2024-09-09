@@ -844,7 +844,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 71.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 71.3", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -1111,60 +1111,59 @@ class ButtonManager:
                     try:
                         # Verificação da conexão: Transport ou SSHClient
                         if bind_ip:
-                            # Verifica se o transporte está ativo
-                            if self.transport is None or not self.transport.is_active():
-                                raise Exception("Conexão SSH perdida (Transport)")
-                            else:
-                                logger_test_command.info(f"Conexão SSH via Transport ({connection_type}) está ativa.")
-
-                            # Monitora usando pacotes keepalive para manter a conexão ativa
-                            self.transport.set_keepalive(30)  # Envia pacotes keepalive a cada 30 segundos
+                            # Se estivermos usando o Transport, abre uma sessão para verificar a conexão
+                            logger_test_command.info(f"Verificando conexão SSH via Transport ({connection_type})...")
+                            session = self.transport.open_session()
+                            session.exec_command('uptime')  # Verifica o tempo de atividade do sistema
 
                             # Espera até que a conexão seja interrompida ou o stop_event seja setado
                             if self.stop_event_ssh.wait(5):
                                 logger_test_command.info("Parada do monitoramento de conexão detectada.")
+                                session.close()
                                 break
                         else:
-                            # Verifica se o canal SSH ainda está ativo usando ssh_client.get_transport().is_active()
-                            if ssh_client is None or ssh_client.get_transport() is None:
-                                raise Exception("Conexão SSH perdida (SSHClient)")
+                            # Se estivermos usando SSHClient, realiza uma verificação de comando
+                            logger_test_command.info(f"Verificando conexão SSH ({connection_type})...")
+                            ssh_client.exec_command('uptime')  # Verifica o tempo de atividade do sistema
                             
-                            transport = ssh_client.get_transport()
-                            if not transport.is_active():
-                                raise Exception("Conexão SSH perdida (SSHClient)")
-                            else:
-                                logger_test_command.info(f"Conexão SSH via Transport ({connection_type}) está ativa.")
-                            # Monitora usando pacotes keepalive para manter a conexão ativa
-                            transport.set_keepalive(30)
-
                             if self.stop_event_ssh.wait(5):
                                 logger_test_command.info("Parada do monitoramento de conexão detectada.")
                                 break
-
                     except Exception as e:
                         # Se uma exceção for lançada, significa que a conexão foi perdida
                         logger_test_command.error(f"Conexão SSH ({connection_type}) perdida: {e}")
-
-                        if bind_ip:
-                            if self.transport:
-                                self.transport.close()  # Fecha o transport se estiver usando bind_ip
-                                logger_test_command.info("Transport fechado devido à perda de conexão.")
-                        else:
-                            if ssh_client:
-                                ssh_client.close()  # Fecha o ssh_client
-                                logger_test_command.info("SSHClient fechado devido à perda de conexão.")
-
-                        connection_event.clear()  # Limpa o sinal de conexão estabelecida
-                        logger_test_command.info(f"Evento de conexão limpo para o tipo de conexão: {connection_type}")
-
+                        
                         if connection_type == 'vpn':
+                            self.ssh_vpn_client.close()
                             self.update_all_statuses_offline()
                             self.ping_provedor.clear()
                             self.stop_ping_provedor.set()
+                            self.ssh_vpn_client = None
+                            self.connection_established_ssh_omr_vpn.clear()
+                        elif connection_type == 'jogo':
+                            self.ssh_jogo_client.close()
+                            self.ssh_jogo_client = None
+                            self.connection_established_ssh_omr_jogo.clear()
+                        elif connection_type == 'vps_vpn':
+                            self.ssh_vps_vpn_client.close()
+                            self.ssh_vps_vpn_client = None
+                            self.connection_established_ssh_vps_vpn.clear()
                         elif connection_type == 'vps_jogo':
+                            self.ssh_vps_jogo_client.close()
                             self.ping_provedor.clear()
                             self.stop_ping_provedor.set()
-                        break 
+                            self.ssh_vps_jogo_client = None
+                            self.connection_established_ssh_vps_jogo.clear()
+                        elif connection_type == 'vps_vpn_bind':
+                            self.ssh_vps_vpn_bind_client.close()
+                            self.ssh_vps_vpn_bind_client = None
+                            self.connection_established_ssh_vps_vpn_bind.clear()
+                        elif connection_type == 'vps_jogo_bind':
+                            self.ssh_vps_jogo_bind_client.close()
+                            self.ssh_vps_jogo_bind_client = None
+                            self.connection_established_ssh_vps_jogo_bind.clear()
+
+                        break  # Sai do loop para tentar reconectar a conexão
 
             except paramiko.AuthenticationException as e:
                 logger_test_command.error(f"Erro de autenticação ao estabelecer conexão SSH ({connection_type}): {e}")
@@ -4281,7 +4280,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 71.2 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 71.3 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
