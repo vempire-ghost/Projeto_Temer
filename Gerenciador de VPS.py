@@ -450,6 +450,7 @@ class ButtonManager:
         # Sinaliza para as threads que devem encerrar
         self.ping_forever = False
         self.delete_file()
+        self.stop_event_proxy.set()
         self.stop_event_ssh.set()
         #self.close_ssh_connection()
         self.stop_pinging_threads()
@@ -679,7 +680,7 @@ class ButtonManager:
         self.master.after(3000, lambda: threading.Thread(target=self.establish_ssh_vps_vpn_connection).start())
         self.master.after(4000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_connection).start())
         self.master.after(5000, lambda: threading.Thread(target=self.establish_ssh_vps_vpn_bind_connection).start())
-        self.master.after(6000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_bind_connection).start())
+        #self.master.after(6000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_bind_connection).start())
 
         # Cria o Notebook
         self.notebook = ttk.Notebook(self.master)
@@ -844,7 +845,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 71.5", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 71.6", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -1024,8 +1025,8 @@ class ButtonManager:
                     logger_test_command.info("Connection established using bound socket.")
 
                     # Configura keep-alive
-                    self.transport.set_keepalive(30)
-                    ssh_client._transport = self.transport  # Atribua o transporte ao cliente SSH
+                    #self.transport.set_keepalive(30)
+                    #ssh_client._transport = self.transport  # Atribua o transporte ao cliente SSH
                         
                 else:
                     print(f"Connecting to {config['host']} on port {port} without bind IP")
@@ -1058,6 +1059,10 @@ class ButtonManager:
                         logger_test_command.info("Conexão SSH (jogo) estabelecida com sucesso.")
                     elif connection_type == 'vps_vpn':
                         self.ssh_vps_vpn_client = ssh_client
+                        self.stop_ping_provedor.clear()
+                        ping_thread = threading.Thread(target=self.run_vps_vpn_pings)
+                        ping_thread.start()
+                        self.ping_provedor.set()
                         self.master.after(1000, self.executar_comandos_scheduler)
                         logger_test_command.info("Conexão SSH (vps_vpn) estabelecida com sucesso.")
                     elif connection_type == 'vps_jogo':
@@ -1252,8 +1257,8 @@ class ButtonManager:
         """Inicia um proxy SOCKS usando a conexão SSH."""
         try:
             # Verifique se o transporte passado como argumento é válido
-            if transport is None:
-                logger_proxy.error("Transport SSH não está disponível.")
+            if transport is None or not transport.is_active():
+                logger_proxy.error("Transport SSH não está disponível ou conexão SSH caiu.")
                 return
 
             logger_proxy.info(f"Transport SSH está disponível e correto: {transport}")
@@ -1285,17 +1290,26 @@ class ButtonManager:
             logger_proxy.info(f"Proxy SOCKS na porta {port_local} está aguardando conexões.")
 
             while not self.stop_event_proxy.is_set():
-                client_socket, _ = server.accept()
-                logger_proxy.info("Nova conexão SOCKS aceita.")
-                # Passa a instância de transporte específica para a função de conexão
-                threading.Thread(target=self.handle_socks_connection, args=(client_socket, transport)).start()
+                # Verifique se a conexão SSH ainda está ativa
+                if not transport.is_active():
+                    logger_proxy.error("Conexão SSH caiu, encerrando proxy SOCKS.")
+                    break
+
+                try:
+                    client_socket, _ = server.accept()
+                    logger_proxy.info("Nova conexão SOCKS aceita.")
+                    # Passa a instância de transporte específica para a função de conexão
+                    threading.Thread(target=self.handle_socks_connection, args=(client_socket, transport)).start()
+                except socket.error as e:
+                    logger_proxy.error(f"Erro no servidor SOCKS: {e}")
+                    break
 
         except Exception as e:
             logger_proxy.error(f"Erro ao iniciar o proxy SOCKS: {e}")
-            
-            # Fecha o socket do servidor caso ocorra um erro
-            if server:
-                server.close()
+        finally:
+            # Feche o socket para liberar a porta
+            server.close()
+            logger_proxy.info(f"Proxy SOCKS na porta {port_local} foi fechado.")
         
     def handle_socks_connection(self, client_socket, transport):
         """Lida com uma conexão SOCKS usando o transporte SSH específico."""
@@ -4322,7 +4336,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 71.5 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 71.6 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
