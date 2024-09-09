@@ -451,7 +451,7 @@ class ButtonManager:
         self.ping_forever = False
         self.delete_file()
         self.stop_event_ssh.set()
-        self.close_ssh_connection()
+        #self.close_ssh_connection()
         self.stop_pinging_threads()
         self.stop_verificar_vm()
         self.save_window_position()
@@ -844,7 +844,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 71.4", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 71.5", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -1024,7 +1024,8 @@ class ButtonManager:
                     logger_test_command.info("Connection established using bound socket.")
 
                     # Configura keep-alive
-                    #self.transport.set_keepalive(30)
+                    self.transport.set_keepalive(30)
+                    ssh_client._transport = self.transport  # Atribua o transporte ao cliente SSH
                         
                 else:
                     print(f"Connecting to {config['host']} on port {port} without bind IP")
@@ -1109,56 +1110,52 @@ class ButtonManager:
                 # Aguarda até que a conexão seja interrompida ou o programa seja fechado
                 while not self.stop_event_ssh.is_set():
                     try:
-                        # Verificação da conexão: Transport ou SSHClient
                         if bind_ip:
-                            # Se estivermos usando o Transport, abre uma sessão para verificar a conexão
+                            # Verifica a conexão via Transport
                             logger_test_command.info(f"Verificando conexão SSH via Transport ({connection_type})...")
                             session = self.transport.open_session()
-                            session.exec_command('ping -c 1 127.0.0.1')  # Executa um ping para verificar a conexão
+                            session.exec_command('cat /proc/sys/net/ipv4/tcp_congestion_control')  # Alternativa ao 'ping'
 
-                            # Aguarda resposta ou timeout de 6 segundos
-                            ready = select.select([session], [], [], 9)[0]
+                            # Aguarda resposta ou timeout de 5 segundos
+                            ready = select.select([session], [], [], 5)[0]
                             if not ready:
-                                raise TimeoutError("Nenhum retorno do comando 'ping' dentro do tempo limite.")
-                            
-                            output = session.recv(1024)
-                            while not output:
-                                if self.stop_event_ssh.is_set():
-                                    session.close()
-                                    return
-                                ready = select.select([session], [], [], 9)[0]
-                                if not ready:
-                                    raise TimeoutError("Nenhum retorno do comando 'ping' dentro do tempo limite.")
-                                output = session.recv(1024)
-                                session.close()
-                            time.sleep(10)
+                                raise TimeoutError("Nenhum retorno do comando 'echo' dentro do tempo limite.")
+
+                            output = session.recv(1024).decode()
+                            if not output:
+                                raise TimeoutError("Nenhum dado recebido após o comando 'echo'.")
+
+                            logger_test_command.info(f"Saída do comando 'echo': {output}")
+                            session.close()
+                            time.sleep(10)  # Ajuste o intervalo conforme necessário
 
                         else:
-                            # Se estivermos usando SSHClient, realiza uma verificação de comando
+                            # Verifica a conexão via SSHClient
                             logger_test_command.info(f"Verificando conexão SSH ({connection_type})...")
-                            stdin, stdout, stderr = ssh_client.exec_command('ping -c 1 127.0.0.1')  # Executa um ping para verificar a conexão
+                            stdin, stdout, stderr = ssh_client.exec_command('cat /proc/sys/net/ipv4/tcp_congestion_control')  # Alternativa ao 'ping'
 
-                            # Aguarda resposta ou timeout de 6 segundos
-                            ready = select.select([stdout.channel], [], [], 6)[0]
+                            # Aguarda resposta ou timeout de 5 segundos
+                            ready = select.select([stdout.channel], [], [], 5)[0]
                             if not ready:
-                                raise TimeoutError("Nenhum retorno do comando 'ping' dentro do tempo limite.")
-                            
-                            output = stdout.read(1024)
-                            while not output:
-                                if self.stop_event_ssh.is_set():
-                                    return
-                                ready = select.select([stdout.channel], [], [], 6)[0]
-                                if not ready:
-                                    raise TimeoutError("Nenhum retorno do comando 'ping' dentro do tempo limite.")
-                                output = stdout.read(1024)
-                            
-                            time.sleep(10)
+                                raise TimeoutError("Nenhum retorno do comando 'echo' dentro do tempo limite.")
+
+                            output = stdout.read(1024).decode()
+                            error_output = stderr.read().decode()
+
+                            if not output and not error_output:
+                                raise TimeoutError("Nenhum dado recebido após o comando 'echo'.")
+
+                            if output:
+                                logger_test_command.info(f"Saída do comando 'echo': {output}")
+                            if error_output:
+                                logger_test_command.error(f"Erro no comando 'echo': {error_output}")
+
+                            time.sleep(10)  # Ajuste o intervalo conforme necessário
 
                     except Exception as e:
-                        # Se uma exceção for lançada, significa que a conexão foi perdida
+                        # Tratamento de exceções e limpeza
                         logger_test_command.error(f"Conexão SSH ({connection_type}) perdida: {e}")
 
-                        # Fechamento e limpeza de acordo com o tipo de conexão
                         if connection_type == 'vpn':
                             self.ssh_vpn_client.close()
                             self.update_all_statuses_offline()
@@ -1188,8 +1185,7 @@ class ButtonManager:
                             self.ssh_vps_jogo_bind_client.close()
                             self.ssh_vps_jogo_bind_client = None
                             self.connection_established_ssh_vps_jogo_bind.clear()
-
-                        break  # Sai do loop para tentar reconectar a conexão
+                        break
 
             except paramiko.AuthenticationException as e:
                 logger_test_command.error(f"Erro de autenticação ao estabelecer conexão SSH ({connection_type}): {e}")
@@ -2194,19 +2190,39 @@ class ButtonManager:
             self.start_monitoring()
 
 #lOGICA PARA FUNÇÃO DE ATUALIZAÇÃO DO SCHEDULER NA 3° ABA.
-    def executar_comando_ssh(self, ssh_client, comando):
-        """Executa um comando via SSH e retorna a saída com um timeout."""
+    def executar_comando_ssh(self, ssh_session, comando, is_transport=False):
+        """Executa um comando via SSH (cliente ou sessão Transport) e retorna a saída com um timeout."""
         output_queue = queue.Queue()
 
         def run_command():
             try:
-                stdin, stdout, stderr = ssh_client.exec_command(comando)
-                erro = stderr.read().decode().strip()
-                saida = stdout.read().decode().strip()
-                if erro:
-                    output_queue.put(f"Erro: {erro}")
+                if is_transport:
+                    # Sessão manualmente aberta com Transport
+                    ssh_session.exec_command(comando)
+
+                    # Aguarda resposta ou timeout de 5 segundos
+                    ready = select.select([ssh_session], [], [], 5)[0]
+                    if not ready:
+                        output_queue.put("Erro: Nenhum retorno dentro do tempo limite.")
+                        return
+
+                    # Recebe a saída do comando
+                    saida = ssh_session.recv(1024).decode().strip()
+                    if not saida:
+                        output_queue.put(f"Erro: Nenhuma saída do comando '{comando}'.")
+                    else:
+                        output_queue.put(saida)
+
                 else:
-                    output_queue.put(saida)
+                    # Usando ssh_client (como um SSHClient normal)
+                    stdin, stdout, stderr = ssh_session.exec_command(comando)
+                    erro = stderr.read().decode().strip()
+                    saida = stdout.read().decode().strip()
+                    if erro:
+                        output_queue.put(f"Erro: {erro}")
+                    else:
+                        output_queue.put(saida)
+
             except Exception as e:
                 output_queue.put(f"Erro: {str(e)}")
 
@@ -2458,7 +2474,7 @@ class ButtonManager:
 
         # Teste inicial de conexão ao endereço 192.168.100.1 na porta 80
         if not test_connection('192.168.100.1', 80, timeout):
-            return "DESLIGADO", "red"
+            return "Desligado", "red"
 
         # Loop de ping até que a conexão SSH/VPN seja estabelecida
         while not self.connection_established_ssh_vps_jogo_bind.is_set():
@@ -4306,7 +4322,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 71.4 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 71.5 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
