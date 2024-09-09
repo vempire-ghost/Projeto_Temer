@@ -452,7 +452,7 @@ class ButtonManager:
         self.delete_file()
         self.stop_event_proxy.set()
         self.stop_event_ssh.set()
-        #self.close_ssh_connection()
+        self.stop_ping_provedor.set()
         self.stop_pinging_threads()
         self.stop_verificar_vm()
         self.save_window_position()
@@ -845,7 +845,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 71.6", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 71.7", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -1281,9 +1281,6 @@ class ButtonManager:
             # Cria o servidor SOCKS local
             server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-            server.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)    # Tempo em segundos
-            server.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)    # Intervalo em segundos
-            server.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 6)      # Contador de pacotes
             server.bind(('0.0.0.0', port_local))
             server.listen(5)
 
@@ -1296,10 +1293,16 @@ class ButtonManager:
                     break
 
                 try:
+                    # Timeout para que accept não bloqueie indefinidamente
+                    server.settimeout(1)
                     client_socket, _ = server.accept()
                     logger_proxy.info("Nova conexão SOCKS aceita.")
-                    # Passa a instância de transporte específica para a função de conexão
-                    threading.Thread(target=self.handle_socks_connection, args=(client_socket, transport)).start()
+                    # Passa a instância de transporte específica e o evento de parada para a função de conexão
+                    thread = threading.Thread(target=self.handle_socks_connection, args=(client_socket, transport))
+                    thread.daemon = True  # Torna a thread daemon para garantir que o processo termine corretamente
+                    thread.start()
+                except socket.timeout:
+                    continue  # Continua o loop, verificando se stop_event_proxy foi setado
                 except socket.error as e:
                     logger_proxy.error(f"Erro no servidor SOCKS: {e}")
                     break
@@ -1375,8 +1378,9 @@ class ButtonManager:
             remote_socket = transport.open_channel('direct-tcpip', (addr, port), client_socket.getpeername())
             if remote_socket is not None:
                 logger_proxy.info("Canal SSH aberto com sucesso.")
-                threading.Thread(target=self.forward_data, args=(client_socket, remote_socket)).start()
-                threading.Thread(target=self.forward_data, args=(remote_socket, client_socket)).start()
+                # Passa o evento de parada para as threads de encaminhamento de dados
+                threading.Thread(target=self.forward_data, args=(client_socket, remote_socket, self.stop_event_proxy)).start()
+                threading.Thread(target=self.forward_data, args=(remote_socket, client_socket, self.stop_event_proxy)).start()
             else:
                 logger_proxy.error("Falha ao abrir o canal: remote_socket é None")
                 client_socket.close()
@@ -1387,9 +1391,9 @@ class ButtonManager:
             logger_proxy.error(f"Erro ao lidar com a conexão SOCKS: {e}")
             client_socket.close()
 
-    def forward_data(self, source, destination):
+    def forward_data(self, source, destination, stop_event):
         try:
-            while True:
+            while not stop_event.is_set():
                 data = source.recv(4096)
                 if len(data) == 0:
                     print("Nenhum dado recebido, fechando conexão.")
@@ -4336,7 +4340,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 71.6 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 71.7 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
