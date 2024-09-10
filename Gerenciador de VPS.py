@@ -879,11 +879,11 @@ class ButtonManager:
         self.establish_ssh_connection('vps_jogo')
 
     def establish_ssh_vps_vpn_bind_connection(self, bind_ip='192.168.101.2'):
-        """Estabelece e mantém uma conexão SSH persistente para VPS VPN."""
+        """Estabelece e mantém uma conexão SSH persistente via VPS VPN."""
         self.establish_ssh_connection('vps_vpn_bind', bind_ip)
 
     def establish_ssh_vps_jogo_bind_connection(self, bind_ip='192.168.100.2'):
-        """Estabelece e mantém uma conexão SSH persistente para VPS Jogo."""
+        """Estabelece e mantém uma conexão SSH persistente via VPS Jogo."""
         self.establish_ssh_connection('vps_jogo_bind', bind_ip)
 
     def establish_ssh_connection(self, connection_type, bind_ip=None, port_local=None):
