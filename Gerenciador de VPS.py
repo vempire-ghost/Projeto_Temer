@@ -266,12 +266,19 @@ class ButtonManager:
         self.config.set('ssh_vps_jogo', 'password', '')
         self.config.set('ssh_vps_jogo', 'port', '')
 
-        # Adiciona a seção 'ssh_xubuntu'
-        self.config.add_section('ssh_xubuntu')
-        self.config.set('ssh_xubuntu', 'host', '')
-        self.config.set('ssh_xubuntu', 'username', '')
-        self.config.set('ssh_xubuntu', 'password', '')
-        self.config.set('ssh_xubuntu', 'port', '')
+        # Adiciona a seção 'ssh_vps_vpn_bind'
+        self.config.add_section('ssh_vps_vpn_bind')
+        self.config.set('ssh_vps_vpn_bind', 'host', '')
+        self.config.set('ssh_vps_vpn_bind', 'username', '')
+        self.config.set('ssh_vps_vpn_bind', 'password', '')
+        self.config.set('ssh_vps_vpn_bind', 'port', '')
+
+        # Adiciona a seção 'ssh_vps_jogo_bind'
+        self.config.add_section('ssh_vps_jogo_bind')
+        self.config.set('ssh_vps_jogo_bind', 'host', '')
+        self.config.set('ssh_vps_jogo_bind', 'username', '')
+        self.config.set('ssh_vps_jogo_bind', 'password', '')
+        self.config.set('ssh_vps_jogo_bind', 'port', '')
 
         # Adiciona a seção 'general' para configurações gerais
         self.config.add_section('general')
@@ -319,11 +326,17 @@ class ButtonManager:
             'password': self.config.get('ssh_vps_jogo', 'password', fallback=''),
             'port': self.config.get('ssh_vps_jogo', 'port', fallback='')
         }
-        self.ssh_xubuntu_config = {
-            'host': self.config.get('ssh_xubuntu', 'host', fallback=''),
-            'username': self.config.get('ssh_xubuntu', 'username', fallback=''),
-            'password': self.config.get('ssh_xubuntu', 'password', fallback=''),
-            'port': self.config.get('ssh_xubuntu', 'port', fallback='')
+        self.ssh_vps_vpn_bind_config = {
+            'host': self.config.get('ssh_vps_vpn_bind', 'host', fallback=''),
+            'username': self.config.get('ssh_vps_vpn_bind', 'username', fallback=''),
+            'password': self.config.get('ssh_vps_vpn_bind', 'password', fallback=''),
+            'port': self.config.get('ssh_vps_vpn_bind', 'port', fallback='')
+        }
+        self.ssh_vps_jogo_bind_config = {
+            'host': self.config.get('ssh_vps_jogo_bind', 'host', fallback=''),
+            'username': self.config.get('ssh_vps_jogo_bind', 'username', fallback=''),
+            'password': self.config.get('ssh_vps_jogo_bind', 'password', fallback=''),
+            'port': self.config.get('ssh_vps_jogo_bind', 'port', fallback='')
         }
         self.load_general_config()  # Carrega as configurações gerais
 
@@ -845,7 +858,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72.1", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -865,9 +878,9 @@ class ButtonManager:
         """Estabelece e mantém uma conexão SSH persistente para VPS Jogo."""
         self.establish_ssh_connection('vps_jogo')
 
-    def establish_ssh_vps_vpn_bind_connection(self, bind_ip='192.168.101.2', port_local='8888'):
+    def establish_ssh_vps_vpn_bind_connection(self, bind_ip='192.168.101.2'):
         """Estabelece e mantém uma conexão SSH persistente para VPS VPN."""
-        self.establish_ssh_connection('vps_vpn_bind', bind_ip, port_local)
+        self.establish_ssh_connection('vps_vpn_bind', bind_ip)
 
     def establish_ssh_vps_jogo_bind_connection(self, bind_ip='192.168.100.2'):
         """Estabelece e mantém uma conexão SSH persistente para VPS Jogo."""
@@ -885,23 +898,29 @@ class ButtonManager:
 
             # Seleciona a configuração com base no tipo de conexão
             if connection_type == 'vpn':
-                config = self.ssh_vpn_config
+                config = self.config['ssh_vpn']
                 connection_event = self.connection_established_ssh_omr_vpn
+                port_local = config.get('port_local', None)
             elif connection_type == 'jogo':
-                config = self.ssh_jogo_config
+                config = self.config['ssh_jogo']
                 connection_event = self.connection_established_ssh_omr_jogo
+                port_local = config.get('port_local', None)
             elif connection_type == 'vps_vpn':
-                config = self.ssh_vps_vpn_config
+                config = self.config['ssh_vps_vpn']
                 connection_event = self.connection_established_ssh_vps_vpn
+                port_local = config.get('port_local', None)
             elif connection_type == 'vps_jogo':
-                config = self.ssh_vps_jogo_config
+                config = self.config['ssh_vps_jogo']
                 connection_event = self.connection_established_ssh_vps_jogo
+                port_local = config.get('port_local', None)
             elif connection_type == 'vps_vpn_bind':
-                config = self.ssh_xubuntu_config
+                config = self.config['ssh_vps_vpn_bind']
                 connection_event = self.connection_established_ssh_vps_vpn_bind
+                port_local = config.get('port_local', None)
             elif connection_type == 'vps_jogo_bind':
-                config = self.ssh_xubuntu_config
+                config = self.config['ssh_vps_jogo_bind']
                 connection_event = self.connection_established_ssh_vps_jogo_bind
+                port_local = config.get('port_local', None)
             else:
                 logger_test_command.error("Tipo de conexão inválido.")
                 return
@@ -3877,7 +3896,7 @@ class OMRManagerDialog:
 
         self.top.protocol("WM_DELETE_WINDOW", self.on_close)
 
-# METODO PARA SALVAR USUARIO E SENHA PARA CONEXÃO SSH COM OMR
+# METODO PARA SALVAR USUARIO E SENHA PARA CONEXÃO SSH COM OMR VPS VPN/JOGO NA QUARTA ABA
     def open_ssh_keys_folder(self):
         # Define o caminho da pasta 'ssh_keys'
         path = os.path.join(os.getcwd(), 'ssh_keys')
@@ -4399,7 +4418,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 72 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 72.1 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
