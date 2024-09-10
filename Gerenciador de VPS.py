@@ -680,7 +680,7 @@ class ButtonManager:
         self.master.after(3000, lambda: threading.Thread(target=self.establish_ssh_vps_vpn_connection).start())
         self.master.after(4000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_connection).start())
         self.master.after(5000, lambda: threading.Thread(target=self.establish_ssh_vps_vpn_bind_connection).start())
-        #self.master.after(6000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_bind_connection).start())
+        self.master.after(6000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_bind_connection).start())
 
         # Cria o Notebook
         self.notebook = ttk.Notebook(self.master)
@@ -845,7 +845,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 71.7", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -990,16 +990,24 @@ class ButtonManager:
                 if bind_ip:
                     print(f"Attempting to bind socket to IP: {bind_ip}")
                     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    
+
                     try:
-                        sock.bind((bind_ip, 0))  
+                        sock.bind((bind_ip, 0))
                         logger_test_command.info(f"Socket bound to IP {bind_ip}")
                     except Exception as e:
                         logger_test_command.info(f"Failed to bind socket to IP {bind_ip}: {e}")
                         raise
 
                     sock.connect((config['host'], port))
-                    self.transport = paramiko.Transport(sock)  # Use self.transport para garantir que está atribuindo corretamente
+                    transport = paramiko.Transport(sock)
+                    transport.start_client()
+
+                    # Atribuindo transport específico para cada tipo de conexão
+                    if connection_type == 'vps_vpn_bind':
+                        self.transport_vps_vpn_bind = transport
+                    elif connection_type == 'vps_jogo_bind':
+                        self.transport_vps_jogo_bind = transport
+                    # Você pode adicionar outras opções de conexão aqui...
 
                     # Tentativa de autenticação com todas as chaves disponíveis
                     if key_files:
@@ -1007,27 +1015,28 @@ class ButtonManager:
                         for key_file in key_files:
                             try:
                                 private_key = paramiko.RSAKey(filename=key_file)
-                                self.transport.connect(username=config['username'], pkey=private_key)
+                                transport.auth_publickey(config['username'], private_key)
                                 logger_test_command.info(f"Autenticação bem-sucedida com a chave: {key_file}")
                                 authenticated = True
-                                break
+                                break  # Sai do loop se a autenticação for bem-sucedida
                             except paramiko.AuthenticationException as e:
                                 logger_test_command.warning(f"Falha de autenticação com a chave {key_file}: {e}")
-                                continue
+                                continue  # Tenta a próxima chave
 
                         if not authenticated:
                             logger_test_command.error("Falha de autenticação com todas as chaves. Tentando com senha...")
-                            self.transport.connect(username=config['username'], password=config['password'])
+                            transport.auth_password(config['username'], config['password'], look_for_keys=True)
                     else:
+                        # Se não houver arquivos de chave, tenta autenticação com senha diretamente
                         logger_test_command.info("Nenhuma chave encontrada. Tentando autenticação com senha...")
-                        self.transport.connect(username=config['username'], password=config['password'])
+                        transport.auth_password(config['username'], config['password'], look_for_keys=True)
 
                     logger_test_command.info("Connection established using bound socket.")
 
                     # Configura keep-alive
-                    #self.transport.set_keepalive(30)
-                    #ssh_client._transport = self.transport  # Atribua o transporte ao cliente SSH
-                        
+                    transport.set_keepalive(30)
+                    ssh_client._transport = transport  # Atribua o transporte ao cliente SSH
+
                 else:
                     print(f"Connecting to {config['host']} on port {port} without bind IP")
                     ssh_client.connect(
@@ -1083,17 +1092,29 @@ class ButtonManager:
                     # Verifica se `port_local` foi fornecido
                     if port_local:
                         # Verifica o tipo de conexão
-                        if connection_type in ['vps_vpn_bind', 'vps_jogo_bind']:
-                            if self.transport is None:
-                                logger_proxy.error("O transporte SSH não foi inicializado corretamente.")
+                        if connection_type == 'vps_vpn_bind':
+                            if self.transport_vps_vpn_bind is None:
+                                logger_proxy.error("O transporte SSH (vps_vpn_bind) não foi inicializado corretamente.")
                                 return
 
-                            self.transport.set_keepalive(30)  # Envia pacotes keepalive a cada 30 segundos
-                            logger_proxy.info("Keepalive configurado para o transporte SSH.")
+                            self.transport_vps_vpn_bind.set_keepalive(30)  # Envia pacotes keepalive a cada 30 segundos
+                            logger_proxy.info("Keepalive configurado para o transporte SSH (vps_vpn_bind).")
 
                             logger_proxy.info(f"Iniciando túnel SSH na porta local {port_local} para o tipo de conexão {connection_type}.")
-                            # Passa a instância atual de `self.transport` para o SOCKS proxy
-                            threading.Thread(target=self.start_socks_proxy, args=(port_local, connection_type, self.transport)).start()
+                            # Passa a instância de transporte específica para o SOCKS proxy
+                            threading.Thread(target=self.start_socks_proxy, args=(port_local, connection_type, self.transport_vps_vpn_bind)).start()
+
+                        elif connection_type == 'vps_jogo_bind':
+                            if self.transport_vps_jogo_bind is None:
+                                logger_proxy.error("O transporte SSH (vps_jogo_bind) não foi inicializado corretamente.")
+                                return
+
+                            self.transport_vps_jogo_bind.set_keepalive(30)  # Envia pacotes keepalive a cada 30 segundos
+                            logger_proxy.info("Keepalive configurado para o transporte SSH (vps_jogo_bind).")
+
+                            logger_proxy.info(f"Iniciando túnel SSH na porta local {port_local} para o tipo de conexão {connection_type}.")
+                            # Passa a instância de transporte específica para o SOCKS proxy
+                            threading.Thread(target=self.start_socks_proxy, args=(port_local, connection_type, self.transport_vps_jogo_bind)).start()
 
                         else:
                             self.transport = ssh_client.get_transport()
@@ -1118,42 +1139,80 @@ class ButtonManager:
                         if bind_ip:
                             # Verifica a conexão via Transport
                             logger_test_command.info(f"Verificando conexão SSH via Transport ({connection_type})...")
-                            session = self.transport.open_session()
+
+                            # Loga a instância de self.transport
+                            transport = None
+                            if connection_type == 'vps_vpn_bind':
+                                transport = self.transport_vps_vpn_bind
+                            elif connection_type == 'vps_jogo_bind':
+                                transport = self.transport_vps_jogo_bind
+                            else:
+                                transport = self.transport
+                            
+                            if transport is None:
+                                logger_test_command.error(f"Transport para o tipo de conexão {connection_type} não foi inicializado corretamente.")
+                                break
+
+                            logger_test_command.info(f"Executando comando na conexão SSH (via Transport) com cliente: {transport}")
+
+                            session = transport.open_session()
                             session.exec_command('cat /proc/sys/net/ipv4/tcp_congestion_control')  # Alternativa ao 'ping'
 
                             # Aguarda resposta ou timeout de 5 segundos
                             ready = select.select([session], [], [], 5)[0]
                             if not ready:
-                                raise TimeoutError("Nenhum retorno do comando 'echo' dentro do tempo limite.")
+                                raise TimeoutError("Nenhum retorno do comando dentro do tempo limite.")
 
                             output = session.recv(1024).decode()
                             if not output:
-                                raise TimeoutError("Nenhum dado recebido após o comando 'echo'.")
+                                raise TimeoutError("Nenhum dado recebido após o comando.")
 
-                            logger_test_command.info(f"Saída do comando 'echo': {output}")
+                            #logger_test_command.info(f"Saída do comando: {output}")
                             session.close()
                             time.sleep(10)  # Ajuste o intervalo conforme necessário
 
                         else:
                             # Verifica a conexão via SSHClient
                             logger_test_command.info(f"Verificando conexão SSH ({connection_type})...")
+
+                            # Loga a instância de ssh_client
+                            ssh_client = None
+                            if connection_type == 'vpn':
+                                ssh_client = self.ssh_vpn_client
+                            elif connection_type == 'jogo':
+                                ssh_client = self.ssh_jogo_client
+                            elif connection_type == 'vps_vpn':
+                                ssh_client = self.ssh_vps_vpn_client
+                            elif connection_type == 'vps_jogo':
+                                ssh_client = self.ssh_vps_jogo_client
+                            elif connection_type == 'vps_vpn_bind':
+                                ssh_client = self.ssh_vps_vpn_bind_client
+                            elif connection_type == 'vps_jogo_bind':
+                                ssh_client = self.ssh_vps_jogo_bind_client
+                            
+                            if ssh_client is None:
+                                logger_test_command.error(f"SSHClient para o tipo de conexão {connection_type} não foi inicializado corretamente.")
+                                break
+
+                            logger_test_command.info(f"Executando comando na conexão SSH (via SSHClient) com cliente: {ssh_client}")
+
                             stdin, stdout, stderr = ssh_client.exec_command('cat /proc/sys/net/ipv4/tcp_congestion_control')  # Alternativa ao 'ping'
 
                             # Aguarda resposta ou timeout de 5 segundos
                             ready = select.select([stdout.channel], [], [], 5)[0]
                             if not ready:
-                                raise TimeoutError("Nenhum retorno do comando 'echo' dentro do tempo limite.")
+                                raise TimeoutError("Nenhum retorno do comando dentro do tempo limite.")
 
                             output = stdout.read(1024).decode()
                             error_output = stderr.read().decode()
 
                             if not output and not error_output:
-                                raise TimeoutError("Nenhum dado recebido após o comando 'echo'.")
+                                raise TimeoutError("Nenhum dado recebido após o comando.")
 
-                            if output:
-                                logger_test_command.info(f"Saída do comando 'echo': {output}")
+                            #if output:
+                                #logger_test_command.info(f"Saída do comando: {output}")
                             if error_output:
-                                logger_test_command.error(f"Erro no comando 'echo': {error_output}")
+                                logger_test_command.error(f"Erro no comando: {error_output}")
 
                             time.sleep(10)  # Ajuste o intervalo conforme necessário
 
@@ -4340,7 +4399,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 71.7 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 72 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
