@@ -858,7 +858,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -3894,7 +3894,121 @@ class OMRManagerDialog:
         # Carregar informações do usuário ao inicializar
         self.load_user_credentials()
 
+        # Adiciona a quinta aba (Configurações de Proxy)
+        aba5 = ttk.Frame(self.tabs)
+        self.tabs.add(aba5, text="Configurações de Proxy")
+
+        # Frame principal para configurações de Proxy na aba 5
+        frame_ssh_bind = tk.Frame(aba5, borderwidth=1, relief=tk.RAISED)
+        frame_ssh_bind.pack(padx=10, pady=10, fill=tk.BOTH)
+
+        # Frame SSH VPS VPN Bind
+        frame_vps_vpn_bind = tk.Frame(frame_ssh_bind, borderwidth=1, relief=tk.RAISED)
+        frame_vps_vpn_bind.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
+
+        tk.Label(frame_vps_vpn_bind, text="Host via VPS VPN:").grid(row=0, column=0, sticky=tk.W)
+        self.host_vps_vpn_bind_entry = tk.Entry(frame_vps_vpn_bind, width=30)
+        self.host_vps_vpn_bind_entry.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
+
+        self.port_vps_vpn_bind_entry = tk.Entry(frame_vps_vpn_bind, width=7)
+        self.port_vps_vpn_bind_entry.grid(row=0, column=2, padx=5, pady=5, sticky=tk.E)
+
+        tk.Label(frame_vps_vpn_bind, text="Usuário:").grid(row=1, column=0, sticky=tk.W)
+        self.user_vps_vpn_bind_entry = tk.Entry(frame_vps_vpn_bind, width=30)
+        self.user_vps_vpn_bind_entry.grid(row=1, column=1, padx=5, pady=5)
+
+        tk.Label(frame_vps_vpn_bind, text="Senha:").grid(row=2, column=0, sticky=tk.W)
+        self.password_vps_vpn_bind_entry = tk.Entry(frame_vps_vpn_bind, show='*', width=30)
+        self.password_vps_vpn_bind_entry.grid(row=2, column=1, padx=5, pady=5)
+
+        tk.Label(frame_vps_vpn_bind, text="Porta Local:").grid(row=3, column=0, sticky=tk.W)
+        self.port_local_vps_vpn_bind_entry = tk.Entry(frame_vps_vpn_bind, width=7)
+        self.port_local_vps_vpn_bind_entry.grid(row=3, column=1, padx=5, pady=5)
+
+        # Frame SSH VPS JOGO Bind
+        frame_vps_jogo_bind = tk.Frame(frame_ssh_bind, borderwidth=1, relief=tk.RAISED)
+        frame_vps_jogo_bind.grid(row=0, column=2, padx=5, pady=5, sticky=tk.W)
+
+        tk.Label(frame_vps_jogo_bind, text="Host via VPS JOGO:").grid(row=0, column=0, sticky=tk.W)
+        self.host_vps_jogo_bind_entry = tk.Entry(frame_vps_jogo_bind, width=30)
+        self.host_vps_jogo_bind_entry.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
+
+        self.port_vps_jogo_bind_entry = tk.Entry(frame_vps_jogo_bind, width=7)
+        self.port_vps_jogo_bind_entry.grid(row=0, column=2, padx=5, pady=5, sticky=tk.E)
+
+        tk.Label(frame_vps_jogo_bind, text="Usuário:").grid(row=1, column=0, sticky=tk.W)
+        self.user_vps_jogo_bind_entry = tk.Entry(frame_vps_jogo_bind, width=30)
+        self.user_vps_jogo_bind_entry.grid(row=1, column=1, padx=5, pady=5)
+
+        tk.Label(frame_vps_jogo_bind, text="Senha:").grid(row=2, column=0, sticky=tk.W)
+        self.password_vps_jogo_bind_entry = tk.Entry(frame_vps_jogo_bind, show='*', width=30)
+        self.password_vps_jogo_bind_entry.grid(row=2, column=1, padx=5, pady=5)
+
+        tk.Label(frame_vps_jogo_bind, text="Porta Local:").grid(row=3, column=0, sticky=tk.W)
+        self.port_local_vps_jogo_bind_entry = tk.Entry(frame_vps_jogo_bind, width=7)
+        self.port_local_vps_jogo_bind_entry.grid(row=3, column=1, padx=5, pady=5)
+
+        # Rótulo de texto logo abaixo dos frames
+        tk.Label(frame_ssh_bind, text="Configure aqui seu host SSH que será conectado através dos túneis MPTCP. Se informado uma porta local, também será criado um proxy SOCKS5 para servir de túnel SSH para TCP.", anchor=tk.W, wraplength=800, justify=tk.LEFT).grid(row=1, column=0, columnspan=5, pady=0, sticky=tk.W)
+        # Rótulo de texto logo abaixo dos frames
+        tk.Label(frame_ssh_bind, text="As chaves privadas devem ser salvas na pasta 'ssh_keys' acessivel na tela de Configurações de SSH.", anchor=tk.W, wraplength=800, justify=tk.LEFT).grid(row=2, column=0, columnspan=5, pady=0, sticky=tk.W)
+
+        # Rótulo de texto acima do botão alinhado à esquerda
+        #tk.Label(frame_ssh_bind, text="", anchor=tk.W).grid(row=1, column=1, columnspan=5, pady=20, sticky=tk.W)
+        #tk.Label(frame_ssh_bind, text="Marcar esta opção irá criar um usuario e senha no OMR de acordo com as configurações definidas acima.", anchor=tk.W).grid(row=2, column=0, columnspan=5, pady=0, sticky=tk.W)
+
+        # Botão para salvar as configurações
+        save_button = tk.Button(frame_ssh_bind, text="Salvar", command=self.save_bind_credentials)
+        save_button.grid(row=3, column=0, columnspan=2, pady=10)
+
+        # Carregar informações ao inicializar
+        self.load_bind_credentials()
+
         self.top.protocol("WM_DELETE_WINDOW", self.on_close)
+
+# NOVO METODO
+    def load_bind_credentials(self):
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+
+        # Carregar as informações para VPS VPN Bind
+        self.host_vps_vpn_bind_entry.insert(0, config['ssh_vps_vpn_bind'].get('host', ''))
+        self.port_vps_vpn_bind_entry.insert(0, config['ssh_vps_vpn_bind'].get('port', ''))
+        self.user_vps_vpn_bind_entry.insert(0, config['ssh_vps_vpn_bind'].get('username', ''))
+        self.password_vps_vpn_bind_entry.insert(0, config['ssh_vps_vpn_bind'].get('password', ''))
+        self.port_local_vps_vpn_bind_entry.insert(0, config['ssh_vps_vpn_bind'].get('port_local', ''))
+
+        # Carregar as informações para VPS JOGO Bind
+        self.host_vps_jogo_bind_entry.insert(0, config['ssh_vps_jogo_bind'].get('host', ''))
+        self.port_vps_jogo_bind_entry.insert(0, config['ssh_vps_jogo_bind'].get('port', ''))
+        self.user_vps_jogo_bind_entry.insert(0, config['ssh_vps_jogo_bind'].get('username', ''))
+        self.password_vps_jogo_bind_entry.insert(0, config['ssh_vps_jogo_bind'].get('password', ''))
+        self.port_local_vps_jogo_bind_entry.insert(0, config['ssh_vps_jogo_bind'].get('port_local', ''))
+
+    def save_bind_credentials(self):
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+
+        # Salvar as informações para VPS VPN Bind
+        config['ssh_vps_vpn_bind'] = {
+            'host': self.host_vps_vpn_bind_entry.get(),
+            'port': self.port_vps_vpn_bind_entry.get(),
+            'username': self.user_vps_vpn_bind_entry.get(),
+            'port_local': self.port_local_vps_vpn_bind_entry.get(),
+            'password': self.password_vps_vpn_bind_entry.get()
+        }
+
+        # Salvar as informações para VPS JOGO Bind
+        config['ssh_vps_jogo_bind'] = {
+            'host': self.host_vps_jogo_bind_entry.get(),
+            'port': self.port_vps_jogo_bind_entry.get(),
+            'username': self.user_vps_jogo_bind_entry.get(),
+            'port_local': self.port_local_vps_jogo_bind_entry.get(),
+            'password': self.password_vps_jogo_bind_entry.get()
+        }
+
+        with open('config.ini', 'w') as configfile:
+            config.write(configfile)
 
 # METODO PARA SALVAR USUARIO E SENHA PARA CONEXÃO SSH COM OMR VPS VPN/JOGO NA QUARTA ABA
     def open_ssh_keys_folder(self):
@@ -4418,7 +4532,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 72.1 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 72.2 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
