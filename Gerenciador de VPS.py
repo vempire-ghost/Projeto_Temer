@@ -860,7 +860,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72.3", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72.4", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -1176,20 +1176,38 @@ class ButtonManager:
 
                             logger_test_command.info(f"Executando comando na conexão SSH (via Transport) com cliente: {transport}")
 
-                            session = transport.open_session()
-                            session.exec_command('cat /proc/sys/net/ipv4/tcp_congestion_control')  # Alternativa ao 'ping'
+                            def execute_command():
+                                nonlocal transport
+                                session = transport.open_session()
+                                session.exec_command('echo 1')  # Alternativa ao 'ping'
+                                
+                                # Aguarda resposta ou timeout de 5 segundos
+                                ready = select.select([session], [], [], 5)[0]
+                                if not ready:
+                                    raise TimeoutError("Nenhum retorno do comando dentro do tempo limite.")
+                                
+                                output = session.recv(1024).decode()
+                                if not output:
+                                    raise TimeoutError("Nenhum dado recebido após o comando.")
+                                
+                                #logger_test_command.info(f"Saída do comando: {output}")
+                                session.close()
 
-                            # Aguarda resposta ou timeout de 5 segundos
-                            ready = select.select([session], [], [], 5)[0]
-                            if not ready:
-                                raise TimeoutError("Nenhum retorno do comando dentro do tempo limite.")
+                            # Cria e inicia a thread
+                            command_thread = threading.Thread(target=execute_command)
+                            command_thread.start()
 
-                            output = session.recv(1024).decode()
-                            if not output:
-                                raise TimeoutError("Nenhum dado recebido após o comando.")
+                            # Aguarda o término da thread ou timeout
+                            command_thread.join(timeout=5)
+                            if command_thread.is_alive():
+                                # Interrompe a thread se necessário (não recomendado em todas as situações)
+                                # Abaixo é um exemplo que não termina a thread diretamente; apenas para referencia
+                                logger_test_command.error("O comando excedeu o tempo limite de 5 segundos.")
+                                # A thread não pode ser interrompida diretamente. Dependendo da lógica, pode-se precisar de um tratamento adicional.
 
-                            #logger_test_command.info(f"Saída do comando: {output}")
-                            session.close()
+                                # Você pode optar por registrar o erro e continuar o loop ou levantar uma exceção
+                                raise TimeoutError("O comando SSH excedeu o tempo limite de 5 segundos.")
+                            
                             time.sleep(10)  # Ajuste o intervalo conforme necessário
 
                         else:
@@ -1217,7 +1235,7 @@ class ButtonManager:
 
                             logger_test_command.info(f"Executando comando na conexão SSH (via SSHClient) com cliente: {ssh_client}")
 
-                            stdin, stdout, stderr = ssh_client.exec_command('cat /proc/sys/net/ipv4/tcp_congestion_control')  # Alternativa ao 'ping'
+                            stdin, stdout, stderr = ssh_client.exec_command('echo 1', timeout=5)  # Alternativa ao 'ping'
 
                             # Aguarda resposta ou timeout de 5 segundos
                             ready = select.select([stdout.channel], [], [], 5)[0]
@@ -4534,7 +4552,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 72.3 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 72.4 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
