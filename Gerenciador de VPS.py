@@ -15,6 +15,7 @@ import socket
 import sys
 import webview
 import logging
+from logging.handlers import RotatingFileHandler
 import winreg
 import queue
 import paramiko
@@ -67,30 +68,31 @@ formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datef
 
 # Logger principal
 logger_main = logging.getLogger('main_logger')
-main_handler = logging.FileHandler('app.log')
+# Usando RotatingFileHandler em vez de FileHandler, com limite de 5 MB e até 3 backups
+main_handler = RotatingFileHandler('app.log', maxBytes=5*1024*1024, backupCount=3)
 main_handler.setLevel(logging.INFO)
-main_handler.setFormatter(formatter)  # Aplicando o Formatter
+main_handler.setFormatter(formatter)
 logger_main.addHandler(main_handler)
 
 # Logger secundário para o run_test_command
 logger_test_command = logging.getLogger('test_command_logger')
-test_command_handler = logging.FileHandler('test_command.log')
+test_command_handler = RotatingFileHandler('test_command.log', maxBytes=5*1024*1024, backupCount=3)
 test_command_handler.setLevel(logging.INFO)
-test_command_handler.setFormatter(formatter)  # Aplicando o Formatter
+test_command_handler.setFormatter(formatter)
 logger_test_command.addHandler(test_command_handler)
 
 # Logger para provedor_test
 logger_provedor_test = logging.getLogger('provedor_test_logger')
-provedor_test_handler = logging.FileHandler('provedor_test.log')
+provedor_test_handler = RotatingFileHandler('provedor_test.log', maxBytes=5*1024*1024, backupCount=3)
 provedor_test_handler.setLevel(logging.INFO)
-provedor_test_handler.setFormatter(formatter)  # Aplicando o Formatter
+provedor_test_handler.setFormatter(formatter)
 logger_provedor_test.addHandler(provedor_test_handler)
 
 # Logger para proxy
 logger_proxy = logging.getLogger('proxy_logger')
-proxy_handler = logging.FileHandler('proxy.log')
+proxy_handler = RotatingFileHandler('proxy.log', maxBytes=5*1024*1024, backupCount=3)
 proxy_handler.setLevel(logging.INFO)
-proxy_handler.setFormatter(formatter)  # Aplicando o Formatter
+proxy_handler.setFormatter(formatter)
 logger_proxy.addHandler(proxy_handler)
 
 class ButtonManager:
@@ -858,7 +860,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72.3", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -4532,7 +4534,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 72.2 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 72.3 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
