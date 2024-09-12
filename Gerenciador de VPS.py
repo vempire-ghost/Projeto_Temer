@@ -887,7 +887,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72.5", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72.6", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -1201,7 +1201,12 @@ class ButtonManager:
                                 logger_test_command.error(f"Transport para o tipo de conexão {connection_type} não foi inicializado corretamente.")
                                 break
 
-                            logger_test_command.info(f"Executando comando na conexão SSH (via Transport) com cliente: {transport}")
+                            # Loga o Transport e verifica se contém "unconnected"
+                            transport_info = f"Executando comando na conexão SSH (via Transport) com cliente: {transport}"
+                            logger_test_command.info(transport_info)
+                            
+                            if 'unconnected' in transport_info:
+                                raise ConnectionError(f"O Transport para o tipo de conexão {connection_type} está desconectado.")
 
                             def execute_command():
                                 nonlocal transport
@@ -1227,8 +1232,6 @@ class ButtonManager:
                             # Aguarda o término da thread ou timeout
                             command_thread.join(timeout=5)
                             if command_thread.is_alive():
-                                # Interrompe a thread se necessário (não recomendado em todas as situações)
-                                # Abaixo é um exemplo que não termina a thread diretamente; apenas para referencia
                                 logger_test_command.error("O comando excedeu o tempo limite de 5 segundos.")
                                 # A thread não pode ser interrompida diretamente. Dependendo da lógica, pode-se precisar de um tratamento adicional.
 
@@ -1260,7 +1263,12 @@ class ButtonManager:
                                 logger_test_command.error(f"SSHClient para o tipo de conexão {connection_type} não foi inicializado corretamente.")
                                 break
 
-                            logger_test_command.info(f"Executando comando na conexão SSH (via SSHClient) com cliente: {ssh_client}")
+                            # Loga o SSHClient e verifica se contém "unconnected"
+                            ssh_client_info = f"Executando comando na conexão SSH (via SSHClient) com cliente: {ssh_client}"
+                            logger_test_command.info(ssh_client_info)
+                            
+                            if 'unconnected' in ssh_client_info:
+                                raise ConnectionError(f"O SSHClient para o tipo de conexão {connection_type} está desconectado.")
 
                             stdin, stdout, stderr = ssh_client.exec_command('echo 1', timeout=5)  # Alternativa ao 'ping'
 
@@ -4628,7 +4636,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 72.5 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 72.6 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
