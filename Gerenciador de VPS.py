@@ -105,6 +105,7 @@ class ButtonManager:
         self.verificar_vm = True  # Variável que controla a verificação das VMs
         self.ping_forever = True # Variavel para ligar/desligar testes de ping.
         self.criar_usuario_ssh = True # Variavel para definir se cria ou não o usuario ssh no OMR
+        self.execute_initial_test=True # Variavel para definir se o teste inicial de ping do omr vpn/jogo será executado ou não
         self.ping_provedor = threading.Event() # Variavel para executar o teste de ping nas interfaces de cada provedor
         self.stop_ping_provedor = threading.Event() # Variavel para parar o teste de ping nas interfaces de cada provedor
         self.connection_established_ssh_omr_vpn = threading.Event()  # Evento para sinalizar conexão estabelecida
@@ -123,6 +124,7 @@ class ButtonManager:
         self.second_tab_button_frame = None
         self.button_counter = 1  # Inicializa o contador de botões
         self.load_window_position()
+        self.load_initial_test()  # Carregar a configuração do arquivo config.ini ao inicializar
 
         self.clear_log_file('app.log')  # Limpa o arquivo de log ao iniciar o programa
         self.clear_log_file('test_command.log')  # Limpa o arquivo de log ao iniciar o programa
@@ -387,6 +389,26 @@ class ButtonManager:
                 return True
         
         return False
+
+# LOGICA PARA CARREGAR VALOR DE TESTE INICIAL DE PING DO OMR VPN/JOGO
+    def load_initial_test(self):
+        # Método para carregar a configuração de execute_initial_test do arquivo config.ini
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+
+        # Se a seção 'general' e a opção 'execute_initial_test' existirem no arquivo, carrega o valor
+        if config.has_section('general') and config.has_option('general', 'execute_initial_test'):
+            self.execute_initial_test = config.getboolean('general', 'execute_initial_test')
+        else:
+            # Caso contrário, assume o valor padrão (True)
+            self.execute_initial_test = True
+
+        print(f"Configuração carregada: execute_initial_test = {self.execute_initial_test}")
+
+    def set_execute_initial_test(self, value):
+        # Método para atualizar o valor de execute_initial_test
+        self.execute_initial_test = value
+        print(f"execute_initial_test atualizado para: {self.execute_initial_test}")
          
     # Cria um botão de menu no canto superior esquerdo
     def create_menu_button(self):
@@ -419,6 +441,11 @@ class ButtonManager:
     def open_omr_manager(self):
         dialog = OMRManagerDialog(self.master, self)  # Passa a instância de ButtonManager para OMRManagerDialog
         self.master.wait_window(dialog.top)  # Espera até que a janela de diálogo seja fechada
+
+    def set_execute_initial_test(self, value):
+        # Método para atualizar o valor de execute_initial_test
+        self.execute_initial_test = value
+        print(f"execute_initial_test atualizado para: {self.execute_initial_test}")
 
     def open_color_config(self):
         dialog = ConfigDialog(self.master, self.color_map, self.top)
@@ -860,7 +887,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72.4", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72.5", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -2542,10 +2569,13 @@ class ButtonManager:
             except (socket.timeout, socket.error):
                 return False
 
-        # Teste inicial de conexão ao endereço 192.168.101.1 na porta 80
-        if not test_connection('192.168.101.1', 80, timeout):
-            # Se falhar no teste inicial, retorna OFF em vermelho
-            return "Desligado", "red"
+        # Condição 1: O teste inicial só pode ser ignorado se o evento de conexão estiver ativo
+        # Se o evento de conexão NÃO estiver ativo, sempre executa o teste inicial
+        if not self.connection_established_ssh_vps_vpn_bind.is_set() or self.execute_initial_test:
+            # Teste inicial de conexão ao endereço 192.168.101.1 na porta 80
+            if not test_connection('192.168.101.1', 80, timeout):
+                # Se falhar no teste inicial, retorna OFF em vermelho
+                return "Desligado", "red"
 
         # Looping de ping até que a conexão SSH/VPN seja estabelecida
         while not self.connection_established_ssh_vps_vpn_bind.is_set():
@@ -2588,9 +2618,13 @@ class ButtonManager:
             except (socket.timeout, socket.error):
                 return False
 
-        # Teste inicial de conexão ao endereço 192.168.100.1 na porta 80
-        if not test_connection('192.168.100.1', 80, timeout):
-            return "Desligado", "red"
+        # Condição 1: O teste inicial só pode ser ignorado se o evento de conexão estiver ativo
+        # Se o evento de conexão NÃO estiver ativo, sempre executa o teste inicial
+        if not self.connection_established_ssh_vps_jogo_bind.is_set() or self.execute_initial_test:
+            # Teste inicial de conexão ao endereço 192.168.100.1 na porta 80
+            if not test_connection('192.168.100.1', 80, timeout):
+                # Se falhar no teste inicial, retorna OFF em vermelho
+                return "Desligado", "red"
 
         # Loop de ping até que a conexão SSH/VPN seja estabelecida
         while not self.connection_established_ssh_vps_jogo_bind.is_set():
@@ -3725,6 +3759,13 @@ class OMRManagerDialog:
         aba2 = ttk.Frame(self.tabs)
         self.tabs.add(aba2, text="Configurações de Ping")
 
+        # Carregar a configuração do config.ini
+        self.config = configparser.ConfigParser()
+        self.config.read('config.ini')
+
+        # Inicializa a configuração de 'execute_initial_test'
+        self.execute_initial_test_active = self.config.getboolean('general', 'execute_initial_test', fallback=True)
+
         # Frame com borda
         frame = tk.Frame(aba2, bd=2, borderwidth=1, relief=tk.RAISED)
         frame.pack(padx=10, pady=10, fill=tk.BOTH)
@@ -3768,8 +3809,24 @@ class OMRManagerDialog:
         self.omr_jogo_entry.grid(row=3, column=1, padx=5, pady=5)
         self.omr_jogo_entry.insert(0, self.url_to_ping_omr_jogo or '')
 
+        # Botão para alterar o estado de execute_initial_test
+        self.toggle_initial_test_button = tk.Button(
+            frame, 
+            text="Ligar/Desligar teste de ping", 
+            command=self.toggle_and_save_execute_initial_test  # Agora o botão também salva e envia para ButtonManager
+        )
+        self.toggle_initial_test_button.grid(row=4, column=0, padx=5, pady=5)
+
+        # Label para mostrar o estado de execute_initial_test
+        self.execute_test_status_label = tk.Label(frame, text="")
+        self.execute_test_status_label.grid(row=4, column=1, padx=5, pady=5)
+        self.update_execute_test_status_label()
+
+        # Rótulo de texto logo abaixo dos frames
+        tk.Label(frame, text="Liga ou desliga o teste de ping nos IPs do OMR VPN/JOGO enquanto estiver com status conectado.", anchor=tk.W).grid(row=5, column=0, columnspan=5, pady=0, sticky=tk.W)
+
         save_button = tk.Button(frame, text="Salvar", command=self.save_addresses)
-        save_button.grid(row=4, column=0, columnspan=4, pady=10)
+        save_button.grid(row=6, column=0, columnspan=4, pady=10)
 
         # Terceira aba Configurações de VMs.
         aba3 = ttk.Frame(self.tabs)
@@ -3986,7 +4043,7 @@ class OMRManagerDialog:
 
         self.top.protocol("WM_DELETE_WINDOW", self.on_close)
 
-# NOVO METODO
+# METODO DA ABA DE CONFIGURAÇÃO DE PROXYS SOCKS5 E TUNEL SSH NA QUINTA ABA.
     def load_bind_credentials(self):
         config = configparser.ConfigParser()
         config.read('config.ini')
@@ -4190,6 +4247,25 @@ class OMRManagerDialog:
             self.monitoring_status_label.config(text="Monitoramento: Desligado", fg="red")
 
 # MÉTODOS PARA A SEGUNDA ABA (Configurações de Ping)
+    def toggle_and_save_execute_initial_test(self):
+        # Alterna o estado da variável execute_initial_test_active
+        self.execute_initial_test_active = not self.execute_initial_test_active
+        self.update_execute_test_status_label()
+
+        # Salva a configuração no arquivo INI
+        self.config.set('general', 'execute_initial_test', str(self.execute_initial_test_active))
+        with open('config.ini', 'w') as configfile:
+            self.config.write(configfile)
+        print("Configurações salvas!")
+
+        # Passar o valor de execute_initial_test para a classe ButtonManager
+        self.ButtonManager.set_execute_initial_test(self.execute_initial_test_active)
+
+    def update_execute_test_status_label(self):
+        # Atualiza o texto da label de status
+        status_text = "Ligado" if self.execute_initial_test_active else "Desligado"
+        self.execute_test_status_label.config(text=f"Teste de Ping: {status_text}")
+
     def load_addresses(self):
         try:
             with open('addresses.json', 'r') as f:
@@ -4552,7 +4628,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 72.4 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 72.5 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
