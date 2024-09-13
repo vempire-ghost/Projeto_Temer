@@ -378,6 +378,57 @@ class ButtonManager:
         config_menu.add_command(label="Ajuda", command=self.abrir_arquivo_ajuda)
         config_menu.add_command(label="Sobre", command=self.about)
 
+        # Novo Menu "Gerenciar Conexões"
+        connections_menu = tk.Menu(menu_bar, tearoff=0)
+        menu_bar.add_cascade(label="Gerenciar Conexões", menu=connections_menu)
+        connections_menu.add_command(label="Reconectar ssh OMR VPN", command=self.reconectar_omr_vpn)
+        connections_menu.add_command(label="Reconectar ssh OMR JOGO", command=self.reconectar_omr_jogo)
+        connections_menu.add_command(label="Reconectar ssh VPS VPN", command=self.reconectar_vps_vpn)
+        connections_menu.add_command(label="Reconectar ssh VPS JOGO", command=self.reconectar_vps_jogo)
+        connections_menu.add_command(label="Reconectar ssh via VPS VPN", command=self.reconectar_vps_vpn_bind)
+        connections_menu.add_command(label="Reconectar ssh via VPS JOGO", command=self.reconectar_vps_jogo_bind)
+
+    # Reconecta OMR VPN
+    def reconectar_omr_vpn(self):
+        self.ssh_vpn_client.close()
+        self.update_all_statuses_offline()
+        self.ping_provedor.clear()
+        self.stop_ping_provedor.set()
+        self.ssh_vpn_client = None
+        self.connection_established_ssh_omr_vpn.clear()
+
+    # Reconecta OMR JOGO
+    def reconectar_omr_jogo(self):
+        self.ssh_jogo_client.close()
+        self.ssh_jogo_client = None
+        self.connection_established_ssh_omr_jogo.clear()
+
+    # Reconecta VPS VPN
+    def reconectar_vps_vpn(self):
+        self.ssh_vps_vpn_client.close()
+        self.ssh_vps_vpn_client = None
+        self.connection_established_ssh_vps_vpn.clear()
+
+    # Reconecta VPS Jogo
+    def reconectar_vps_jogo(self):
+        self.ssh_vps_jogo_client.close()
+        self.ping_provedor.clear()
+        self.stop_ping_provedor.set()
+        self.ssh_vps_jogo_client = None
+        self.connection_established_ssh_vps_jogo.clear()
+
+    # Reconecta VPS VPN Bind
+    def reconectar_vps_vpn_bind(self):
+        self.ssh_vps_vpn_bind_client.close()
+        self.ssh_vps_vpn_bind_client = None
+        self.connection_established_ssh_vps_vpn_bind.clear()
+
+    # Reconecta VPS Jogo Bind
+    def reconectar_vps_jogo_bind(self):
+        self.ssh_vps_jogo_bind_client.close()
+        self.ssh_vps_jogo_bind_client = None
+        self.connection_established_ssh_vps_jogo_bind.clear()
+
     def abrir_arquivo_ajuda (self):
         caminho_arquivo_ajuda = os.path.abspath("Ajuda.chm")
         if os.path.exists(caminho_arquivo_ajuda):
@@ -841,7 +892,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72.7", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72.8", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -4590,7 +4641,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 72.7 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 72.8 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
