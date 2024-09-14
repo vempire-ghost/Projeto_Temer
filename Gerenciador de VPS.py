@@ -251,6 +251,7 @@ class ButtonManager:
         """Carrega configurações gerais do arquivo .ini."""
         self.config.read(self.config_file)
         self.criar_usuario_ssh = self.config.getboolean('general', 'criar_usuario_ssh', fallback=False)
+        self.test_provedor_url = self.config.get('general', 'test_provedor_url', fallback="")
 
     def save_general_config(self):
         """Salva configurações gerais no arquivo .ini."""
@@ -892,7 +893,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72.8", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72.9", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
@@ -1702,7 +1703,7 @@ class ButtonManager:
             output_queue.put(None)
             return
 
-        command = f'curl --interface {interface} ipinfo.io'
+        command = f'curl --interface {interface} "{self.test_provedor_url}"'
         logger_provedor_test.info(f"Testando conexão com {test_name} na {interface}: {command}")
 
         def run_command():
@@ -3698,6 +3699,8 @@ class ConfigDialog:
 #JANELA DE CONFIGURAÇÕES E GERENCIADOR DE ARQUIVOS.
 class OMRManagerDialog:
     def __init__(self, master, ButtonManager):
+        self.config_file = 'config.ini'  # Nome do arquivo de configuração fixo
+        self.config = configparser.ConfigParser()  # Inicializa o configparser
         top = self.top = tk.Toplevel(master)
         self.master = master
         self.ButtonManager = ButtonManager  # Armazena a instância de ButtonManager
@@ -3763,6 +3766,23 @@ class OMRManagerDialog:
         # Terceiro botão
         tk.Label(button_frame_right, text="Editar arquivo de ajuda:").pack(side=tk.TOP, anchor='w')
         tk.Button(button_frame_right, text="Editar arquivo", command=self.editar_arquivo_ajuda).pack(side=tk.TOP, anchor='w', padx=5, pady=5)
+
+        # Espaço entre o terceiro botão e o novo campo de entrada
+        tk.Label(button_frame_right).pack(side=tk.TOP, pady=6)  # Espaço de 6 pixels entre os widgets
+
+        # Novo campo de entrada para o URL
+        self.url_label = tk.Label(button_frame_right, text="URL para o teste de provedores:")
+        self.url_label.pack(side=tk.TOP, anchor='w')
+        
+        self.url_entry = tk.Entry(button_frame_right, width=50)
+        self.url_entry.pack(side=tk.TOP, anchor='w', padx=5, pady=5)
+        
+        # Botão para salvar o novo URL
+        self.save_url_button = tk.Button(button_frame_right, text="Salvar URL", command=self.save_provedor_url)
+        self.save_url_button.pack(side=tk.TOP, anchor='w', padx=5, pady=5)
+
+        # Carrega as configurações gerais
+        self.load_provedor_url()
 
         # Botões na parte inferior da janela
         button_frame_bottom = tk.Frame(aba1)
@@ -4333,6 +4353,32 @@ class OMRManagerDialog:
             return os.path.join(drive_letter + os.sep, relative_path)
 
 #FUNÇÕES DA PRIMEIRA ABA
+    def load_provedor_url(self):
+        """Carrega o URL do provedor de teste do arquivo .ini e preenche o campo de entrada."""
+        self.config.read(self.config_file)
+        
+        # Carregar o URL do provedor de teste
+        self.test_provedor_url = self.config.get('general', 'test_provedor_url', fallback="")
+
+        # Preenche o campo de entrada com o URL carregado
+        self.url_entry.delete(0, tk.END)  # Limpa o campo de entrada
+        self.url_entry.insert(0, self.test_provedor_url)  # Insere o URL carregado
+
+    def save_provedor_url(self):
+        """Salva o URL do provedor de teste no arquivo de configuração."""
+        new_url = self.url_entry.get()
+        if not self.config.has_section('general'):
+            self.config.add_section('general')
+        
+        # Atualiza o URL no arquivo de configuração
+        self.config.set('general', 'test_provedor_url', new_url)
+        
+        # Salva as alterações no arquivo de configuração
+        with open(self.config_file, 'w') as configfile:
+            self.config.write(configfile)
+
+        print(f"Novo URL salvo: {new_url}")
+
     def editar_arquivo_ajuda(self):
         relative_path = r"Dropbox Compartilhado\AmazonWS\Auto Iniciar meus VPS\pitao\Ajuda.hnd"
         absolute_path = self.os_letter(relative_path)
@@ -4641,7 +4687,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 72.8 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 72.9 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
