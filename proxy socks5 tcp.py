@@ -1,5 +1,19 @@
 import socket
 import threading
+import ctypes  # Para definir o título da janela no Windows
+from ctypes import wintypes
+import sys
+
+# Cria um mutex
+mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\temerproxy")
+
+# Verifica se o mutex já existe
+if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+    print("Já existe uma instância do programa em execução. Programa encerrado.")
+    sys.exit(0)
+
+# Código principal do programa
+print("Nenhuma outra instância detectada. Programa rodando.")
 
 class SocksProxy:
     def __init__(self, local_port, bind_ip):
@@ -7,6 +21,9 @@ class SocksProxy:
         self.bind_ip = bind_ip  # IP local para fazer o bind e onde o tráfego será encaminhado
 
     def start_socks_proxy(self):
+        # Define o título da janela como "Proxy TCP"
+        ctypes.windll.kernel32.SetConsoleTitleW("Proxy TCP")
+
         # Estabelece uma escuta na porta local
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.bind(('0.0.0.0', self.local_port))
