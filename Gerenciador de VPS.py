@@ -893,8 +893,26 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 72.9", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 73", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
+
+# METODO PARA INICIAR SOCKS5 TCP PARA SER USADO PARA ENCAMINHAR O TRAFEGO PARA O TUNEL MPTCP
+    def iniciar_proxy_socks5(self):
+        # Verifica se o programa está rodando como executável compilado ou script Python
+        if getattr(sys, 'frozen', False):  # Indica que o programa está compilado
+            pasta_atual = os.path.dirname(sys.executable)
+        else:
+            pasta_atual = os.path.dirname(os.path.abspath(__file__))
+        
+        # Caminho completo para o executável "proxy socks5 tcp.exe"
+        caminho_executavel = os.path.join(pasta_atual, 'proxy socks5 tcp.exe')
+        
+        try:
+            # Inicia o programa "proxy socks5 tcp.exe"
+            subprocess.Popen([caminho_executavel], shell=True)
+            print("Proxy SOCKS5 TCP iniciado com sucesso.")
+        except Exception as e:
+            print(f"Erro ao iniciar o proxy SOCKS5 TCP: {e}")
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
     def establish_ssh_vpn_connection(self):
@@ -1107,6 +1125,7 @@ class ButtonManager:
                 # Usar lock para proteger o acesso ao cliente SSH e transporte
                 with self.transport_lock:
                     if connection_type == 'vpn':
+                        self.iniciar_proxy_socks5()
                         self.ssh_vpn_client = ssh_client
                         self.master.after(1000, self.executar_comandos_scheduler)
                         self.stop_ping_provedor.clear()
@@ -1909,11 +1928,17 @@ class ButtonManager:
         log_text_provedor.pack(expand=1, fill=tk.BOTH)
         notebook.add(log_frame_provedor, text='Logs de teste de Provedores')
 
-        # Aba 4: Logs do Proxy
+        # Aba 4: Logs do Proxy SSH
         log_frame_proxy = tk.Frame(notebook)
         log_text_proxy = scrolledtext.ScrolledText(log_frame_proxy, wrap=tk.WORD, state=tk.NORMAL)
         log_text_proxy.pack(expand=1, fill=tk.BOTH)
-        notebook.add(log_frame_proxy, text='Logs do Proxy')
+        notebook.add(log_frame_proxy, text='Logs do Proxy SSH')
+
+        # Aba 5: Logs do Proxy TCP
+        log_frame_proxy_tcp = tk.Frame(notebook)
+        log_text_proxy_tcp = scrolledtext.ScrolledText(log_frame_proxy_tcp, wrap=tk.WORD, state=tk.NORMAL)
+        log_text_proxy_tcp.pack(expand=1, fill=tk.BOTH)
+        notebook.add(log_frame_proxy_tcp, text='Logs do Proxy TCP')
 
         # Variável para controlar o scroll automático
         self.auto_scroll = True
@@ -1946,6 +1971,13 @@ class ButtonManager:
                 log_text_proxy.delete(1.0, tk.END)
                 log_text_proxy.insert(tk.END, logs_proxy)
                 log_text_proxy.see(tk.END)
+
+                # Novo: Carregar os logs do Proxy TCP
+                with open('proxy_tcp.log', 'r') as file:
+                    logs_proxy_tcp = file.read()
+                log_text_proxy_tcp.delete(1.0, tk.END)
+                log_text_proxy_tcp.insert(tk.END, logs_proxy_tcp)
+                log_text_proxy_tcp.see(tk.END)
 
             # Agendar a próxima atualização
             self.update_logs_id = log_window.after(1000, update_logs)
@@ -4687,7 +4719,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 72.9 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 73 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")

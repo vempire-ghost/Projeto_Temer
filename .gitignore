@@ -19,6 +19,7 @@ Scripts Locais\teste.bat
 !Compilar checar scheduler e cc.ps1
 !Compilar com LOG.ps1
 !proxy socks5 tcp.py
+!Compilar Proxy TCP.ps1
 
 # Não ignorar diretórios específicos e seus conteúdos
 !diretorio_que_quero_monitorar/
