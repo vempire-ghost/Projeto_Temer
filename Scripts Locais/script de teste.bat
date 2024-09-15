@@ -2,6 +2,8 @@
 echo INICIO DO SCRIPT
 echo FIM DO SCRIPT
 echo PROCESSO CONCLUIDO
+echo DESLIGAR VPS VPN
+echo DESLIGAR VPS JOGO
 echo teste
 echo vbox.exe machin gun
 echo vbox.exe machin gumer

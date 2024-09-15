@@ -893,7 +893,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 73", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 73.1", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA INICIAR SOCKS5 TCP PARA SER USADO PARA ENCAMINHAR O TRAFEGO PARA O TUNEL MPTCP
@@ -3279,6 +3279,26 @@ class ButtonManager:
         # Salva os botões atualizados
         self.load_buttons()
 
+# METODO PARA DESLIGAR OS VPS
+    def poweroff_vps_vpn(self):
+        if hasattr(self, 'ssh_vps_vpn_client') and self.ssh_vps_vpn_client is not None:
+            try:
+                # Executa o comando sudo poweroff via SSH
+                self.ssh_vps_vpn_client.exec_command("sudo poweroff")
+            except Exception as e:
+                print(f"Erro ao tentar desligar o VPN Client: {e}")
+                pass
+
+    def poweroff_vps_jogo(self):
+        if hasattr(self, 'ssh_vps_jogo_client') and self.ssh_vps_jogo_client is not None:
+            try:
+                # Executa o comando sudo poweroff via SSH
+                self.ssh_vps_jogo_client.exec_command("sudo poweroff")
+            except Exception as e:
+                print(f"Erro ao tentar desligar o Jogo Client: {e}")
+                pass
+
+
 #LOGICA PARA FUNÇÃO QUE EXECUTA OS LINKS DOS BOTÕES ADICIONADOS NAS ABAS 1 E 2.
     def run_as_admin(self, file_path):
         # Verifica se o arquivo é um .bat
@@ -3360,6 +3380,12 @@ class ButtonManager:
 
                             if "DESLIGAMENTO CONCLUIDO" in line:
                                 self.verificar_vm = False
+
+                            if "DESLIGAR VPS VPN" in line:
+                                self.poweroff_vps_vpn()
+
+                            if "DESLIGAR VPS JOGO" in line:
+                                self.poweroff_vps_jogo()
 
                             # Verifica se a linha começa com "Conectando" e atualizando status da conexão com o servidor correspondente.
                             if line.startswith("Conectando"):
@@ -4719,7 +4745,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 73 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 73.1 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
