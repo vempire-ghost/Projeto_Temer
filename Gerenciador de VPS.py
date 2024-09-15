@@ -423,12 +423,14 @@ class ButtonManager:
         self.ssh_vps_vpn_bind_client.close()
         self.ssh_vps_vpn_bind_client = None
         self.connection_established_ssh_vps_vpn_bind.clear()
+        self.master.after(1000, lambda: threading.Thread(target=self.establish_ssh_vps_vpn_bind_connection).start())
 
     # Reconecta VPS Jogo Bind
     def reconectar_vps_jogo_bind(self):
         self.ssh_vps_jogo_bind_client.close()
         self.ssh_vps_jogo_bind_client = None
         self.connection_established_ssh_vps_jogo_bind.clear()
+        self.master.after(1000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_bind_connection).start())
 
     def abrir_arquivo_ajuda (self):
         caminho_arquivo_ajuda = os.path.abspath("Ajuda.chm")
@@ -893,7 +895,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 73.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 73.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA INICIAR SOCKS5 TCP PARA SER USADO PARA ENCAMINHAR O TRAFEGO PARA O TUNEL MPTCP
@@ -4745,7 +4747,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 73.1 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 73.2 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
