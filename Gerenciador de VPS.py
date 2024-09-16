@@ -490,6 +490,14 @@ class ButtonManager:
             json.dump(position, f)
 
 # FUNÇÃO DE ENDERRAMENTO DO PROGRAMA ENCERRANDO OS THREADS E ESPERANDO PARA NÃO CAUSAR NENHUM PROBLEMA.
+    def suicidar_temer(self):
+        try:
+            # Comando para finalizar o processo
+            subprocess.run(['taskkill', '/IM', 'Gerenciador de VPS.exe', '/F'], check=True)
+            print("Processo 'Gerenciador de VPS.exe' finalizado com sucesso.")
+        except subprocess.CalledProcessError:
+            print("Falha ao tentar finalizar o processo.")
+
     def on_close(self):
         self.master.after(100, self.prepare_for_closing)  # Agendar a execução de prepare_for_closing após 100 ms
 
@@ -506,6 +514,7 @@ class ButtonManager:
         self.stop_pinging_threads()
         self.stop_verificar_vm()
         self.save_window_position()
+        self.master.after(1000, self.suicidar_temer)
         self.save_color_map()  # Salva o mapeamento de cores
 
         # Aguardar 900ms antes de destruir o widget
@@ -895,7 +904,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 73.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 73.3", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA INICIAR SOCKS5 TCP PARA SER USADO PARA ENCAMINHAR O TRAFEGO PARA O TUNEL MPTCP
@@ -4747,7 +4756,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 73.2 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 73.3 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
