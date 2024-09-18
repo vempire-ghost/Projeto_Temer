@@ -22,6 +22,7 @@ import paramiko
 import configparser
 import re
 import select
+import pyte
 from datetime import datetime
 from ctypes import wintypes
 from pystray import Icon, MenuItem, Menu as TrayMenu
@@ -904,8 +905,94 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 73.3", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 74", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
+
+# METODO PARA MONITORAR O TRAFEGO EM TEMPO REAL DAS INTERFACES
+    # Abre uma janela para monitorar o tráfego da VPN
+    def monitor_bmon_vpn(self):
+        self.open_monitor_window(self.ssh_vpn_client, "Monitoramento VPN")
+            # Abre uma janela para monitorar o tráfego do Jogo
+    def monitor_bmon_jogo(self):
+        self.open_monitor_window(self.ssh_jogo_client, "Monitoramento Jogo")
+
+    # Função para abrir uma tela de terminal com os dados do bmon para monitorar o trafego de rede.
+    def open_monitor_window(self, ssh_client, title):
+        # Cria uma nova janela para exibir a saída do bmon
+        bmon_window = tk.Toplevel(self.master)
+
+        # Define o tamanho da janela
+        bmon_window.geometry("651x120")
+
+        # Carrega a posição da janela salva, se disponível
+        self.load_bmon_position(bmon_window)
+
+        # Cria um widget Text para exibir a saída
+        text_area = tk.Text(bmon_window, wrap='word', height=25, width=80)
+        text_area.pack(expand=True, fill='both')
+
+        # Cria um terminal virtual usando pyte
+        screen = pyte.Screen(80, 25)
+        stream = pyte.Stream(screen)
+
+        def monitor_bmon_in_real_time():
+            try:
+                # Estabelece uma sessão SSH
+                ssh_transport = ssh_client.get_transport()
+                session = ssh_transport.open_session()
+                session.get_pty()  # Abre o pseudo-terminal
+
+                # Executa o comando bmon com o caminho absoluto
+                session.exec_command('bmon -o ascii')
+
+                # Lê a saída em tempo real e atualiza o widget Text
+                while True:
+                    if session.recv_ready():
+                        output = session.recv(1024).decode('utf-8')
+                        stream.feed(output)
+
+                        # Filtra e atualiza o texto
+                        filtered_output = ''
+                        for line in screen.display:
+                            if 'eth' in line or 'Interfaces' in line:
+                                filtered_output += line
+
+                        text_area.delete(1.0, tk.END)
+                        text_area.insert(tk.END, filtered_output)
+                        text_area.see(tk.END)  # Rola o widget para a linha mais recente
+                        text_area.update()
+
+                    if session.exit_status_ready():
+                        break
+
+                session.close()
+
+            except Exception as e:
+                text_area.insert(tk.END, f"Erro ao executar o bmon: {e}")
+
+        # Adiciona a lógica para salvar a posição da janela quando ela for fechada
+        bmon_window.protocol("WM_DELETE_WINDOW", lambda: self.on_close_bmon(bmon_window))
+
+        # Executa o monitoramento do bmon em uma thread separada
+        threading.Thread(target=monitor_bmon_in_real_time).start()
+
+    def load_bmon_position(self, window):
+        if os.path.isfile("bmon_position.json"):
+            with open("bmon_position.json", "r") as f:
+                position = json.load(f)
+                window.geometry("+{}+{}".format(position["x"], position["y"]))
+
+    def save_bmon_position(self, window):
+        position = {
+            "x": window.winfo_x(),
+            "y": window.winfo_y()
+        }
+        with open("bmon_position.json", "w") as f:
+            json.dump(position, f)
+
+    def on_close_bmon(self, window):
+        self.save_bmon_position(window)
+        window.destroy()
 
 # METODO PARA INICIAR SOCKS5 TCP PARA SER USADO PARA ENCAMINHAR O TRAFEGO PARA O TUNEL MPTCP
     def iniciar_proxy_socks5(self):
@@ -4756,7 +4843,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 73.3 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 74 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
