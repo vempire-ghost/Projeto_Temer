@@ -905,7 +905,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 74.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 74.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MONITORAR O TRAFEGO EM TEMPO REAL DAS INTERFACES
@@ -931,24 +931,55 @@ class ButtonManager:
 
     # Abre uma janela para monitorar o tráfego da VPN
     def monitor_bmon_vpn(self):
-        self.open_monitor_window(self.ssh_vpn_client, "Monitoramento VPN")
+        self.open_monitor_window(self.ssh_vpn_client, "Trafego OMR VPN")
             # Abre uma janela para monitorar o tráfego do Jogo
     def monitor_bmon_jogo(self):
-        self.open_monitor_window(self.ssh_jogo_client, "Monitoramento Jogo")
+        self.open_monitor_window(self.ssh_jogo_client, "Trafego OMR JOGO")
 
     # Função para abrir uma tela de terminal com os dados do bmon para monitorar o trafego de rede.
     def open_monitor_window(self, ssh_client, title):
         # Cria uma nova janela para exibir a saída do bmon
         bmon_window = tk.Toplevel(self.master)
 
+        # Define o título da janela
+        bmon_window.title(title)
+
         # Define o tamanho da janela
-        bmon_window.geometry("651x120")
+        bmon_window.geometry("651x180")
 
         # Carrega a posição da janela salva, se disponível
         self.load_bmon_position(bmon_window)
 
+        # Cria um Frame para o cabeçalho
+        header_frame = tk.Frame(bmon_window, height=50)
+        header_frame.pack(fill='x', padx=5, pady=5)
+
+        # Adiciona rótulos no cabeçalho usando grid
+        interface_label = tk.Label(header_frame, text="Interface:", anchor='w')
+        interface_label.grid(row=0, column=0, padx=5, sticky='w')
+
+        # Adiciona uma coluna extra para o espaçamento do "Download"
+        header_frame.grid_columnconfigure(0, weight=1)  # Coluna 0 com peso 1
+        header_frame.grid_columnconfigure(1, weight=2)  # Coluna 1 com peso 2 (espaço adicional para deslocamento)
+        header_frame.grid_columnconfigure(2, weight=1)  # Coluna 2 com peso 1
+
+        download_label = tk.Label(header_frame, text="Download:", anchor='center')
+        download_label.grid(row=0, column=1, padx=5, sticky='n')  # Coluna 1 para deslocar para a direita
+
+        upload_label = tk.Label(header_frame, text="Upload:", anchor='e')
+        upload_label.grid(row=0, column=2, padx=5, sticky='e')
+
+        # Configura as colunas para ter uma largura relativa
+        header_frame.grid_columnconfigure(0, weight=1)
+        header_frame.grid_columnconfigure(1, weight=2)  # Aumenta o peso da coluna para o deslocamento
+        header_frame.grid_columnconfigure(2, weight=1)
+
+        # Cria um Frame para a área de texto
+        text_frame = tk.Frame(bmon_window)
+        text_frame.pack(expand=True, fill='both', padx=5, pady=5)
+
         # Cria um widget Text para exibir a saída
-        text_area = tk.Text(bmon_window, wrap='word', height=25, width=80)
+        text_area = tk.Text(text_frame, wrap='word')
         text_area.pack(expand=True, fill='both')
 
         # Cria um terminal virtual usando pyte
@@ -4863,7 +4894,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 74.1 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 74.2 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
