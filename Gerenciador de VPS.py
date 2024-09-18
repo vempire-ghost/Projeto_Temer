@@ -905,7 +905,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 74.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 74.3", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MONITORAR O TRAFEGO EM TEMPO REAL DAS INTERFACES
@@ -986,40 +986,74 @@ class ButtonManager:
         screen = pyte.Screen(80, 25)
         stream = pyte.Stream(screen)
 
+        def check_bmon(command, ssh_transport):
+            session = ssh_transport.open_session()
+            session.get_pty()
+            session.exec_command(command)
+            output = ""
+            while True:
+                if session.recv_ready():
+                    output += session.recv(1024).decode('utf-8')
+                if session.exit_status_ready():
+                    break
+            session.close()
+            return output
+
         def monitor_bmon_in_real_time():
             try:
                 # Estabelece uma sessão SSH
                 ssh_transport = ssh_client.get_transport()
-                session = ssh_transport.open_session()
-                session.get_pty()  # Abre o pseudo-terminal
+
+                # Verifica se o bmon está disponível
+                which_output = check_bmon('which bmon', ssh_transport)
+                
+                if not which_output.strip():
+                    # bmon não encontrado, instala-o
+                    text_area.insert(tk.END, "bmon não encontrado. Instalando...\n")
+
+                    # Executa o comando de instalação e captura a saída
+                    install_output = check_bmon('opkg update', ssh_transport)
+                    text_area.insert(tk.END, f"Saída do opkg update:\n{install_output}\n")
+                    
+                    time.sleep(5)  # Espera um pouco para garantir que o opkg update seja concluído
+                    
+                    install_output = check_bmon('opkg install bmon', ssh_transport)
+                    text_area.insert(tk.END, f"Saída do opkg install bmon:\n{install_output}\n")
+                    
+                    text_area.insert(tk.END, "bmon instalado. Reinicie a visualização.\n")
+                    return
 
                 # Executa o comando bmon com o caminho absoluto
-                session.exec_command('bmon -o ascii')
-
-                # Lê a saída em tempo real e atualiza o widget Text
                 while True:
-                    if session.recv_ready():
-                        output = session.recv(1024).decode('utf-8')
-                        stream.feed(output)
+                    session = ssh_transport.open_session()  # Abrir novo canal para o bmon
+                    session.get_pty()  # Abre o pseudo-terminal
+                    session.exec_command('bmon -o ascii')
 
-                        # Filtra e atualiza o texto
-                        filtered_output = ''
-                        for line in screen.display:
-                            if 'eth' in line or 'Interfaces' in line:
-                                filtered_output += line
+                    # Lê a saída em tempo real e atualiza o widget Text
+                    while True:
+                        if session.recv_ready():
+                            output = session.recv(1024).decode('utf-8')
+                            stream.feed(output)
 
-                        text_area.delete(1.0, tk.END)
-                        text_area.insert(tk.END, filtered_output)
-                        text_area.see(tk.END)  # Rola o widget para a linha mais recente
-                        text_area.update()
+                            # Filtra e atualiza o texto
+                            filtered_output = ''
+                            for line in screen.display:
+                                if 'eth' in line or 'Interfaces' in line:
+                                    filtered_output += line + '\n'
 
-                    if session.exit_status_ready():
-                        break
+                            text_area.delete(1.0, tk.END)
+                            text_area.insert(tk.END, filtered_output)
+                            text_area.see(tk.END)  # Rola o widget para a linha mais recente
+                            text_area.update()
 
-                session.close()
+                        if session.exit_status_ready():
+                            break
+
+                    session.close()
+                    time.sleep(1)  # Aguarda um pouco antes de reiniciar o loop
 
             except Exception as e:
-                text_area.insert(tk.END, f"Erro ao executar o bmon: {e}")
+                text_area.insert(tk.END, f"Erro ao executar o bmon: {e}\n")
 
         # Adiciona a lógica para salvar a posição da janela quando ela for fechada
         bmon_window.protocol("WM_DELETE_WINDOW", lambda: self.on_close_bmon(bmon_window))
@@ -4894,7 +4928,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 74.2 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 74.3 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
