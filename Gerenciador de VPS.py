@@ -670,19 +670,19 @@ class ButtonManager:
         self.status_label_vps_jogo = tk.Label(frame_vps_jogo, text="Aguarde...", bg='lightgray', fg='white', justify=tk.CENTER, borderwidth=1, relief=tk.GROOVE, width=9, height=1)
         self.status_label_vps_jogo.pack(side=tk.LEFT, padx=5)
 
-        # Label (aparência de botão) para OMR VPN
+        # Frame para OMR VPN com fundo lightgray
         frame_omr_vpn = tk.Frame(self.top_frame, bg='lightgray')
         frame_omr_vpn.grid(row=1, column=1, padx=5, pady=5, sticky=tk.E+tk.W)
-        btn_omr_vpn = tk.Button(frame_omr_vpn, text="OMR VPN:", bg='lightgray', justify=tk.CENTER, command=self.open_OMR_VPN, width=9, height=1)
-        btn_omr_vpn.pack(side=tk.LEFT)
+        self.label_omr_vpn = tk.Button(frame_omr_vpn, text="OMR VPN:", bg='lightgray', justify=tk.CENTER, borderwidth=2, relief=tk.RAISED, command=self.show_omr_vpn_menu, width=9, height=1)
+        self.label_omr_vpn.pack(side=tk.LEFT)
         self.status_label_omr_vpn = tk.Label(frame_omr_vpn, text="Aguarde...", bg='lightgray', fg='white', justify=tk.CENTER, borderwidth=1, relief=tk.GROOVE, width=9, height=1)
         self.status_label_omr_vpn.pack(side=tk.LEFT, padx=5)
 
-        # Label (aparência de botão) para OMR JOGO
+        # Frame para OMR JOGO com fundo lightgray
         frame_omr_jogo = tk.Frame(self.top_frame, bg='lightgray')
         frame_omr_jogo.grid(row=1, column=2, padx=5, pady=5, sticky=tk.E+tk.W)
-        btn_omr_jogo = tk.Button(frame_omr_jogo, text="OMR JOGO:", bg='lightgray', justify=tk.CENTER, command=self.open_OMR_JOGO, width=9, height=1)
-        btn_omr_jogo.pack(side=tk.LEFT)
+        self.label_omr_jogo = tk.Button(frame_omr_jogo, text="OMR JOGO:", bg='lightgray', justify=tk.CENTER, borderwidth=2, relief=tk.RAISED, command=self.show_omr_jogo_menu, width=9, height=1)
+        self.label_omr_jogo.pack(side=tk.LEFT)
         self.status_label_omr_jogo = tk.Label(frame_omr_jogo, text="Aguarde...", bg='lightgray', fg='white', justify=tk.CENTER, borderwidth=1, relief=tk.GROOVE, width=9, height=1)
         self.status_label_omr_jogo.pack(side=tk.LEFT, padx=5)
 
@@ -905,10 +905,30 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 74", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 74.1", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MONITORAR O TRAFEGO EM TEMPO REAL DAS INTERFACES
+    def show_omr_menu(self, options):
+        menu = Menu(self.master, tearoff=0)
+        for label, command in options:
+            menu.add_command(label=label, command=command)
+        menu.post(self.master.winfo_pointerx(), self.master.winfo_pointery())
+
+    def show_omr_vpn_menu(self):
+        options = [
+            ("Abrir Luci", self.open_OMR_VPN),
+            ("Abrir Monitor de Trafego", self.monitor_bmon_vpn)
+        ]
+        self.show_omr_menu(options)
+
+    def show_omr_jogo_menu(self):
+        options = [
+            ("Abrir Luci", self.open_OMR_JOGO),
+            ("Abrir Monitor de Trafego", self.monitor_bmon_jogo)
+        ]
+        self.show_omr_menu(options)
+
     # Abre uma janela para monitorar o tráfego da VPN
     def monitor_bmon_vpn(self):
         self.open_monitor_window(self.ssh_vpn_client, "Monitoramento VPN")
@@ -4843,7 +4863,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 74 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 74.1 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
