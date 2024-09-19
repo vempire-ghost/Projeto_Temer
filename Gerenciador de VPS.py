@@ -905,7 +905,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 74.3", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 74.4", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MONITORAR O TRAFEGO EM TEMPO REAL DAS INTERFACES
@@ -1006,22 +1006,27 @@ class ButtonManager:
 
                 # Verifica se o bmon está disponível
                 which_output = check_bmon('which bmon', ssh_transport)
-                
-                if not which_output.strip():
-                    # bmon não encontrado, instala-o
-                    text_area.insert(tk.END, "bmon não encontrado. Instalando...\n")
 
-                    # Executa o comando de instalação e captura a saída
-                    install_output = check_bmon('opkg update', ssh_transport)
-                    text_area.insert(tk.END, f"Saída do opkg update:\n{install_output}\n")
-                    
-                    time.sleep(5)  # Espera um pouco para garantir que o opkg update seja concluído
-                    
-                    install_output = check_bmon('opkg install bmon', ssh_transport)
-                    text_area.insert(tk.END, f"Saída do opkg install bmon:\n{install_output}\n")
-                    
-                    text_area.insert(tk.END, "bmon instalado. Reinicie a visualização.\n")
-                    return
+                if not which_output.strip():
+                    # bmon não encontrado, perguntar se deseja instalar
+                    install_bmon = messagebox.askyesno("Instalar bmon", "O bmon não foi encontrado. Deseja instalá-lo?")
+
+                    if install_bmon:
+                        text_area.insert(tk.END, "bmon não encontrado. Instalando...\n")
+
+                        # Executa o comando de instalação e captura a saída
+                        install_output = check_bmon('opkg update', ssh_transport)
+                        text_area.insert(tk.END, f"Saída do opkg update:\n{install_output}\n")
+
+                        time.sleep(5)  # Espera um pouco para garantir que o opkg update seja concluído
+
+                        install_output = check_bmon('opkg install bmon', ssh_transport)
+                        text_area.insert(tk.END, f"Saída do opkg install bmon:\n{install_output}\n")
+
+                        text_area.insert(tk.END, "bmon instalado. Reinicie a visualização.\n")
+                    else:
+                        text_area.insert(tk.END, "Instalação do bmon cancelada.\n")
+                    return  # Retorna para sair da função após a instalação ou cancelamento
 
                 # Executa o comando bmon com o caminho absoluto
                 while True:
@@ -1038,7 +1043,7 @@ class ButtonManager:
                             # Filtra e atualiza o texto
                             filtered_output = ''
                             for line in screen.display:
-                                if 'eth' in line or 'Interfaces' in line:
+                                if 'eth' in line:
                                     filtered_output += line + '\n'
 
                             text_area.delete(1.0, tk.END)
@@ -1050,7 +1055,7 @@ class ButtonManager:
                             break
 
                     session.close()
-                    time.sleep(1)  # Aguarda um pouco antes de reiniciar o loop
+                    time.sleep(1.1)  # Aguarda um pouco antes de reiniciar o loop
 
             except Exception as e:
                 text_area.insert(tk.END, f"Erro ao executar o bmon: {e}\n")
@@ -4928,7 +4933,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 74.3 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 74.4 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
