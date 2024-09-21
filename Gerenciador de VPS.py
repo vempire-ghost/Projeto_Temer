@@ -1443,7 +1443,7 @@ class ButtonManager:
                             command_thread.start()
 
                             # Aguarda o término da thread ou timeout
-                            command_thread.join(timeout=5)
+                            command_thread.join(timeout=10)
                             if command_thread.is_alive():
                                 logger_test_command.error("O comando excedeu o tempo limite de 5 segundos.")
                                 # A thread não pode ser interrompida diretamente. Dependendo da lógica, pode-se precisar de um tratamento adicional.
