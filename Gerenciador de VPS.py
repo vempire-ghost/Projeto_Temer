@@ -2306,17 +2306,16 @@ class ButtonManager:
         try:
             start_time = time.time()
             socket_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
-            
-            # Bind ao IP 192.168.100.2
+
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
-                conn.bind(('192.168.100.2', 0))  # Bind no IP 192.168.100.2
+                conn.bind(('192.168.100.2', 0))
                 conn.settimeout(timeout)
                 conn.connect(socket_info[0][4])
                 conn.sendall(b'PING')
                 response = conn.recv(1024)
             
             end_time = time.time()
-            response_time = int((end_time - start_time) * 1000 / 2)  # Converte para milissegundos e arredonda para inteiro
+            response_time = int((end_time - start_time) * 1000 / 2)  # Converte para milissegundos
 
             if response:
                 logger_main.info(f"Conexão com o host {host} bem-sucedida. Tempo de resposta: {response_time} ms")
@@ -2324,8 +2323,8 @@ class ButtonManager:
             else:
                 logger_main.warning(f"Falha na conexão com o host {host} (sem resposta).")
                 return "OFF", "blue"
-        except (socket.timeout, socket.error):
-            logger_main.error(f"Falha na conexão com o host {host} (exceção).")
+        except (socket.timeout, socket.error) as e:
+            logger_main.error(f"Falha na conexão com o host {host} (exceção: {e}).")
             return "OFF", "blue"
 
     def ping_direto(self, host, port=65222, timeout=1):
