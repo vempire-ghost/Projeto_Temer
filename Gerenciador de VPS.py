@@ -717,22 +717,22 @@ class ButtonManager:
         self.unifique_status = tk.Button(self.status_frame, text="UNIFIQUE: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=self.test_unifique)
         self.unifique_status.grid(row=0, column=0, padx=5, pady=2, sticky=tk.W)
         # Ping para Unifique
-        self.unifique_status_label = tk.Label(self.status_frame, text="--", bg='lightgray')
-        self.unifique_status_label.grid(row=1, column=0, padx=5, pady=0, sticky=tk.N)
+        self.unifique_status_button = tk.Button(self.status_frame, text="--", bg='lightgray', relief='flat', command=self.reconectar_vps_jogo)
+        self.unifique_status_button.grid(row=1, column=0, padx=5, pady=0, sticky=tk.N)
 
         # Botão para Claro
         self.claro_status = tk.Button(self.status_frame, text="CLARO: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=self.test_claro)
         self.claro_status.grid(row=0, column=1, padx=5, pady=2, sticky=tk.W)
         # Ping para Claro
-        self.claro_status_label = tk.Label(self.status_frame, text="--", bg='lightgray')
-        self.claro_status_label.grid(row=1, column=1, padx=5, pady=0, sticky=tk.N)
+        self.claro_status_button = tk.Button(self.status_frame, text="--", bg='lightgray', relief='flat', command=self.reconectar_vps_jogo)
+        self.claro_status_button.grid(row=1, column=1, padx=5, pady=0, sticky=tk.N)
 
         # Botão para Coopera
         self.coopera_status = tk.Button(self.status_frame, text="COOPERA: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=self.test_coopera)
         self.coopera_status.grid(row=0, column=2, padx=5, pady=2, sticky=tk.W)
-        # Ping para Cooper
-        self.coopera_status_label = tk.Label(self.status_frame, text="--", bg='lightgray')
-        self.coopera_status_label.grid(row=1, column=2, padx=5, pady=0, sticky=tk.N)
+        # Ping para Coopera
+        self.coopera_status_button = tk.Button(self.status_frame, text="--", bg='lightgray', relief='flat', command=self.reconectar_vps_jogo)
+        self.coopera_status_button.grid(row=1, column=2, padx=5, pady=0, sticky=tk.N)
 
         # Inicia a atualização do status das conexões SSH com atraso
         self.master.after(1000, lambda: threading.Thread(target=self.establish_ssh_vpn_connection).start())
@@ -905,7 +905,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 74.5", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 74.6", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MONITORAR O TRAFEGO EM TEMPO REAL DAS INTERFACES
@@ -1829,13 +1829,13 @@ class ButtonManager:
 
         # Continua com a execução se o evento ping_provedor não estiver setado (False) e o host estiver online
         interfaces = ['eth2', 'eth4', 'eth5']
-        labels = [self.unifique_status_label, self.claro_status_label, self.coopera_status_label]
+        buttons = [self.unifique_status_button, self.claro_status_button, self.coopera_status_button]
 
-        for interface, label in zip(interfaces, labels):
-            self.ping_thread = threading.Thread(target=self.execute_ping_command, args=(interface, label, self.stop_ping_provedor))
+        for interface, button in zip(interfaces, buttons):
+            self.ping_thread = threading.Thread(target=self.execute_ping_command, args=(interface, button, self.stop_ping_provedor))
             self.ping_thread.start()
 
-    def execute_ping_command(self, interface, label, stop_ping_provedor):
+    def execute_ping_command(self, interface, button, stop_ping_provedor):
         """Executa o comando ping via SSH indefinidamente e atualiza a label com a latência."""
         if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
             try:
@@ -1858,25 +1858,25 @@ class ButtonManager:
                         else:
                             latency = "--"
 
-                        # Atualiza a label com a latência ou com traços
-                        self.update_ping_result(label, latency)
+                        # Atualiza o botão com o resultado do ping
+                        self.update_ping_result(button, latency)
                     else:
                         logger_test_command.info("Timeout na leitura do ping")
                         break  # Sai do loop se houver timeout na leitura
 
-                # Após a interrupção do teste, define a label para "--"
-                self.update_ping_result(label, "--")
+                # Define a label como "--" após a interrupção do ping
+                self.update_ping_result(button, "--")
 
             except Exception as e:
-                logger_provedor_test.error(f"Falha ao executar ping em {interface}: {e}")
-                self.update_ping_result(label, "--")  # Atualiza para "--" em caso de erro
+                logger_provedor_test.error(f"Falha ao executar ping na interface {interface}: {e}")
+                self.update_ping_result(button, "--")
         else:
             logger_provedor_test.error(f"SSH não está conectado para {interface}.")
-            self.update_ping_result(label, "--")  # Atualiza para "--" se SSH não estiver conectado
+            self.update_ping_result(button, "--")
 
-    def update_ping_result(self, label, result):
-        """Atualiza o texto da label com o resultado do ping."""
-        label.config(text=result)
+    def update_ping_result(self, button, result):
+        """Atualiza o texto do botão com o resultado do ping."""
+        button.config(text=result)
 
     # Funções para os botões de teste
     def test_unifique(self):
@@ -4932,9 +4932,9 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 74.5 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 74.6 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
-        self.add_text_with_image(button_frame, "Código: Mano GPT", "icone3.png")
+        self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
         self.add_text_with_image(button_frame, "Liferuler: CAOS", "chora.png")
         self.add_text_with_image(button_frame, "Gerente e Ouvinte: Naminha Pixu", "mimo.png")
