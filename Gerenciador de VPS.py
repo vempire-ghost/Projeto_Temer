@@ -663,12 +663,18 @@ class ButtonManager:
         self.status_label_vps_vpn = tk.Label(frame_vps_vpn, text="Aguarde...", bg='lightgray', fg='white', justify=tk.CENTER, borderwidth=1, relief=tk.GROOVE, width=9, height=1)
         self.status_label_vps_vpn.pack(side=tk.LEFT, padx=5)
 
+        # Adicionando ToolTip na Label do status VPS VPN
+        self.tooltip_vps_vpn = ToolTip(self.status_label_vps_vpn, "Desligado: VPS não foi inicializado. \nLigando: VPS esta inicializando mas ainda não esta acessivel. \nLigado: VPS esta ligado e totalmente acessivel.")
+
         # Label e valor para VPS JOGO
         frame_vps_jogo = tk.Frame(self.top_frame, bg='lightgray')
         frame_vps_jogo.grid(row=0, column=2, padx=5, pady=5, sticky=tk.E+tk.W)
         btn_vps_jogo = tk.Button(frame_vps_jogo, text=" VPS  JOGO: ", bg='lightgray', justify=tk.CENTER, command=self.abrir_arquivo_vps_jogo, width=9, height=1).pack(side=tk.LEFT)
         self.status_label_vps_jogo = tk.Label(frame_vps_jogo, text="Aguarde...", bg='lightgray', fg='white', justify=tk.CENTER, borderwidth=1, relief=tk.GROOVE, width=9, height=1)
         self.status_label_vps_jogo.pack(side=tk.LEFT, padx=5)
+
+        # Adicionando ToolTip na Label do status VPS JOGO
+        self.tooltip_vps_jogo = ToolTip(self.status_label_vps_jogo, "Desligado: VPS não foi inicializado. \nLigando: VPS esta inicializando mas ainda não esta acessivel. \nLigado: VPS esta ligado e totalmente acessivel.")
 
         # Frame para OMR VPN com fundo lightgray
         frame_omr_vpn = tk.Frame(self.top_frame, bg='lightgray')
@@ -678,6 +684,9 @@ class ButtonManager:
         self.status_label_omr_vpn = tk.Label(frame_omr_vpn, text="Aguarde...", bg='lightgray', fg='white', justify=tk.CENTER, borderwidth=1, relief=tk.GROOVE, width=9, height=1)
         self.status_label_omr_vpn.pack(side=tk.LEFT, padx=5)
 
+        # Adicionando ToolTip na Label do status OMR VPN
+        self.tooltip_omr_vpn = ToolTip(self.status_label_omr_vpn, "Desligado: OMR não foi inicializado. \nLigado: OMR esta ligado e acessivel, porem não esta conectado ao VPS. \nConectando: OMR esta se conectando ao VPS. \nConectado: OMR esta conectado ao VPS e plenamente funcional.")
+
         # Frame para OMR JOGO com fundo lightgray
         frame_omr_jogo = tk.Frame(self.top_frame, bg='lightgray')
         frame_omr_jogo.grid(row=1, column=2, padx=5, pady=5, sticky=tk.E+tk.W)
@@ -685,6 +694,9 @@ class ButtonManager:
         self.label_omr_jogo.pack(side=tk.LEFT)
         self.status_label_omr_jogo = tk.Label(frame_omr_jogo, text="Aguarde...", bg='lightgray', fg='white', justify=tk.CENTER, borderwidth=1, relief=tk.GROOVE, width=9, height=1)
         self.status_label_omr_jogo.pack(side=tk.LEFT, padx=5)
+
+        # Adicionando ToolTip na Label do status OMR JOGO
+        self.tooltip_omr_jogo = ToolTip(self.status_label_omr_jogo, "Desligado: OMR não foi inicializado. \nLigado: OMR esta ligado e acessivel, porem não esta conectado ao VPS. \nConectando: OMR esta se conectando ao VPS. \nConectado: OMR esta conectado ao VPS e plenamente funcional.")
 
         # Frame para VM VPN com fundo lightgray
         frame_vm_vpn = tk.Frame(self.top_frame, bg='lightgray')
@@ -694,6 +706,9 @@ class ButtonManager:
         self.value_vm_vpn = tk.Label(frame_vm_vpn, text="Aguarde...", bg='lightgray', justify=tk.CENTER)
         self.value_vm_vpn.pack(side=tk.LEFT, padx=5)
 
+        # Adicionando ToolTip na Label do status VM VPN
+        self.tooltip_vm_vpn = ToolTip(self.value_vm_vpn, "Desligado: A máquina virtual referente ao OMR VPN está desligada. \nLigando: A máquina virtual referente ao OMR JOGO está ligando. \nLigado: A máquina virtual referente ao OMR JOGO está ligada.")
+
         # Frame para VM JOGO com fundo lightgray
         frame_vm_jogo = tk.Frame(self.top_frame, bg='lightgray')
         frame_vm_jogo.grid(row=2, column=2, padx=5, pady=5, sticky=tk.E+tk.W)
@@ -701,6 +716,9 @@ class ButtonManager:
         self.label_vm_jogo.pack(side=tk.LEFT)
         self.value_vm_jogo = tk.Label(frame_vm_jogo, text="Aguarde...", bg='lightgray', justify=tk.CENTER)
         self.value_vm_jogo.pack(side=tk.LEFT, padx=5)
+
+        # Adicionando ToolTip na Label do status VM JOGO
+        self.tooltip_vm_jogo = ToolTip(self.value_vm_jogo, "Desligado: A máquina virtual referente ao OMR VPN está desligada. \nLigando: A máquina virtual referente ao OMR JOGO está ligando. \nLigado: A máquina virtual referente ao OMR JOGO está ligada.")
 
         # Carregar os nomes da VMs e iniciar a atualização dos valores das VMs
         self.load_vm_names()
@@ -720,6 +738,9 @@ class ButtonManager:
         self.unifique_status_button = tk.Button(self.status_frame, text="--", bg='lightgray', relief='flat', command=self.reconectar_vps_jogo)
         self.unifique_status_button.grid(row=1, column=0, padx=5, pady=0, sticky=tk.N)
 
+        # Adicionando ToolTip na Label do Ping para Unifique
+        self.tooltip_ping_unifique = ToolTip(self.unifique_status_button, "Latencia em tempo real da conexão para com o servidor do VPS JOGO.")
+
         # Botão para Claro
         self.claro_status = tk.Button(self.status_frame, text="CLARO: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=self.test_claro)
         self.claro_status.grid(row=0, column=1, padx=5, pady=2, sticky=tk.W)
@@ -727,12 +748,18 @@ class ButtonManager:
         self.claro_status_button = tk.Button(self.status_frame, text="--", bg='lightgray', relief='flat', command=self.reconectar_vps_jogo)
         self.claro_status_button.grid(row=1, column=1, padx=5, pady=0, sticky=tk.N)
 
+        # Adicionando ToolTip na Label do Ping para Claro
+        self.tooltip_ping_claro = ToolTip(self.claro_status_button, "Latencia em tempo real da conexão para com o servidor do VPS JOGO.")
+
         # Botão para Coopera
         self.coopera_status = tk.Button(self.status_frame, text="COOPERA: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=self.test_coopera)
         self.coopera_status.grid(row=0, column=2, padx=5, pady=2, sticky=tk.W)
         # Ping para Coopera
         self.coopera_status_button = tk.Button(self.status_frame, text="--", bg='lightgray', relief='flat', command=self.reconectar_vps_jogo)
         self.coopera_status_button.grid(row=1, column=2, padx=5, pady=0, sticky=tk.N)
+
+        # Adicionando ToolTip na Label do Ping para Coopera
+        self.tooltip_ping_coopera = ToolTip(self.coopera_status_button, "Latencia em tempo real da conexão para com o servidor do VPS JOGO.")
 
         # Inicia a atualização do status das conexões SSH com atraso
         self.master.after(1000, lambda: threading.Thread(target=self.establish_ssh_vpn_connection).start())
@@ -905,7 +932,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 74.6", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 74.7", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MONITORAR O TRAFEGO EM TEMPO REAL DAS INTERFACES
@@ -4932,7 +4959,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 74.6 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 74.7 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
