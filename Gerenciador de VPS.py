@@ -27,6 +27,8 @@ from datetime import datetime
 from ctypes import wintypes
 from pystray import Icon, MenuItem, Menu as TrayMenu
 from PIL import Image, ImageTk, ImageDraw
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -377,6 +379,7 @@ class ButtonManager:
         menu_bar.add_cascade(label="Configurações", menu=config_menu)
         config_menu.add_command(label="Configurações do Gerenciador de VPS", command=self.open_omr_manager)
         config_menu.add_command(label="Configurações de Cores", command=self.open_color_config)
+        config_menu.add_command(label="Monitor de Latência (PingPlotter)", command=self.run_vps_vpn_pings_with_plot)
         config_menu.add_command(label="Ajuda", command=self.abrir_arquivo_ajuda)
         config_menu.add_command(label="Sobre", command=self.about)
 
@@ -932,8 +935,115 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 74.7", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 75", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
+
+# METODO PARA JANELA DE MONITORAMENTO GRAFICO DE CONEXÕES
+    def run_vps_vpn_pings_with_plot(self):
+        """Executa o ping nas interfaces e gera gráficos separados para cada uma, ao estilo PingPlotter com Matplotlib."""
+
+        # Verifica se o host está online antes de continuar
+        host = self.ssh_vps_jogo_config['host']
+        port = 65222
+        timeout = 5
+
+        try:
+            # Tenta obter as informações de socket e criar a conexão TCP
+            socket_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+            conn = socket.create_connection(socket_info[0][4], timeout=timeout)
+            conn.close()
+            logger_provedor_test.info(f"Conexão TCP na porta {port} com {host} bem-sucedida.")
+        except (OSError, socket.timeout):
+            logger_test_command.info(f"Não foi possível conectar ao host {host} na porta {port}. O host pode estar offline.")
+            time.sleep(2)
+            self.ping_provedor.clear()
+            logger_test_command.info("O evento ping_provedor foi definido como False.")
+            return
+
+        # Interfaces para ping com nomes amigáveis
+        interface_names = {
+            'eth2': 'Unifique',
+            'eth4': 'Claro',
+            'eth5': 'Coopera'
+        }
+        interfaces = list(interface_names.keys())
+        buttons = [self.unifique_status_button, self.claro_status_button, self.coopera_status_button]
+
+        # Variáveis para armazenar os dados de ping
+        pings_data = {iface: [] for iface in interfaces}
+
+        # Event para sinalizar a parada das threads
+        self.stop_ping_plotter = threading.Event()
+
+        # Função para atualização dos gráficos
+        def update_plot(frame):
+            for iface, ax in zip(interfaces, axes):
+                if len(pings_data[iface]) > 100:
+                    pings_data[iface] = pings_data[iface][-100:]  # Limita o tamanho dos dados
+                
+                ax.clear()  # Limpa o eixo antes de desenhar novamente
+                ax.plot(range(len(pings_data[iface])), pings_data[iface], label=f'{interface_names[iface]} Latência')
+                ax.set_title(f"Latência para {interface_names[iface]}")
+                #ax.set_xlabel("Contagem de Pings")
+                ax.set_ylabel("Latência (ms)")
+                ax.set_ylim(0, 500)  # Define o limite do eixo Y fixo
+                ax.set_xlim(0, 1800)  # Define o limite do eixo X fixo
+                ax.legend(loc='upper right')
+
+                ax.relim()  # Atualiza os limites do eixo
+                ax.autoscale_view()  # Ajusta o gráfico para se adequar aos novos dados
+
+        # Função para executar o ping e coletar latências
+        def execute_ping_and_collect(interface, button, stop_event):
+            if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
+                try:
+                    stdin, stdout, stderr = self.ssh_vpn_client.exec_command(f"ping -I {interface} {self.ssh_vps_jogo_config['host']}")
+                    logger_test_command.info(f"Ping iniciado na interface {interface_names[interface]}")
+
+                    while not stop_event.is_set():
+                        if select.select([stdout.channel], [], [], 5)[0]:  # Timeout de 5 segundos
+                            line = stdout.readline().strip()
+                            if not line:
+                                continue
+
+                            # Filtra a latência usando regex
+                            match = re.search(r'time=(\d+\.?\d*) ms', line)
+                            if match:
+                                latency = int(float(match.group(1)))  # Converte a latência para inteiro
+                                pings_data[interface].append(latency)
+                                #logger_test_command.info(f"Ping {interface_names[interface]}: {latency} ms")
+                            else:
+                                pings_data[interface].append(None)  # Em caso de perda de pacotes
+
+                        else:
+                            logger_test_command.info(f"Timeout na leitura do ping para {interface_names[interface]}")
+                            break
+
+                except Exception as e:
+                    logger_test_command.error(f"Erro ao executar ping: {e}")
+
+        # Cria a janela com subplots para cada interface
+        fig, axes = plt.subplots(len(interfaces), 1, figsize=(10, 8), sharex=True)
+
+        # Configuração para a animação dos gráficos
+        ani = animation.FuncAnimation(fig, update_plot, interval=2000)
+
+        # Adiciona um manipulador para o fechamento da janela
+        def on_close():
+            logger_test_command.info("Fechando a janela e parando os pings.")
+            self.stop_ping_plotter.set()  # Sinaliza as threads para parar
+            plt.close(fig)  # Fecha o gráfico
+
+        fig.canvas.mpl_connect('close_event', lambda event: on_close())  # Conecta o evento de fechar a janela
+
+        # Thread para executar os pings em paralelo
+        for interface, button in zip(interfaces, buttons):
+            ping_thread = threading.Thread(target=execute_ping_and_collect, args=(interface, button, self.stop_ping_plotter))
+            ping_thread.start()
+
+        # Exibe o gráfico
+        plt.tight_layout()  # Ajusta o layout para evitar sobreposição
+        plt.show()
 
 # METODO PARA MONITORAR O TRAFEGO EM TEMPO REAL DAS INTERFACES
     def show_omr_menu(self, options):
@@ -4959,7 +5069,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 74.7 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 75 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
