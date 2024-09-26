@@ -29,6 +29,8 @@ from pystray import Icon, MenuItem, Menu as TrayMenu
 from PIL import Image, ImageTk, ImageDraw
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import matplotlib.dates as mdates
+from datetime import datetime, timedelta
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -935,7 +937,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 75.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 75.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA JANELA DE MONITORAMENTO GRAFICO DE CONEXÕES
@@ -971,24 +973,35 @@ class ButtonManager:
 
         # Variáveis para armazenar os dados de ping
         pings_data = {iface: [] for iface in interfaces}
+        timestamps = {iface: [] for iface in interfaces}  # Armazena os horários dos pings
 
         # Event para sinalizar a parada das threads
         self.stop_ping_plotter = threading.Event()
 
         # Função para atualização dos gráficos
         def update_plot(frame):
+            now = datetime.now()
+            time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
+
             for iface, ax in zip(interfaces, axes):
-                if len(pings_data[iface]) > 1800:
-                    pings_data[iface] = pings_data[iface][-1800:]  # Limita o tamanho dos dados
-                
+                # Limitar o número de pings e timestamps aos últimos 60 minutos
+                timestamps[iface] = [t for t in timestamps[iface] if t >= time_window_start]
+                pings_data[iface] = pings_data[iface][-len(timestamps[iface]):]  # Limita os dados correspondentes
+
                 ax.clear()  # Limpa o eixo antes de desenhar novamente
-                ax.plot(range(len(pings_data[iface])), pings_data[iface], label=f'{interface_names[iface]} Latência')
+                ax.plot(timestamps[iface], pings_data[iface], label=f'{interface_names[iface]} Latência')
+
                 ax.set_title(f"Latência para {interface_names[iface]}")
-                #ax.set_xlabel("Contagem de Pings")
                 ax.set_ylabel("Latência (ms)")
                 ax.set_ylim(0, 300)  # Define o limite do eixo Y fixo
-                ax.set_xlim(0, 1800)  # Define o limite do eixo X fixo
+
+                # Formatação do eixo X para mostrar horas/minutos
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+                ax.set_xlim([time_window_start, now])  # Limita o eixo X aos últimos 60 minutos
+
                 ax.legend(loc='upper right')
+                ax.relim()  # Atualiza os limites do eixo
+                ax.autoscale_view()  # Ajusta o gráfico para se adequar aos novos dados
 
                 ax.relim()  # Atualiza os limites do eixo
                 ax.autoscale_view()  # Ajusta o gráfico para se adequar aos novos dados
@@ -1011,9 +1024,10 @@ class ButtonManager:
                             if match:
                                 latency = int(float(match.group(1)))  # Converte a latência para inteiro
                                 pings_data[interface].append(latency)
-                                #logger_test_command.info(f"Ping {interface_names[interface]}: {latency} ms")
+                                timestamps[interface].append(datetime.now())  # Adiciona o horário atual
                             else:
                                 pings_data[interface].append(None)  # Em caso de perda de pacotes
+                                timestamps[interface].append(datetime.now())
 
                         else:
                             logger_test_command.info(f"Timeout na leitura do ping para {interface_names[interface]}")
@@ -5070,7 +5084,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 75.1 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 75.2 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
