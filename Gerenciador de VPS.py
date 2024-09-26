@@ -937,7 +937,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 75.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 75.3", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA JANELA DE MONITORAMENTO GRAFICO DE CONEXÕES
@@ -954,12 +954,12 @@ class ButtonManager:
             socket_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
             conn = socket.create_connection(socket_info[0][4], timeout=timeout)
             conn.close()
-            logger_provedor_test.info(f"Conexão TCP na porta {port} com {host} bem-sucedida.")
+            logger_main.info(f"Conexão TCP na porta {port} com {host} bem-sucedida. Iniciando monitoramento de Latencia")
         except (OSError, socket.timeout):
-            logger_test_command.info(f"Não foi possível conectar ao host {host} na porta {port}. O host pode estar offline.")
+            logger_main.info(f"Não foi possível conectar ao host {host} na porta {port}. Monitoramento de latencia abortado.")
             time.sleep(2)
             self.ping_provedor.clear()
-            logger_test_command.info("O evento ping_provedor foi definido como False.")
+            #logger_main.info("O evento ping_provedor foi definido como False.")
             return
 
         # Interfaces para ping com nomes amigáveis
@@ -988,8 +988,22 @@ class ButtonManager:
                 timestamps[iface] = [t for t in timestamps[iface] if t >= time_window_start]
                 pings_data[iface] = pings_data[iface][-len(timestamps[iface]):]  # Limita os dados correspondentes
 
-                ax.clear()  # Limpa o eixo antes de desenhar novamente
-                ax.plot(timestamps[iface], pings_data[iface], label=f'{interface_names[iface]} Latência')
+                # Limpa o eixo antes de desenhar novamente
+                ax.clear()
+
+                # Separar valores válidos (latências) de None (perda de pacotes)
+                valid_pings = [(t, p) for t, p in zip(timestamps[iface], pings_data[iface]) if p is not None]
+                lost_pings = [(t, p) for t, p in zip(timestamps[iface], pings_data[iface]) if p is None]
+
+                if valid_pings:
+                    # Desenha os pings válidos com a cor padrão (exemplo: azul)
+                    valid_timestamps, valid_latencies = zip(*valid_pings)
+                    ax.plot(valid_timestamps, valid_latencies, label=f'{interface_names[iface]} Latência', color='blue')
+
+                if lost_pings:
+                    # Desenha as perdas de pacotes como traços vermelhos
+                    lost_timestamps, _ = zip(*lost_pings)  # Não precisamos do valor, apenas dos timestamps
+                    ax.vlines(lost_timestamps, ymin=0, ymax=300, color='red', linestyle='--', label='Perda de pacote')
 
                 ax.set_title(f"Latência para {interface_names[iface]}")
                 ax.set_ylabel("Latência (ms)")
@@ -1003,17 +1017,23 @@ class ButtonManager:
                 ax.relim()  # Atualiza os limites do eixo
                 ax.autoscale_view()  # Ajusta o gráfico para se adequar aos novos dados
 
-                ax.relim()  # Atualiza os limites do eixo
-                ax.autoscale_view()  # Ajusta o gráfico para se adequar aos novos dados
-
         # Função para executar o ping e coletar latências
         def execute_ping_and_collect(interface, button, stop_event):
+            last_ping_time = datetime.now()  # Registra o tempo do último ping
+
             if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
                 try:
                     stdin, stdout, stderr = self.ssh_vpn_client.exec_command(f"ping -I {interface} {self.ssh_vps_jogo_config['host']}")
-                    logger_test_command.info(f"Ping iniciado na interface {interface_names[interface]}")
-
+                    
                     while not stop_event.is_set():
+                        # Verifica se já passou mais de 30 segundos desde o último ping recebido
+                        time_since_last_ping = (datetime.now() - last_ping_time).total_seconds()
+                        if time_since_last_ping > 30:
+                            logger_test_command.info(f"Mais de 30 segundos sem ping na interface {interface_names[interface]}. Reiniciando o ping.")
+                            # Reinicia o comando de ping
+                            stdin, stdout, stderr = self.ssh_vpn_client.exec_command(f"ping -I {interface} {self.ssh_vps_jogo_config['host']}")
+                            last_ping_time = datetime.now()  # Reinicia o tempo do último ping
+
                         if select.select([stdout.channel], [], [], 5)[0]:  # Timeout de 5 segundos
                             line = stdout.readline().strip()
                             if not line:
@@ -1025,16 +1045,17 @@ class ButtonManager:
                                 latency = int(float(match.group(1)))  # Converte a latência para inteiro
                                 pings_data[interface].append(latency)
                                 timestamps[interface].append(datetime.now())  # Adiciona o horário atual
+                                last_ping_time = datetime.now()  # Atualiza o tempo do último ping recebido
                             else:
                                 pings_data[interface].append(None)  # Em caso de perda de pacotes
                                 timestamps[interface].append(datetime.now())
 
                         else:
-                            logger_test_command.info(f"Timeout na leitura do ping para {interface_names[interface]}")
+                            logger_main.info(f"Timeout na leitura do ping para {interface_names[interface]}")
                             break
 
                 except Exception as e:
-                    logger_test_command.error(f"Erro ao executar ping: {e}")
+                    logger_main.error(f"Erro ao executar ping: {e}")
 
         # Cria a janela com subplots para cada interface
         fig, axes = plt.subplots(len(interfaces), 1, figsize=(10, 8), sharex=True)
@@ -1045,7 +1066,7 @@ class ButtonManager:
 
         # Adiciona um manipulador para o fechamento da janela
         def on_close():
-            logger_test_command.info("Fechando a janela e parando os pings.")
+            logger_main.info("Fechando a janela e parando os pings.")
             self.stop_ping_plotter.set()  # Sinaliza as threads para parar
             plt.close(fig)  # Fecha o gráfico
 
@@ -5084,7 +5105,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 75.2 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 75.3 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
