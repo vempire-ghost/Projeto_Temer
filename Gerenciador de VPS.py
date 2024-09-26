@@ -937,7 +937,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 75.3", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 75.4", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA JANELA DE MONITORAMENTO GRAFICO DE CONEXÕES
@@ -988,22 +988,14 @@ class ButtonManager:
                 timestamps[iface] = [t for t in timestamps[iface] if t >= time_window_start]
                 pings_data[iface] = pings_data[iface][-len(timestamps[iface]):]  # Limita os dados correspondentes
 
-                # Limpa o eixo antes de desenhar novamente
-                ax.clear()
+                ax.clear()  # Limpa o eixo antes de desenhar novamente
+                # Plota as latências, incluindo a marcação para None
+                ax.plot(timestamps[iface], pings_data[iface], label=f'{interface_names[iface]} Latência', color='blue')
 
-                # Separar valores válidos (latências) de None (perda de pacotes)
-                valid_pings = [(t, p) for t, p in zip(timestamps[iface], pings_data[iface]) if p is not None]
-                lost_pings = [(t, p) for t, p in zip(timestamps[iface], pings_data[iface]) if p is None]
-
-                if valid_pings:
-                    # Desenha os pings válidos com a cor padrão (exemplo: azul)
-                    valid_timestamps, valid_latencies = zip(*valid_pings)
-                    ax.plot(valid_timestamps, valid_latencies, label=f'{interface_names[iface]} Latência', color='blue')
-
-                if lost_pings:
-                    # Desenha as perdas de pacotes como traços vermelhos
-                    lost_timestamps, _ = zip(*lost_pings)  # Não precisamos do valor, apenas dos timestamps
-                    ax.vlines(lost_timestamps, ymin=0, ymax=300, color='red', linestyle='--', label='Perda de pacote')
+                # Adiciona traços vermelhos para perdas de pacotes ou timeouts
+                for i in range(len(pings_data[iface]) - 1):
+                    if pings_data[iface][i] is None:
+                        ax.plot([timestamps[iface][i], timestamps[iface][i + 1]], [0, 0], color='red', linestyle='--')
 
                 ax.set_title(f"Latência para {interface_names[iface]}")
                 ax.set_ylabel("Latência (ms)")
@@ -1023,18 +1015,20 @@ class ButtonManager:
 
             if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
                 try:
+                    # Inicializa o comando de ping
                     stdin, stdout, stderr = self.ssh_vpn_client.exec_command(f"ping -I {interface} {self.ssh_vps_jogo_config['host']}")
                     
                     while not stop_event.is_set():
                         # Verifica se já passou mais de 30 segundos desde o último ping recebido
                         time_since_last_ping = (datetime.now() - last_ping_time).total_seconds()
                         if time_since_last_ping > 30:
-                            logger_test_command.info(f"Mais de 30 segundos sem ping na interface {interface_names[interface]}. Reiniciando o ping.")
+                            logger_main.info(f"Mais de 30 segundos sem ping na interface {interface_names[interface]}. Reiniciando o ping.")
                             # Reinicia o comando de ping
                             stdin, stdout, stderr = self.ssh_vpn_client.exec_command(f"ping -I {interface} {self.ssh_vps_jogo_config['host']}")
                             last_ping_time = datetime.now()  # Reinicia o tempo do último ping
 
-                        if select.select([stdout.channel], [], [], 5)[0]:  # Timeout de 5 segundos
+                        # Timeout de 5 segundos para leitura do ping
+                        if select.select([stdout.channel], [], [], 50)[0]:
                             line = stdout.readline().strip()
                             if not line:
                                 continue
@@ -1047,12 +1041,20 @@ class ButtonManager:
                                 timestamps[interface].append(datetime.now())  # Adiciona o horário atual
                                 last_ping_time = datetime.now()  # Atualiza o tempo do último ping recebido
                             else:
-                                pings_data[interface].append(None)  # Em caso de perda de pacotes
+                                # Em caso de perda de pacotes
+                                pings_data[interface].append(None)  # Adiciona None para perda de pacotes
                                 timestamps[interface].append(datetime.now())
+                                last_ping_time = datetime.now()  # Atualiza o tempo do último ping recebido
 
                         else:
+                            # Timeout na leitura do ping, adiciona um traço vermelho
                             logger_main.info(f"Timeout na leitura do ping para {interface_names[interface]}")
-                            break
+                            pings_data[interface].append(None)  # Em caso de timeout
+                            timestamps[interface].append(datetime.now())
+                            last_ping_time = datetime.now()  # Atualiza o tempo do último ping recebido
+                            # Reinicia o comando de ping se necessário
+                            stdin, stdout, stderr = self.ssh_vpn_client.exec_command(f"ping -I {interface} {self.ssh_vps_jogo_config['host']}")
+                            logger_main.info(f"Ping reiniciado para {interface_names[interface]} devido ao timeout.")
 
                 except Exception as e:
                     logger_main.error(f"Erro ao executar ping: {e}")
@@ -5105,7 +5107,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 75.3 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 75.4 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
