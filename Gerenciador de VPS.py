@@ -28,8 +28,8 @@ from ctypes import wintypes
 from pystray import Icon, MenuItem, Menu as TrayMenu
 from PIL import Image, ImageTk, ImageDraw
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 import matplotlib.dates as mdates
+from matplotlib.animation import FuncAnimation
 from datetime import datetime, timedelta
 
 # Cria um mutex
@@ -937,7 +937,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 75.5", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 75.6", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA JANELA DE MONITORAMENTO GRAFICO DE CONEXÕES
@@ -977,40 +977,56 @@ class ButtonManager:
         # Event para sinalizar a parada das threads
         self.stop_ping_plotter = threading.Event()
 
+        # Cria a janela com subplots para cada interface
+        fig, axes = plt.subplots(len(interfaces), 1, figsize=(10, 8), sharex=True)
+        fig.canvas.manager.set_window_title('Monitoramento de Latência')
+
+        # Inicializa as linhas
+        lines = []
+        for iface, ax in zip(interfaces, axes):
+            line, = ax.plot([], [], label=f'{interface_names[iface]} Latência', color='blue')
+            ax.set_title(f"Latência para {interface_names[iface]}")
+            ax.set_ylabel("Latência (ms)")
+            ax.set_ylim(0, 300)  # Define o limite do eixo Y fixo
+            ax.legend(loc='upper right')
+            lines.append(line)  # Armazena a linha correspondente
+
         # Função para atualização dos gráficos
         def update_plot(frame):
+            #logger_main.info(f"Atualizando gráfico no frame {frame} às {datetime.now()}")
+
             if self.stop_ping_plotter.is_set():
                 logger_main.info("Atualização do gráfico interrompida porque a sinalização de parada foi ativada.")
-                return
-                
+                return lines
+
             now = datetime.now()
             time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
 
-            for iface, ax in zip(interfaces, axes):
+            for iface, ax, line in zip(interfaces, axes, lines):
                 # Limitar o número de pings e timestamps aos últimos 60 minutos
                 timestamps[iface] = [t for t in timestamps[iface] if t >= time_window_start]
                 pings_data[iface] = pings_data[iface][-len(timestamps[iface]):]  # Limita os dados correspondentes
 
-                ax.clear()  # Limpa o eixo antes de desenhar novamente
-                # Plota as latências, incluindo a marcação para None
-                ax.plot(timestamps[iface], pings_data[iface], label=f'{interface_names[iface]} Latência', color='blue')
+                line.set_data(timestamps[iface], pings_data[iface])  # Atualiza os dados da linha
+                ax.set_xlim([time_window_start, now])  # Limita o eixo X aos últimos 60 minutos
 
                 # Adiciona traços vermelhos para perdas de pacotes ou timeouts
                 for i in range(len(pings_data[iface]) - 1):
                     if pings_data[iface][i] is None:
                         ax.plot([timestamps[iface][i], timestamps[iface][i + 1]], [0, 0], color='red', linestyle='--')
 
-                ax.set_title(f"Latência para {interface_names[iface]}")
-                ax.set_ylabel("Latência (ms)")
-                ax.set_ylim(0, 300)  # Define o limite do eixo Y fixo
+            return lines  # Retorna as linhas que foram atualizadas
 
-                # Formatação do eixo X para mostrar horas/minutos
-                ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-                ax.set_xlim([time_window_start, now])  # Limita o eixo X aos últimos 60 minutos
+        # Configuração para a animação dos gráficos
+        ani = FuncAnimation(fig, update_plot, interval=2000, blit=True, cache_frame_data=False)  # Usando FuncAnimation com blit=True
 
-                ax.legend(loc='upper right')
-                ax.relim()  # Atualiza os limites do eixo
-                ax.autoscale_view()  # Ajusta o gráfico para se adequar aos novos dados
+        # Adiciona um manipulador para o fechamento da janela
+        def on_close(event):
+            logger_main.info("Fechando a janela e parando os pings.")
+            self.stop_ping_plotter.set()  # Sinaliza as threads para parar
+            plt.close(fig)  # Fecha o gráfico
+
+        fig.canvas.mpl_connect('close_event', on_close)
 
         # Função para executar o ping e coletar latências
         def execute_ping_and_collect(interface, button, stop_event):
@@ -1021,7 +1037,7 @@ class ButtonManager:
                     # Inicializa o comando de ping
                     stdin, stdout, stderr = self.ssh_vpn_client.exec_command(f"ping -I {interface} {self.ssh_vps_jogo_config['host']}")
                     stdout.channel.setblocking(0)  # Configura o canal para não bloqueante
-                    
+
                     while not stop_event.is_set():
                         # Verifica se já passou mais de 30 segundos desde o último ping recebido
                         time_since_last_ping = (datetime.now() - last_ping_time).total_seconds()
@@ -1057,29 +1073,10 @@ class ButtonManager:
                             logger_main.info(f"Timeout na leitura do ping para {interface_names[interface]}")
                             pings_data[interface].append(None)  # Em caso de timeout
                             timestamps[interface].append(datetime.now())
-                            last_ping_time = datetime.now()  # Atualiza o tempo do último ping recebido
-                            # Reinicia o comando de ping se necessário
-                            stdin, stdout, stderr = self.ssh_vpn_client.exec_command(f"ping -I {interface} {self.ssh_vps_jogo_config['host']}")
-                            stdout.channel.setblocking(0)
-                            logger_main.info(f"Ping reiniciado para {interface_names[interface]} devido ao timeout.")
+                            last_ping_time = datetime.now()
 
                 except Exception as e:
                     logger_main.error(f"Erro ao executar ping para {interface_names[interface]}: {e}", exc_info=True)
-
-        # Cria a janela com subplots para cada interface
-        fig, axes = plt.subplots(len(interfaces), 1, figsize=(10, 8), sharex=True)
-        fig.canvas.manager.set_window_title('Monitoramento de Latência')
-
-        # Configuração para a animação dos gráficos
-        ani = animation.FuncAnimation(fig, update_plot, interval=2000)
-
-        # Adiciona um manipulador para o fechamento da janela
-        def on_close():
-            logger_main.info("Fechando a janela e parando os pings.")
-            self.stop_ping_plotter.set()  # Sinaliza as threads para parar
-            plt.close(fig)  # Fecha o gráfico
-
-        fig.canvas.mpl_connect('close_event', lambda event: on_close())  # Conecta o evento de fechar a janela
 
         # Thread para executar os pings em paralelo
         for interface, button in zip(interfaces, buttons):
@@ -1581,7 +1578,7 @@ class ButtonManager:
                     try:
                         if bind_ip:
                             # Verifica a conexão via Transport
-                            logger_test_command.info(f"Verificando conexão SSH via Transport ({connection_type})...")
+                            #logger_test_command.info(f"Verificando conexão SSH via Transport ({connection_type})...")
 
                             # Loga a instância de self.transport
                             transport = None
@@ -1598,7 +1595,7 @@ class ButtonManager:
 
                             # Loga o Transport e verifica se contém "unconnected"
                             transport_info = f"Executando comando na conexão SSH (via Transport) com cliente: {transport}"
-                            logger_test_command.info(transport_info)
+                            #logger_test_command.info(transport_info)
                             
                             if 'unconnected' in transport_info:
                                 raise ConnectionError(f"O Transport para o tipo de conexão {connection_type} está desconectado.")
@@ -1637,7 +1634,7 @@ class ButtonManager:
 
                         else:
                             # Verifica a conexão via SSHClient
-                            logger_test_command.info(f"Verificando conexão SSH ({connection_type})...")
+                            #logger_test_command.info(f"Verificando conexão SSH ({connection_type})...")
 
                             # Loga a instância de ssh_client
                             ssh_client = None
@@ -1660,7 +1657,7 @@ class ButtonManager:
 
                             # Loga o SSHClient e verifica se contém "unconnected"
                             ssh_client_info = f"Executando comando na conexão SSH (via SSHClient) com cliente: {ssh_client}"
-                            logger_test_command.info(ssh_client_info)
+                            #logger_test_command.info(ssh_client_info)
                             
                             if 'unconnected' in ssh_client_info:
                                 raise ConnectionError(f"O SSHClient para o tipo de conexão {connection_type} está desconectado.")
@@ -5114,7 +5111,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 75.5 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 75.6 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
