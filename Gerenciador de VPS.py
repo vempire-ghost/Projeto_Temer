@@ -28,6 +28,7 @@ from ctypes import wintypes
 from pystray import Icon, MenuItem, Menu as TrayMenu
 from PIL import Image, ImageTk, ImageDraw
 import matplotlib.pyplot as plt
+from matplotlib.dates import DateFormatter
 import matplotlib.dates as mdates
 from matplotlib.animation import FuncAnimation
 from datetime import datetime, timedelta
@@ -385,7 +386,6 @@ class ButtonManager:
         config_menu.add_command(label="Configurações do Gerenciador de VPS", command=self.open_omr_manager)
         config_menu.add_command(label="Configurações de Cores", command=self.open_color_config)
         config_menu.add_command(label="Monitoramento de Latência", command=self.run_vps_vpn_pings_with_plot)
-        config_menu.add_command(label="MTR", command=lambda: threading.Thread(target=self.execute_mtr, args=('google.com',)).start())
         config_menu.add_command(label="Console com OMR VPN", command=self.open_ssh_terminal)
         config_menu.add_command(label="MTR e Grafico", command=self.execute_mtr_and_plot)
         config_menu.add_command(label="Ajuda", command=self.abrir_arquivo_ajuda)
@@ -943,7 +943,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.3", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.4", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MTR E PLOT DE PING
@@ -960,9 +960,10 @@ class ButtonManager:
         }
         interfaces = list(interface_names.keys())
 
-        # Cria a janela principal
+        # Cria a janela principal com fundo branco
         main_window = tk.Toplevel(self.master)
         main_window.title("Saídas do MTR e Gráficos de Latência")
+        main_window.configure(bg='white')  # Define o fundo branco
 
         # Dicionário para armazenar referências às áreas de texto e dados de latência
         outputs = {}
@@ -981,16 +982,20 @@ class ButtonManager:
             # Atualiza os dados do gráfico
             line.set_data(timestamps_filtered, pings_data_filtered)
             ax.set_xlim([time_window_start, now])
+
+            # Formata o eixo X para exibir apenas as horas e minutos (HH:MM)
+            ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))  # Formata corretamente as horas
+
             ax.figure.canvas.draw()
 
         for idx, interface in enumerate(interfaces):
             # Cria um quadro para cada interface
-            frame = tk.Frame(main_window)
-            frame.grid(row=0, column=idx, padx=0, pady=0)
+            frame = tk.Frame(main_window, bg='white')  # Aplica fundo branco ao quadro
+            frame.grid(row=0, column=idx, padx=10, pady=0, sticky="n")  # Adicionando padding para melhor layout
 
             # Área de texto rolável para exibir a saída do MTR
             output_area = scrolledtext.ScrolledText(frame, width=77, height=28)
-            output_area.pack(padx=0, pady=0)
+            output_area.pack(padx=0, pady=0, anchor='w', fill='both')  # Alinhando a área de texto à esquerda
             outputs[interface] = output_area
 
             # Cria a janela com o subplot para a interface
@@ -1007,7 +1012,7 @@ class ButtonManager:
             # Adiciona o gráfico à interface Tkinter
             canvas = FigureCanvasTkAgg(fig, master=frame)
             canvas.draw()
-            canvas.get_tk_widget().pack(pady=(5, 0))
+            canvas.get_tk_widget().pack(pady=(5, 0), anchor='w', fill='both')  # Alinhando os gráficos à esquerda
 
             # Função para executar o MTR e coletar latências
             def execute_mtr_and_collect(interface, line, ax):
@@ -1113,51 +1118,6 @@ class ButtonManager:
             channel.close()
         else:
             print("A conexão SSH não está configurada.")
-
-# METODO PARA MTR
-    def execute_mtr(self, host='google.com'):
-        """Executa o comando MTR via SSH e exibe a saída em uma nova janela."""
-        
-        # Cria uma nova janela
-        mtr_window = tk.Toplevel(self.master)
-        mtr_window.title(f"Saída do MTR - {host}")
-
-        # Área de texto rolável para exibir a saída
-        output_area = scrolledtext.ScrolledText(mtr_window, width=100, height=25)
-        output_area.pack(padx=10, pady=10)
-
-        # Verifica se a conexão SSH está disponível
-        if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
-            def read_output():
-                while True:
-                    # Comando MTR a ser executado
-                    command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 {host}"
-                    stdin, stdout, stderr = self.ssh_vpn_client.exec_command(command)
-
-                    # Aguarda a saída do comando
-                    output = stdout.read().decode()  # Lê toda a saída do comando
-                    
-                    if output:  # Se houver saída, limpe e insira no output_area
-                        output_area.delete(1.0, tk.END)  # Limpa a área de texto
-                        output_area.insert(tk.END, output + "\n")  # Adiciona nova saída
-                        output_area.see(tk.END)  # Rolagem automática para o final
-
-                    # Verifica se há erros
-                    errors = stderr.read().decode()
-                    if errors:
-                        output_area.insert(tk.END, "ERROS:\n" + errors + "\n")
-                    
-                    # Espera um segundo antes de gerar o próximo relatório
-                    time.sleep(1)
-
-            # Inicia a leitura da saída em uma thread separada
-            threading.Thread(target=read_output, daemon=True).start()
-
-            # Adiciona um manipulador para fechar a janela
-            def on_closing():
-                mtr_window.destroy()  # Fecha a janela
-
-            mtr_window.protocol("WM_DELETE_WINDOW", on_closing)  # Configura o manipulador para fechar a janela
             
 # METODO PARA JANELA DE MONITORAMENTO GRAFICO DE CONEXÕES
     def run_vps_vpn_pings_with_plot(self):
