@@ -33,6 +33,7 @@ from matplotlib.animation import FuncAnimation
 from datetime import datetime, timedelta
 from rich.console import Console
 from rich.text import Text
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -942,7 +943,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MTR E PLOT DE PING
@@ -971,15 +972,15 @@ class ButtonManager:
         for idx, interface in enumerate(interfaces):
             # Cria um quadro para cada interface
             frame = tk.Frame(main_window)
-            frame.grid(row=0, column=idx, padx=10, pady=10)  # Mudando a linha para 0 e usando idx como coluna
+            frame.grid(row=0, column=idx, padx=0, pady=0)  # Coloca o frame na primeira linha e na coluna correspondente
 
             # Área de texto rolável para exibir a saída do MTR
-            output_area = scrolledtext.ScrolledText(frame, width=77, height=28)  # Ajustando a largura
+            output_area = scrolledtext.ScrolledText(frame, width=77, height=28)  # Ajustando a largura e altura
             output_area.pack(padx=0, pady=0)
             outputs[interface] = output_area
 
             # Cria a janela com o subplot para a interface
-            fig, ax = plt.subplots(figsize=(10, 4))
+            fig, ax = plt.subplots(figsize=(6, 4))  # Ajusta o tamanho do gráfico
             fig.canvas.manager.set_window_title(f'Monitoramento de Latência - {interface_names[interface]}')
 
             # Inicializa a linha
@@ -989,8 +990,13 @@ class ButtonManager:
             ax.set_ylim(0, 300)  # Define o limite do eixo Y fixo
             ax.legend(loc='upper right')
 
+            # Adiciona o gráfico à interface Tkinter
+            canvas = FigureCanvasTkAgg(fig, master=frame)  # Cria o canvas do matplotlib
+            canvas.draw()
+            canvas.get_tk_widget().pack(pady=(5, 0))  # Adiciona o widget do canvas ao quadro
+
             # Função para atualizar o gráfico
-            def update_plot(frame, iface):
+            def update_plot(frame, iface, line, ax):
                 now = datetime.now()
                 time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
 
@@ -1004,7 +1010,7 @@ class ButtonManager:
                 return line,  # Retorna a linha que foi atualizada
 
             # Configuração para a animação do gráfico
-            ani = FuncAnimation(fig, update_plot, fargs=(interface,), interval=2000, blit=False, cache_frame_data=False)
+            ani = FuncAnimation(fig, update_plot, fargs=(interface, line, ax), interval=2000, blit=False, cache_frame_data=False)
 
             # Função para executar o MTR e coletar latências
             def execute_mtr_and_collect(interface):
@@ -1020,15 +1026,29 @@ class ButtonManager:
                             outputs[interface].insert(tk.END, f"MTR para {interface_names[interface]}:\n{output}\n")
 
                             # Processa a saída do MTR para coletar a latência média
-                            last_line = output.splitlines()[-1] if output else ""
-                            match = re.search(r'(\d+\.?\d*) ms', last_line)
-                            if match:
-                                latency = int(float(match.group(1)))  # Converte a latência para inteiro
-                                pings_data[interface].append(latency)
-                                timestamps[interface].append(datetime.now())  # Adiciona o horário atual
-                            else:
-                                pings_data[interface].append(None)  # Adiciona None para latência não encontrada
-                                timestamps[interface].append(datetime.now())
+                            last_lines = output.strip().splitlines()  # Divide a saída em linhas
+                            valid_lines = []
+
+                            # Filtra as linhas válidas para encontrar a última com latência
+                            for line in last_lines:
+                                if "?" not in line:  # Ignora linhas que contêm "?"
+                                    valid_lines.append(line)
+
+                            if valid_lines:
+                                # Obtém a última linha válida
+                                last_line = valid_lines[-1].split()  # Divide a última linha em colunas
+
+                                # A coluna "Avg" é a quarta, indexada como 6
+                                avg_index = 6
+
+                                if len(last_line) > avg_index:
+                                    try:
+                                        latency = int(float(last_line[avg_index]))  # Converte a latência para inteiro
+                                        pings_data[interface].append(latency)
+                                        timestamps[interface].append(datetime.now())  # Adiciona o horário atual
+                                    except ValueError:
+                                        pings_data[interface].append(None)  # Adiciona None para latência não encontrada
+                                        timestamps[interface].append(datetime.now())
 
                             # Aguarda um segundo antes de gerar o próximo relatório
                             time.sleep(1)
