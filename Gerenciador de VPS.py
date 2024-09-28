@@ -386,6 +386,7 @@ class ButtonManager:
         config_menu.add_command(label="Monitoramento de Latência", command=self.run_vps_vpn_pings_with_plot)
         config_menu.add_command(label="MTR", command=lambda: threading.Thread(target=self.execute_mtr, args=('google.com',)).start())
         config_menu.add_command(label="Console com OMR VPN", command=self.open_ssh_terminal)
+        config_menu.add_command(label="MTR e Grafico", command=self.execute_mtr_and_plot)
         config_menu.add_command(label="Ajuda", command=self.abrir_arquivo_ajuda)
         config_menu.add_command(label="Sobre", command=self.about)
 
@@ -941,10 +942,115 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.1", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
-# METODO PARA SHELL SSH
+# METODO PARA MTR E PLOT DE PING
+    def execute_mtr_and_plot(self):
+        """Executa o comando MTR via SSH para múltiplas interfaces em uma única janela com quadros separados."""
+        
+        host = self.ssh_vps_jogo_config['host']
+
+        # Interfaces para MTR com nomes amigáveis
+        interface_names = {
+            'eth2': 'Unifique',
+            'eth4': 'Claro',
+            'eth5': 'Coopera'
+        }
+        interfaces = list(interface_names.keys())
+
+        # Cria a janela principal
+        main_window = tk.Toplevel(self.master)
+        main_window.title("Saídas do MTR e Gráficos de Latência")
+
+        # Dicionário para armazenar referências às áreas de texto e dados de latência
+        outputs = {}
+        pings_data = {iface: [] for iface in interfaces}
+        timestamps = {iface: [] for iface in interfaces}
+
+        for idx, interface in enumerate(interfaces):
+            # Cria um quadro para cada interface
+            frame = tk.Frame(main_window)
+            frame.grid(row=0, column=idx, padx=10, pady=10)  # Mudando a linha para 0 e usando idx como coluna
+
+            # Área de texto rolável para exibir a saída do MTR
+            output_area = scrolledtext.ScrolledText(frame, width=77, height=28)  # Ajustando a largura
+            output_area.pack(padx=0, pady=0)
+            outputs[interface] = output_area
+
+            # Cria a janela com o subplot para a interface
+            fig, ax = plt.subplots(figsize=(10, 4))
+            fig.canvas.manager.set_window_title(f'Monitoramento de Latência - {interface_names[interface]}')
+
+            # Inicializa a linha
+            line, = ax.plot([], [], label=f'{interface_names[interface]} Latência', color='blue')
+            ax.set_title(f"Latência para {interface_names[interface]}")
+            ax.set_ylabel("Latência (ms)")
+            ax.set_ylim(0, 300)  # Define o limite do eixo Y fixo
+            ax.legend(loc='upper right')
+
+            # Função para atualizar o gráfico
+            def update_plot(frame, iface):
+                now = datetime.now()
+                time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
+
+                # Limitar o número de pings e timestamps aos últimos 60 minutos
+                timestamps_filtered = [t for t in timestamps[iface] if t >= time_window_start]
+                pings_data_filtered = pings_data[iface][-len(timestamps_filtered):]  # Limita os dados correspondentes
+
+                line.set_data(timestamps_filtered, pings_data_filtered)  # Atualiza os dados da linha
+                ax.set_xlim([time_window_start, now])  # Limita o eixo X aos últimos 60 minutos
+
+                return line,  # Retorna a linha que foi atualizada
+
+            # Configuração para a animação do gráfico
+            ani = FuncAnimation(fig, update_plot, fargs=(interface,), interval=2000, blit=False, cache_frame_data=False)
+
+            # Função para executar o MTR e coletar latências
+            def execute_mtr_and_collect(interface):
+                command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 -I {interface} {host}"  # Incluindo a interface
+                if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
+                    try:
+                        while True:
+                            stdin, stdout, stderr = self.ssh_vpn_client.exec_command(command)
+                            output = stdout.read().decode()  # Lê toda a saída do MTR
+
+                            # Limpa a área de texto e exibe a nova saída
+                            outputs[interface].delete(1.0, tk.END)  # Limpa a área de texto
+                            outputs[interface].insert(tk.END, f"MTR para {interface_names[interface]}:\n{output}\n")
+
+                            # Processa a saída do MTR para coletar a latência média
+                            last_line = output.splitlines()[-1] if output else ""
+                            match = re.search(r'(\d+\.?\d*) ms', last_line)
+                            if match:
+                                latency = int(float(match.group(1)))  # Converte a latência para inteiro
+                                pings_data[interface].append(latency)
+                                timestamps[interface].append(datetime.now())  # Adiciona o horário atual
+                            else:
+                                pings_data[interface].append(None)  # Adiciona None para latência não encontrada
+                                timestamps[interface].append(datetime.now())
+
+                            # Aguarda um segundo antes de gerar o próximo relatório
+                            time.sleep(1)
+
+                    except Exception as e:
+                        outputs[interface].insert(tk.END, f"Erro ao executar MTR para {interface_names[interface]}: {e}\n")
+
+            # Thread para executar o MTR em paralelo
+            mtr_thread = threading.Thread(target=execute_mtr_and_collect, args=(interface,))
+            mtr_thread.start()
+
+            # Adiciona um manipulador para fechar a janela
+            def on_closing():
+                plt.close(fig)  # Fecha o gráfico
+                main_window.destroy()  # Fecha a janela
+
+            main_window.protocol("WM_DELETE_WINDOW", on_closing)  # Configura o manipulador para fechar a janela
+
+        # Exibe a janela
+        main_window.mainloop()
+
+    # METODO PARA SHELL SSH
     def open_ssh_terminal(self):
         if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
             # Cria a janela principal do terminal
