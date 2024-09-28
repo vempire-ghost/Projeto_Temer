@@ -943,7 +943,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.5", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.6", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MTR E GRAFICO DE CONEXÕES
@@ -968,19 +968,30 @@ class ButtonManager:
         # Dicionário para armazenar referências às áreas de texto e dados de latência
         outputs = {}
         pings_data = {iface: [] for iface in interfaces}
+        loss_data = {iface: [] for iface in interfaces}  # Nova lista para perda de pacotes
         timestamps = {iface: [] for iface in interfaces}
 
         # Função para atualizar o gráfico de forma thread-safe usando 'after'
-        def update_graph_safe(interface, line, ax):
+        def update_graph_safe(interface, line, loss_line, ax):
             now = datetime.now()
             time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
 
             # Limitar o número de pings e timestamps aos últimos 60 minutos
             timestamps_filtered = [t for t in timestamps[interface] if t >= time_window_start]
             pings_data_filtered = pings_data[interface][-len(timestamps_filtered):]  # Limita os dados correspondentes
+            loss_data_filtered = loss_data[interface][-len(timestamps_filtered):]  # Limita a perda de pacotes
 
-            # Atualiza os dados do gráfico
-            line.set_data(timestamps_filtered, pings_data_filtered)
+            # Verifica se há dados disponíveis
+            if timestamps_filtered and pings_data_filtered:
+                line.set_data(timestamps_filtered, pings_data_filtered)
+            else:
+                line.set_data([], [])
+
+            if timestamps_filtered and loss_data_filtered:
+                loss_line.set_data(timestamps_filtered, loss_data_filtered)
+            else:
+                loss_line.set_data([], [])
+
             ax.set_xlim([time_window_start, now])
 
             # Formata o eixo X para exibir apenas as horas e minutos (HH:MM)
@@ -1002,10 +1013,11 @@ class ButtonManager:
             fig, ax = plt.subplots(figsize=(6, 4))
             fig.canvas.manager.set_window_title(f'Monitoramento de Latência - {interface_names[interface]}')
 
-            # Inicializa a linha do gráfico
+            # Inicializa as linhas do gráfico
             line, = ax.plot([], [], label=f'{interface_names[interface]} Latência', color='blue')
-            ax.set_title(f"Latência para {interface_names[interface]}")
-            ax.set_ylabel("Latência (ms)")
+            loss_line, = ax.plot([], [], label='Perda de Pacotes (%)', color='red')  # Linha para perda de pacotes
+            ax.set_title(f"Latência e Perda de Pacotes para {interface_names[interface]}")
+            ax.set_ylabel("Latência (ms) / Perda de Pacotes (%)")
             ax.set_ylim(0, 300)
             ax.legend(loc='upper right')
 
@@ -1018,8 +1030,8 @@ class ButtonManager:
             canvas.draw()
             canvas.get_tk_widget().pack(pady=(5, 0), anchor='w', fill='both')  # Alinhando os gráficos à esquerda
 
-            # Função para executar o MTR e coletar latências
-            def execute_mtr_and_collect(interface, line, ax):
+            # Função para executar o MTR e coletar latências e perdas de pacotes
+            def execute_mtr_and_collect(interface, line, loss_line, ax):
                 command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 -I {interface} {host}"
                 if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
                     try:
@@ -1030,13 +1042,14 @@ class ButtonManager:
                             # Atualiza a área de texto com a saída do MTR
                             self.master.after(0, lambda: update_output_area(interface, output))
 
-                            # Processa a saída do MTR para coletar a latência média
+                            # Processa a saída do MTR para coletar a latência média e perda de pacotes
                             last_lines = output.strip().splitlines()
                             valid_lines = [line for line in last_lines if "?" not in line]  # Filtra linhas válidas
 
                             if valid_lines:
                                 last_line = valid_lines[-1].split()
                                 avg_index = 6
+                                loss_index = -1  # O índice do percentual de perda de pacotes
 
                                 if len(last_line) > avg_index:
                                     try:
@@ -1046,11 +1059,19 @@ class ButtonManager:
                                     except ValueError:
                                         pings_data[interface].append(None)
                                         timestamps[interface].append(datetime.now())
+                                
+                                # Captura a perda de pacotes (último elemento)
+                                if last_line[loss_index].endswith('%'):
+                                    try:
+                                        loss = float(last_line[loss_index].replace('%', ''))
+                                        loss_data[interface].append(loss)  # Adiciona a perda de pacotes
+                                    except ValueError:
+                                        loss_data[interface].append(None)  # Caso não consiga converter
 
-                            # Chama a atualização do gráfico de forma segura (usando 'after')
-                            self.master.after(0, update_graph_safe, interface, line, ax)
+                                # Chama a atualização do gráfico de forma segura (usando 'after')
+                                self.master.after(0, update_graph_safe, interface, line, loss_line, ax)
 
-                            time.sleep(1)  # Aguarda 1 segundo para o próximo MTR
+                                time.sleep(1)  # Aguarda 1 segundo para o próximo MTR
                     except Exception as e:
                         self.master.after(0, lambda: outputs[interface].insert(tk.END, f"Erro ao executar MTR para {interface_names[interface]}: {e}\n"))
 
@@ -1060,7 +1081,7 @@ class ButtonManager:
                 outputs[interface].insert(tk.END, f"MTR para {interface_names[interface]}:\n{output}\n")
 
             # Cria e inicia uma thread para executar o MTR para cada interface
-            mtr_thread = threading.Thread(target=execute_mtr_and_collect, args=(interface, line, ax))
+            mtr_thread = threading.Thread(target=execute_mtr_and_collect, args=(interface, line, loss_line, ax))
             mtr_thread.start()
 
         # Função para fechar a janela corretamente
@@ -5294,7 +5315,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 76.5 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 76.6 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
