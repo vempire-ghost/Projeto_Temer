@@ -943,7 +943,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.3", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MTR E PLOT DE PING
@@ -969,103 +969,97 @@ class ButtonManager:
         pings_data = {iface: [] for iface in interfaces}
         timestamps = {iface: [] for iface in interfaces}
 
+        # Função para atualizar o gráfico de forma thread-safe usando 'after'
+        def update_graph_safe(interface, line, ax):
+            now = datetime.now()
+            time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
+
+            # Limitar o número de pings e timestamps aos últimos 60 minutos
+            timestamps_filtered = [t for t in timestamps[interface] if t >= time_window_start]
+            pings_data_filtered = pings_data[interface][-len(timestamps_filtered):]  # Limita os dados correspondentes
+
+            # Atualiza os dados do gráfico
+            line.set_data(timestamps_filtered, pings_data_filtered)
+            ax.set_xlim([time_window_start, now])
+            ax.figure.canvas.draw()
+
         for idx, interface in enumerate(interfaces):
             # Cria um quadro para cada interface
             frame = tk.Frame(main_window)
-            frame.grid(row=0, column=idx, padx=0, pady=0)  # Coloca o frame na primeira linha e na coluna correspondente
+            frame.grid(row=0, column=idx, padx=0, pady=0)
 
             # Área de texto rolável para exibir a saída do MTR
-            output_area = scrolledtext.ScrolledText(frame, width=77, height=28)  # Ajustando a largura e altura
+            output_area = scrolledtext.ScrolledText(frame, width=77, height=28)
             output_area.pack(padx=0, pady=0)
             outputs[interface] = output_area
 
             # Cria a janela com o subplot para a interface
-            fig, ax = plt.subplots(figsize=(6, 4))  # Ajusta o tamanho do gráfico
+            fig, ax = plt.subplots(figsize=(6, 4))
             fig.canvas.manager.set_window_title(f'Monitoramento de Latência - {interface_names[interface]}')
 
-            # Inicializa a linha
+            # Inicializa a linha do gráfico
             line, = ax.plot([], [], label=f'{interface_names[interface]} Latência', color='blue')
             ax.set_title(f"Latência para {interface_names[interface]}")
             ax.set_ylabel("Latência (ms)")
-            ax.set_ylim(0, 300)  # Define o limite do eixo Y fixo
+            ax.set_ylim(0, 300)
             ax.legend(loc='upper right')
 
             # Adiciona o gráfico à interface Tkinter
-            canvas = FigureCanvasTkAgg(fig, master=frame)  # Cria o canvas do matplotlib
+            canvas = FigureCanvasTkAgg(fig, master=frame)
             canvas.draw()
-            canvas.get_tk_widget().pack(pady=(5, 0))  # Adiciona o widget do canvas ao quadro
-
-            # Função para atualizar o gráfico
-            def update_plot(frame, iface, line, ax):
-                now = datetime.now()
-                time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
-
-                # Limitar o número de pings e timestamps aos últimos 60 minutos
-                timestamps_filtered = [t for t in timestamps[iface] if t >= time_window_start]
-                pings_data_filtered = pings_data[iface][-len(timestamps_filtered):]  # Limita os dados correspondentes
-
-                line.set_data(timestamps_filtered, pings_data_filtered)  # Atualiza os dados da linha
-                ax.set_xlim([time_window_start, now])  # Limita o eixo X aos últimos 60 minutos
-
-                return line,  # Retorna a linha que foi atualizada
-
-            # Configuração para a animação do gráfico
-            ani = FuncAnimation(fig, update_plot, fargs=(interface, line, ax), interval=2000, blit=False, cache_frame_data=False)
+            canvas.get_tk_widget().pack(pady=(5, 0))
 
             # Função para executar o MTR e coletar latências
-            def execute_mtr_and_collect(interface):
-                command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 -I {interface} {host}"  # Incluindo a interface
+            def execute_mtr_and_collect(interface, line, ax):
+                command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 -I {interface} {host}"
                 if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
                     try:
                         while True:
                             stdin, stdout, stderr = self.ssh_vpn_client.exec_command(command)
-                            output = stdout.read().decode()  # Lê toda a saída do MTR
+                            output = stdout.read().decode()
 
-                            # Limpa a área de texto e exibe a nova saída
-                            outputs[interface].delete(1.0, tk.END)  # Limpa a área de texto
-                            outputs[interface].insert(tk.END, f"MTR para {interface_names[interface]}:\n{output}\n")
+                            # Atualiza a área de texto com a saída do MTR
+                            self.master.after(0, lambda: update_output_area(interface, output))
 
                             # Processa a saída do MTR para coletar a latência média
-                            last_lines = output.strip().splitlines()  # Divide a saída em linhas
-                            valid_lines = []
-
-                            # Filtra as linhas válidas para encontrar a última com latência
-                            for line in last_lines:
-                                if "?" not in line:  # Ignora linhas que contêm "?"
-                                    valid_lines.append(line)
+                            last_lines = output.strip().splitlines()
+                            valid_lines = [line for line in last_lines if "?" not in line]  # Filtra linhas válidas
 
                             if valid_lines:
-                                # Obtém a última linha válida
-                                last_line = valid_lines[-1].split()  # Divide a última linha em colunas
-
-                                # A coluna "Avg" é a quarta, indexada como 6
+                                last_line = valid_lines[-1].split()
                                 avg_index = 6
 
                                 if len(last_line) > avg_index:
                                     try:
-                                        latency = int(float(last_line[avg_index]))  # Converte a latência para inteiro
+                                        latency = int(float(last_line[avg_index]))
                                         pings_data[interface].append(latency)
-                                        timestamps[interface].append(datetime.now())  # Adiciona o horário atual
+                                        timestamps[interface].append(datetime.now())
                                     except ValueError:
-                                        pings_data[interface].append(None)  # Adiciona None para latência não encontrada
+                                        pings_data[interface].append(None)
                                         timestamps[interface].append(datetime.now())
 
-                            # Aguarda um segundo antes de gerar o próximo relatório
-                            time.sleep(1)
+                            # Chama a atualização do gráfico de forma segura (usando 'after')
+                            self.master.after(0, update_graph_safe, interface, line, ax)
 
+                            time.sleep(1)  # Aguarda 1 segundo para o próximo MTR
                     except Exception as e:
-                        outputs[interface].insert(tk.END, f"Erro ao executar MTR para {interface_names[interface]}: {e}\n")
+                        self.master.after(0, lambda: outputs[interface].insert(tk.END, f"Erro ao executar MTR para {interface_names[interface]}: {e}\n"))
 
-            # Thread para executar o MTR em paralelo
-            mtr_thread = threading.Thread(target=execute_mtr_and_collect, args=(interface,))
+            # Função para atualizar a área de saída de texto
+            def update_output_area(interface, output):
+                outputs[interface].delete(1.0, tk.END)  # Limpa a área de texto
+                outputs[interface].insert(tk.END, f"MTR para {interface_names[interface]}:\n{output}\n")
+
+            # Cria e inicia uma thread para executar o MTR para cada interface
+            mtr_thread = threading.Thread(target=execute_mtr_and_collect, args=(interface, line, ax))
             mtr_thread.start()
 
-            # Adiciona um manipulador para fechar a janela
-            def on_closing():
-                plt.close(fig)  # Fecha o gráfico
-                main_window.destroy()  # Fecha a janela
+        # Função para fechar a janela corretamente
+        def on_closing():
+            plt.close('all')  # Fecha todos os gráficos
+            main_window.destroy()
 
-            main_window.protocol("WM_DELETE_WINDOW", on_closing)  # Configura o manipulador para fechar a janela
+        main_window.protocol("WM_DELETE_WINDOW", on_closing)
 
         # Exibe a janela
         main_window.mainloop()
