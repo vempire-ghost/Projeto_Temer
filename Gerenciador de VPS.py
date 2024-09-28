@@ -943,7 +943,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.6", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.7", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MTR E GRAFICO DE CONEXÕES
@@ -970,6 +970,9 @@ class ButtonManager:
         pings_data = {iface: [] for iface in interfaces}
         loss_data = {iface: [] for iface in interfaces}  # Nova lista para perda de pacotes
         timestamps = {iface: [] for iface in interfaces}
+
+        # Cria um evento para controle de parada
+        stop_event = threading.Event()
 
         # Função para atualizar o gráfico de forma thread-safe usando 'after'
         def update_graph_safe(interface, line, loss_line, ax):
@@ -1035,7 +1038,7 @@ class ButtonManager:
                 command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 -I {interface} {host}"
                 if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
                     try:
-                        while True:
+                        while not stop_event.is_set():  # Verifica se o evento de parada foi acionado
                             stdin, stdout, stderr = self.ssh_vpn_client.exec_command(command)
                             output = stdout.read().decode()
 
@@ -1086,6 +1089,7 @@ class ButtonManager:
 
         # Função para fechar a janela corretamente
         def on_closing():
+            stop_event.set()  # Aciona o evento de parada para as threads
             plt.close('all')  # Fecha todos os gráficos
             main_window.destroy()
 
@@ -5315,7 +5319,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 76.6 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 76.7 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
