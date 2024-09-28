@@ -31,6 +31,8 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.animation import FuncAnimation
 from datetime import datetime, timedelta
+from rich.console import Console
+from rich.text import Text
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -382,6 +384,8 @@ class ButtonManager:
         config_menu.add_command(label="Configurações do Gerenciador de VPS", command=self.open_omr_manager)
         config_menu.add_command(label="Configurações de Cores", command=self.open_color_config)
         config_menu.add_command(label="Monitoramento de Latência", command=self.run_vps_vpn_pings_with_plot)
+        config_menu.add_command(label="MTR", command=lambda: threading.Thread(target=self.execute_mtr, args=('google.com',)).start())
+        config_menu.add_command(label="Console com OMR VPN", command=self.open_ssh_terminal)
         config_menu.add_command(label="Ajuda", command=self.abrir_arquivo_ajuda)
         config_menu.add_command(label="Sobre", command=self.about)
 
@@ -937,9 +941,104 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 75.6", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
+# METODO PARA SHELL SSH
+    def open_ssh_terminal(self):
+        if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
+            # Cria a janela principal do terminal
+            root = tk.Tk()
+            root.title("Terminal SSH")
+
+            # Área de texto para exibir a saída
+            output_area = scrolledtext.ScrolledText(root, wrap=tk.WORD, height=40, width=100, font=("Consolas", 10))
+            output_area.pack(pady=10)
+
+            # Entrada do usuário
+            input_area = tk.Entry(root, width=80, font=("Consolas", 10))
+            input_area.pack(pady=10)
+
+            # Inicia a sessão interativa
+            channel = self.ssh_vpn_client.invoke_shell()
+
+            def send_command(event):
+                command = input_area.get()
+                input_area.delete(0, tk.END)  # Limpa a entrada
+                output_area.insert(tk.END, f"$ {command}\n")  # Mostra o comando no terminal
+                channel.send(command + '\n')  # Envia o comando para o servidor
+
+            def update_output():
+                # Verifica se há saída do canal
+                if channel.recv_ready():
+                    output = channel.recv(1024).decode('utf-8')
+                    # Usando rich para adicionar a saída ao console
+                    text = Text.from_ansi(output)
+                    output_area.insert(tk.END, str(text))  # Mostra a saída no terminal
+                    output_area.see(tk.END)  # Rolagem automática para o final
+
+                # Chama a função novamente após 100ms
+                root.after(100, update_output)
+
+            # Liga o evento de pressionar Enter à função de enviar comando
+            input_area.bind("<Return>", send_command)
+
+            # Inicia a atualização da saída
+            update_output()
+
+            # Inicia a interface gráfica
+            root.mainloop()
+
+            # Fecha o canal ao fechar a janela
+            channel.close()
+        else:
+            print("A conexão SSH não está configurada.")
+
+# METODO PARA MTR
+    def execute_mtr(self, host='google.com'):
+        """Executa o comando MTR via SSH e exibe a saída em uma nova janela."""
+        
+        # Cria uma nova janela
+        mtr_window = tk.Toplevel(self.master)
+        mtr_window.title(f"Saída do MTR - {host}")
+
+        # Área de texto rolável para exibir a saída
+        output_area = scrolledtext.ScrolledText(mtr_window, width=100, height=25)
+        output_area.pack(padx=10, pady=10)
+
+        # Verifica se a conexão SSH está disponível
+        if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
+            def read_output():
+                while True:
+                    # Comando MTR a ser executado
+                    command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 {host}"
+                    stdin, stdout, stderr = self.ssh_vpn_client.exec_command(command)
+
+                    # Aguarda a saída do comando
+                    output = stdout.read().decode()  # Lê toda a saída do comando
+                    
+                    if output:  # Se houver saída, limpe e insira no output_area
+                        output_area.delete(1.0, tk.END)  # Limpa a área de texto
+                        output_area.insert(tk.END, output + "\n")  # Adiciona nova saída
+                        output_area.see(tk.END)  # Rolagem automática para o final
+
+                    # Verifica se há erros
+                    errors = stderr.read().decode()
+                    if errors:
+                        output_area.insert(tk.END, "ERROS:\n" + errors + "\n")
+                    
+                    # Espera um segundo antes de gerar o próximo relatório
+                    time.sleep(1)
+
+            # Inicia a leitura da saída em uma thread separada
+            threading.Thread(target=read_output, daemon=True).start()
+
+            # Adiciona um manipulador para fechar a janela
+            def on_closing():
+                mtr_window.destroy()  # Fecha a janela
+
+            mtr_window.protocol("WM_DELETE_WINDOW", on_closing)  # Configura o manipulador para fechar a janela
+            
 # METODO PARA JANELA DE MONITORAMENTO GRAFICO DE CONEXÕES
     def run_vps_vpn_pings_with_plot(self):
         """Executa o ping nas interfaces e gera gráficos separados para cada uma, ao estilo PingPlotter com Matplotlib."""
@@ -1018,7 +1117,7 @@ class ButtonManager:
             return lines  # Retorna as linhas que foram atualizadas
 
         # Configuração para a animação dos gráficos
-        ani = FuncAnimation(fig, update_plot, interval=2000, blit=True, cache_frame_data=False)  # Usando FuncAnimation com blit=True
+        ani = FuncAnimation(fig, update_plot, interval=2000, blit=False, cache_frame_data=False)  # Usando FuncAnimation com blit=True
 
         # Adiciona um manipulador para o fechamento da janela
         def on_close(event):
@@ -5111,7 +5210,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 75.6 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 76 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
