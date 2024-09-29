@@ -943,7 +943,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.7", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.8", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MTR E GRAFICO DE CONEXÕES
@@ -970,6 +970,16 @@ class ButtonManager:
         pings_data = {iface: [] for iface in interfaces}
         loss_data = {iface: [] for iface in interfaces}  # Nova lista para perda de pacotes
         timestamps = {iface: [] for iface in interfaces}
+
+        # Limite de entradas para 60 minutos de dados (3600 segundos, considerando 1 leitura por segundo)
+        MAX_ENTRIES = 3600
+
+        # Função para gerenciar o tamanho dos dados e evitar crescimento excessivo
+        def manage_data_size(interface):
+            if len(timestamps[interface]) > MAX_ENTRIES:
+                timestamps[interface] = timestamps[interface][-MAX_ENTRIES:]
+                pings_data[interface] = pings_data[interface][-MAX_ENTRIES:]
+                loss_data[interface] = loss_data[interface][-MAX_ENTRIES:]
 
         # Cria um evento para controle de parada
         stop_event = threading.Event()
@@ -1073,6 +1083,9 @@ class ButtonManager:
 
                                 # Chama a atualização do gráfico de forma segura (usando 'after')
                                 self.master.after(0, update_graph_safe, interface, line, loss_line, ax)
+
+                                # Limita o tamanho dos dados
+                                manage_data_size(interface)
 
                                 time.sleep(1)  # Aguarda 1 segundo para o próximo MTR
                     except Exception as e:
