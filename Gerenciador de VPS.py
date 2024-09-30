@@ -943,7 +943,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.8", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.9", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MTR E GRAFICO DE CONEXÕES
@@ -983,6 +983,7 @@ class ButtonManager:
 
         # Cria um evento para controle de parada
         stop_event = threading.Event()
+        callbacks = []  # Lista para rastrear callbacks
 
         # Função para atualizar o gráfico de forma thread-safe usando 'after'
         def update_graph_safe(interface, line, loss_line, ax):
@@ -1052,8 +1053,9 @@ class ButtonManager:
                             stdin, stdout, stderr = self.ssh_vpn_client.exec_command(command)
                             output = stdout.read().decode()
 
-                            # Atualiza a área de texto com a saída do MTR
-                            self.master.after(0, lambda: update_output_area(interface, output))
+                            # Atualiza a área de texto com a saída do MTR no thread principal
+                            callback_id = self.master.after(0, lambda: update_output_area(interface, output))
+                            callbacks.append(callback_id)  # Armazena o ID do callback
 
                             # Processa a saída do MTR para coletar a latência média e perda de pacotes
                             last_lines = output.strip().splitlines()
@@ -1082,19 +1084,22 @@ class ButtonManager:
                                         loss_data[interface].append(None)  # Caso não consiga converter
 
                                 # Chama a atualização do gráfico de forma segura (usando 'after')
-                                self.master.after(0, update_graph_safe, interface, line, loss_line, ax)
+                                callback_id = self.master.after(0, update_graph_safe, interface, line, loss_line, ax)
+                                callbacks.append(callback_id)  # Armazena o ID do callback
 
                                 # Limita o tamanho dos dados
                                 manage_data_size(interface)
 
                                 time.sleep(1)  # Aguarda 1 segundo para o próximo MTR
                     except Exception as e:
-                        self.master.after(0, lambda: outputs[interface].insert(tk.END, f"Erro ao executar MTR para {interface_names[interface]}: {e}\n"))
+                        callback_id = self.master.after(0, lambda: outputs[interface].insert(tk.END, f"Erro ao executar MTR para {interface_names[interface]}: {e}\n"))
+                        callbacks.append(callback_id)  # Armazena o ID do callback
 
-            # Função para atualizar a área de saída de texto
+            # Função para atualizar a área de saída de texto no thread principal
             def update_output_area(interface, output):
-                outputs[interface].delete(1.0, tk.END)  # Limpa a área de texto
-                outputs[interface].insert(tk.END, f"MTR para {interface_names[interface]}:\n{output}\n")
+                if output_area.winfo_exists():  # Verifica se o widget ainda existe antes de atualizar
+                    outputs[interface].delete(1.0, tk.END)  # Limpa a área de texto
+                    outputs[interface].insert(tk.END, f"MTR para {interface_names[interface]}:\n{output}\n")
 
             # Cria e inicia uma thread para executar o MTR para cada interface
             mtr_thread = threading.Thread(target=execute_mtr_and_collect, args=(interface, line, loss_line, ax))
@@ -1103,13 +1108,15 @@ class ButtonManager:
         # Função para fechar a janela corretamente
         def on_closing():
             stop_event.set()  # Aciona o evento de parada para as threads
-            plt.close('all')  # Fecha todos os gráficos
+
+            # Cancela todos os callbacks pendentes
+            for callback_id in callbacks:
+                self.master.after_cancel(callback_id)
+
             main_window.destroy()
 
+        # Define a função para ser chamada quando a janela for fechada
         main_window.protocol("WM_DELETE_WINDOW", on_closing)
-
-        # Exibe a janela
-        main_window.mainloop()
 
     # METODO PARA SHELL SSH
     def open_ssh_terminal(self):
@@ -5332,7 +5339,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 76.7 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 76.9 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
