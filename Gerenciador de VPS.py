@@ -526,6 +526,7 @@ class ButtonManager:
         self.stop_pinging_threads()
         self.stop_verificar_vm()
         self.save_window_position()
+        plt.close('all')  # Fecha todos os gráficos
         self.master.after(1000, self.suicidar_temer)
         self.save_color_map()  # Salva o mapeamento de cores
 
@@ -943,7 +944,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.9", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.10", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MTR E GRAFICO DE CONEXÕES
@@ -1021,7 +1022,8 @@ class ButtonManager:
             # Área de texto rolável para exibir a saída do MTR
             output_area = scrolledtext.ScrolledText(frame, width=77, height=28)
             output_area.pack(padx=0, pady=0, anchor='w', fill='both')  # Alinhando a área de texto à esquerda
-            outputs[interface] = output_area
+            output_area.config(state=tk.DISABLED)  # Torna a área de texto não editável
+            outputs[interface] = output_area  # Salva a área de texto correta para cada interface
 
             # Cria a janela com o subplot para a interface
             fig, ax = plt.subplots(figsize=(6, 4))
@@ -1097,9 +1099,12 @@ class ButtonManager:
 
             # Função para atualizar a área de saída de texto no thread principal
             def update_output_area(interface, output):
+                output_area = outputs[interface]  # Garante que a área correta será atualizada
                 if output_area.winfo_exists():  # Verifica se o widget ainda existe antes de atualizar
-                    outputs[interface].delete(1.0, tk.END)  # Limpa a área de texto
-                    outputs[interface].insert(tk.END, f"MTR para {interface_names[interface]}:\n{output}\n")
+                    output_area.config(state=tk.NORMAL)  # Habilita edição temporariamente
+                    output_area.delete(1.0, tk.END)  # Limpa a área de texto
+                    output_area.insert(tk.END, f"MTR para {interface_names[interface]}:\n{output}\n")
+                    output_area.config(state=tk.DISABLED)  # Desabilita edição novamente
 
             # Cria e inicia uma thread para executar o MTR para cada interface
             mtr_thread = threading.Thread(target=execute_mtr_and_collect, args=(interface, line, loss_line, ax))
@@ -1118,7 +1123,7 @@ class ButtonManager:
         # Define a função para ser chamada quando a janela for fechada
         main_window.protocol("WM_DELETE_WINDOW", on_closing)
 
-    # METODO PARA SHELL SSH
+# METODO PARA SHELL SSH
     def open_ssh_terminal(self):
         if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
             # Cria a janela principal do terminal
@@ -5339,7 +5344,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 76.9 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 76.10 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
