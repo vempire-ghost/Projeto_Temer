@@ -944,13 +944,13 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.10", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.11", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MTR E GRAFICO DE CONEXÕES
     def execute_mtr_and_plot(self):
         """Executa o comando MTR via SSH para múltiplas interfaces em uma única janela com quadros separados."""
-        
+
         host = self.ssh_vps_jogo_config['host']
 
         # Interfaces para MTR com nomes amigáveis
@@ -965,6 +965,18 @@ class ButtonManager:
         main_window = tk.Toplevel(self.master)
         main_window.title("Saídas do MTR e Gráficos de Latência")
         main_window.configure(bg='white')  # Define o fundo branco
+
+        # Cria o notebook (abas)
+        notebook = ttk.Notebook(main_window)
+        notebook.pack(fill='both', expand=True)
+
+        # Aba 1: Interface MTR
+        interface_tab = tk.Frame(notebook)
+        notebook.add(interface_tab, text='Interfaces MTR')
+
+        # Aba 2: Aba vazia
+        empty_tab = tk.Frame(notebook)
+        notebook.add(empty_tab, text='Outra Aba')
 
         # Dicionário para armazenar referências às áreas de texto e dados de latência
         outputs = {}
@@ -1015,8 +1027,8 @@ class ButtonManager:
             ax.figure.canvas.draw()
 
         for idx, interface in enumerate(interfaces):
-            # Cria um quadro para cada interface
-            frame = tk.Frame(main_window, bg='white')  # Aplica fundo branco ao quadro
+            # Cria um quadro para cada interface dentro da aba
+            frame = tk.Frame(interface_tab, bg='white')  # Aplica fundo branco ao quadro
             frame.grid(row=0, column=idx, padx=10, pady=0, sticky="n")  # Adicionando padding para melhor layout
 
             # Área de texto rolável para exibir a saída do MTR
@@ -1076,7 +1088,7 @@ class ButtonManager:
                                     except ValueError:
                                         pings_data[interface].append(None)
                                         timestamps[interface].append(datetime.now())
-                                
+
                                 # Captura a perda de pacotes (último elemento)
                                 if last_line[loss_index].endswith('%'):
                                     try:
