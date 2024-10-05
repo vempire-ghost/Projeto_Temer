@@ -387,7 +387,7 @@ class ButtonManager:
         menu_bar.add_cascade(label="Configurações", menu=config_menu)
         config_menu.add_command(label="Configurações do Gerenciador de VPS", command=self.open_omr_manager)
         config_menu.add_command(label="Configurações de Cores", command=self.open_color_config)
-        config_menu.add_command(label="MTR VPS", command=self.executar_mtr)
+        #config_menu.add_command(label="MTR VPS", command=self.executar_mtr)
         config_menu.add_command(label="Console com OMR VPN", command=self.open_ssh_terminal)
         config_menu.add_command(label="Monitor MTR com Grafico", command=self.execute_mtr_and_plot) 
         config_menu.add_command(label="Ajuda", command=self.abrir_arquivo_ajuda)
@@ -946,11 +946,12 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 77.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 77.3", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MTR NO VPS
-    def executar_mtr(self):
+    def executar_mtr(self, tab):
+        """Executa o MTR e exibe os resultados na aba especificada."""
         # Carrega os endereços dos hosts do arquivo, se existir
         if os.path.exists(self.hosts_file):
             with open(self.hosts_file, 'r') as f:
@@ -958,10 +959,6 @@ class ButtonManager:
 
         # Verifica se a conexão SSH está ativa
         if hasattr(self, 'ssh_vps_jogo_client') and self.ssh_vps_jogo_client is not None:
-            # Cria a janela principal
-            janela = tk.Tk()
-            janela.title("Executar MTR")
-
             # Variável de controle para a execução do MTR
             self.executando_mtr = [False, False, False]  # Para três hosts
             self.thread_mtr = [None, None, None]
@@ -969,19 +966,19 @@ class ButtonManager:
             # Função para criar uma seção MTR
             def criar_secao_mtr(linha):
                 # Entrada do host
-                entrada_host = tk.Entry(janela, width=40)
+                entrada_host = tk.Entry(tab, width=40)
                 entrada_host.grid(row=0, column=linha * 3)
-                entrada_host.insert(0, self.hosts[linha])  # Preenche com o host salvo
+                entrada_host.insert(0, self.hosts[linha] if linha < len(self.hosts) else "")  # Preenche com o host salvo
 
                 # Botões para iniciar e parar MTR
-                botao_executar = tk.Button(janela, text="Iniciar MTR", command=lambda: iniciar_mtr(linha))
+                botao_executar = tk.Button(tab, text="Iniciar MTR", command=lambda: iniciar_mtr(linha))
                 botao_executar.grid(row=0, column=linha * 3 + 1)
 
-                botao_parar = tk.Button(janela, text="Parar MTR", command=lambda: parar_mtr(linha))
+                botao_parar = tk.Button(tab, text="Parar MTR", command=lambda: parar_mtr(linha))
                 botao_parar.grid(row=0, column=linha * 3 + 2)
 
                 # Área de texto para exibir o resultado
-                area_texto = scrolledtext.ScrolledText(janela, width=77, height=28)
+                area_texto = scrolledtext.ScrolledText(tab, width=77, height=28)
                 area_texto.grid(row=1, column=linha * 3, columnspan=3, pady=(10, 0))
 
                 # Criação da figura para o gráfico
@@ -998,7 +995,7 @@ class ButtonManager:
                     ax.axhline(y=y, color='black', linestyle='--', linewidth=0.5)
 
                 # Área do gráfico
-                canvas = FigureCanvasTkAgg(fig, master=janela)
+                canvas = FigureCanvasTkAgg(fig, master=tab)
                 canvas.get_tk_widget().grid(row=2, column=linha * 3, columnspan=3, pady=(10, 0))
 
                 # Listas para armazenar dados de latência e timestamps
@@ -1083,8 +1080,13 @@ class ButtonManager:
             for i in range(3):
                 criar_secao_mtr(i)
 
-            # Inicia o loop principal da janela
-            janela.mainloop()
+        # Função para fechar a janela corretamente
+        def on_closing():
+            for i in range(3):  # Para cada host, parar a execução do MTR
+                self.executando_mtr[i] = False  # Para a execução do MTR
+
+        # Define a função para ser chamada quando a janela for fechada
+        #main_window.protocol("WM_DELETE_WINDOW", on_closing)
 
 # METODO PARA MTR E GRAFICO DE CONEXÕES
     def execute_mtr_and_plot(self):
@@ -1114,8 +1116,9 @@ class ButtonManager:
         notebook.add(interface_tab, text='Interfaces MTR')
 
         # Aba 2: Aba vazia
-        empty_tab = tk.Frame(notebook)
-        notebook.add(empty_tab, text='Outra Aba')
+        empty_tab = tk.Frame(notebook, bg='white')
+        notebook.add(empty_tab, text='VPS JOGO MTR')
+        self.executar_mtr(empty_tab)
 
         # Dicionário para armazenar referências às áreas de texto e dados de latência
         outputs = {}
@@ -5495,7 +5498,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 76.10 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 77.3 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
