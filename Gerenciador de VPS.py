@@ -109,6 +109,8 @@ class ButtonManager:
         self.button_counter = 1  # Inicializa o contador de botões
         self.load_window_position()
         self.load_initial_test()  # Carregar a configuração do arquivo config.ini ao inicializar
+        self.hosts_file = 'hosts.json'
+        self.hosts = ["", "", ""]  # Inicializa uma lista para armazenar os endereços
 
         self.clear_log_file('app.log')  # Limpa o arquivo de log ao iniciar o programa
         self.clear_log_file('test_command.log')  # Limpa o arquivo de log ao iniciar o programa
@@ -944,11 +946,16 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 77.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 77.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MTR NO VPS
     def executar_mtr(self):
+        # Carrega os endereços dos hosts do arquivo, se existir
+        if os.path.exists(self.hosts_file):
+            with open(self.hosts_file, 'r') as f:
+                self.hosts = json.load(f)
+
         # Verifica se a conexão SSH está ativa
         if hasattr(self, 'ssh_vps_jogo_client') and self.ssh_vps_jogo_client is not None:
             # Cria a janela principal
@@ -964,6 +971,7 @@ class ButtonManager:
                 # Entrada do host
                 entrada_host = tk.Entry(janela, width=40)
                 entrada_host.grid(row=0, column=linha * 3)
+                entrada_host.insert(0, self.hosts[linha])  # Preenche com o host salvo
 
                 # Botões para iniciar e parar MTR
                 botao_executar = tk.Button(janela, text="Iniciar MTR", command=lambda: iniciar_mtr(linha))
@@ -982,7 +990,7 @@ class ButtonManager:
                 ax.set_title(f"Latência {linha + 1}")
                 ax.set_ylabel("Latência (ms)")
                 ax.set_xlabel("Tempo")
-                ax.set_ylim(0, 100)  # Defina um limite para a latência
+                ax.set_ylim(0, 100)  # Define um limite para a latência
                 ax.legend(loc='upper right')
 
                 # Adiciona linhas horizontais
@@ -1023,6 +1031,10 @@ class ButtonManager:
                         return  # Não inicia outra thread se já estiver em execução
 
                     host = entrada_host.get()
+                    self.hosts[index] = host  # Armazena o host na lista
+                    with open(self.hosts_file, 'w') as f:  # Salva os hosts
+                        json.dump(self.hosts, f)
+
                     command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 {host}"
                     self.executando_mtr[index] = True
 
