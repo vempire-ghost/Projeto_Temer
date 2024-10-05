@@ -385,9 +385,9 @@ class ButtonManager:
         menu_bar.add_cascade(label="Configurações", menu=config_menu)
         config_menu.add_command(label="Configurações do Gerenciador de VPS", command=self.open_omr_manager)
         config_menu.add_command(label="Configurações de Cores", command=self.open_color_config)
-        #config_menu.add_command(label="Monitoramento de Latência", command=self.run_vps_vpn_pings_with_plot)
+        config_menu.add_command(label="MTR VPS", command=self.executar_mtr)
         config_menu.add_command(label="Console com OMR VPN", command=self.open_ssh_terminal)
-        config_menu.add_command(label="Monitor MTR com Grafico", command=self.execute_mtr_and_plot)
+        config_menu.add_command(label="Monitor MTR com Grafico", command=self.execute_mtr_and_plot) 
         config_menu.add_command(label="Ajuda", command=self.abrir_arquivo_ajuda)
         config_menu.add_command(label="Sobre", command=self.about)
 
@@ -944,8 +944,131 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 76.11", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 77", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
+
+# METODO PARA MTR NO VPS
+    def executar_mtr(self):
+        # Verifica se a conexão SSH está ativa
+        if hasattr(self, 'ssh_vps_jogo_client') and self.ssh_vps_jogo_client is not None:
+            # Cria a janela principal
+            janela = tk.Tk()
+            janela.title("Executar MTR")
+
+            # Variável de controle para a execução do MTR
+            self.executando_mtr = False
+            self.thread_mtr = None
+
+            # Configura o layout com grid
+            tk.Label(janela, text="Host:").grid(row=0, column=0)
+            entrada_host = tk.Entry(janela, width=30)
+            entrada_host.grid(row=0, column=1)
+
+            # Área de texto para exibir o resultado
+            area_texto = scrolledtext.ScrolledText(janela, width=77, height=10)
+            area_texto.grid(row=1, column=0, columnspan=3, pady=10)
+
+            # Criação da figura para o gráfico
+            fig, ax = plt.subplots(figsize=(6, 4))
+            line, = ax.plot([], [], label='Latência (ms)', color='blue')
+            ax.set_title("Gráfico de Latência")
+            ax.set_ylabel("Latência (ms)")
+            ax.set_xlabel("Tempo")
+            ax.set_ylim(0, 100)  # Defina um limite para a latência
+            ax.legend(loc='upper right')
+
+            # Adiciona linhas horizontais pretas nas alturas de 20, 40, 60 e 80 ms, sem labels
+            ax.axhline(y=20, color='black', linestyle='--', linewidth=0.5)  # Linha para 20 ms, mais fina
+            ax.axhline(y=40, color='black', linestyle='--', linewidth=0.5)  # Linha para 40 ms, mais fina
+            ax.axhline(y=60, color='black', linestyle='--', linewidth=0.5)  # Linha para 60 ms, mais fina
+            ax.axhline(y=80, color='black', linestyle='--', linewidth=0.5)  # Linha para 80 ms, mais fina
+
+            # Área do gráfico
+            canvas = FigureCanvasTkAgg(fig, master=janela)
+            canvas.get_tk_widget().grid(row=2, column=0, columnspan=3, pady=(10, 0))
+
+            # Listas para armazenar dados de latência e timestamps
+            latencias = []
+            timestamps = []
+
+            # Função para atualizar o gráfico
+            def update_graph():
+                now = datetime.now()
+                time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
+
+                # Filtra timestamps e latências dentro da janela de tempo
+                timestamps_filtered = [t for t in timestamps if t >= time_window_start]
+                latencias_filtered = latencias[-len(timestamps_filtered):]  # Limita os dados correspondentes
+
+                # Atualiza os dados da linha do gráfico
+                if timestamps_filtered and latencias_filtered:
+                    line.set_data(timestamps_filtered, latencias_filtered)
+                    ax.set_xlim([time_window_start, now])  # Ajusta os limites do eixo X
+                    ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))  # Formata o eixo X para horas
+                    fig.autofmt_xdate()  # Melhora a visualização das datas
+                else:
+                    line.set_data([], [])  # Limpa os dados se não houver dados filtrados
+
+                canvas.draw()  # Atualiza o canvas
+
+            # Função para iniciar o MTR
+            def iniciar_mtr():
+                if self.executando_mtr:
+                    return  # Não inicia outra thread se já estiver em execução
+
+                host = entrada_host.get()
+                command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 {host}"
+                self.executando_mtr = True
+
+                def run_mtr():
+                    while self.executando_mtr:
+                        # Executa o comando via SSH
+                        stdin, stdout, stderr = self.ssh_vps_jogo_client.exec_command(command)
+                        resultado = stdout.read().decode()  # Lê a saída do comando
+
+                        # Atualiza a área de texto com o resultado
+                        area_texto.delete(1.0, tk.END)  # Limpa a área de texto
+                        area_texto.insert(tk.END, resultado)  # Insere o resultado
+                        area_texto.see(tk.END)  # Rola para o final
+
+                        # Processa a saída do MTR
+                        last_lines = resultado.strip().splitlines()
+                        valid_lines = [line for line in last_lines if "?" not in line]  # Filtra linhas válidas
+
+                        if valid_lines:
+                            last_line = valid_lines[-1].split()
+                            avg_index = 6  # O índice da latência média
+                            if len(last_line) > avg_index:
+                                try:
+                                    latency = int(float(last_line[avg_index]))
+                                    latencias.append(latency)
+                                    timestamps.append(datetime.now())  # Armazena o timestamp atual
+                                except ValueError:
+                                    pass  # Ignora valores inválidos
+
+                        # Limita a exibição a um intervalo de 60 minutos
+                        while len(latencias) > 3600:  # Mantém apenas os últimos 3600 dados
+                            latencias.pop(0)
+                            timestamps.pop(0)
+
+                        update_graph()  # Chama a função para atualizar o gráfico
+
+                        time.sleep(1)  # Aguarda 1 segundo antes de executar novamente
+
+                self.thread_mtr = threading.Thread(target=run_mtr)
+                self.thread_mtr.start()
+
+            def parar_mtr():
+                self.executando_mtr = False  # Para a execução do MTR
+
+            botao_executar = tk.Button(janela, text="Iniciar MTR", command=iniciar_mtr)
+            botao_executar.grid(row=0, column=2)
+
+            botao_parar = tk.Button(janela, text="Parar MTR", command=parar_mtr)
+            botao_parar.grid(row=0, column=3)
+
+            # Inicia o loop principal da janela
+            janela.mainloop()
 
 # METODO PARA MTR E GRAFICO DE CONEXÕES
     def execute_mtr_and_plot(self):
@@ -971,7 +1094,7 @@ class ButtonManager:
         notebook.pack(fill='both', expand=True)
 
         # Aba 1: Interface MTR
-        interface_tab = tk.Frame(notebook)
+        interface_tab = tk.Frame(notebook, bg='white')
         notebook.add(interface_tab, text='Interfaces MTR')
 
         # Aba 2: Aba vazia
