@@ -946,7 +946,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 77.3", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 77.4", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MTR NO VPS
@@ -965,17 +965,21 @@ class ButtonManager:
 
             # Função para criar uma seção MTR
             def criar_secao_mtr(linha):
+                # Frame para encapsular a linha do host e botões
+                frame_host = tk.Frame(tab, bg="lightgray", bd=2, relief="groove")  # Frame com fundo cinza claro, borda e relevo
+                frame_host.grid(row=0, column=linha * 3, sticky='n', pady=5)  # Adiciona um pouco de espaçamento
+
                 # Entrada do host
-                entrada_host = tk.Entry(tab, width=40)
-                entrada_host.grid(row=0, column=linha * 3)
+                entrada_host = tk.Entry(frame_host, width=40)
+                entrada_host.grid(row=0, column=0)
                 entrada_host.insert(0, self.hosts[linha] if linha < len(self.hosts) else "")  # Preenche com o host salvo
 
                 # Botões para iniciar e parar MTR
-                botao_executar = tk.Button(tab, text="Iniciar MTR", command=lambda: iniciar_mtr(linha))
-                botao_executar.grid(row=0, column=linha * 3 + 1)
+                botao_executar = tk.Button(frame_host, text="Iniciar MTR", command=lambda: iniciar_mtr(linha))
+                botao_executar.grid(row=0, column=1)
 
-                botao_parar = tk.Button(tab, text="Parar MTR", command=lambda: parar_mtr(linha))
-                botao_parar.grid(row=0, column=linha * 3 + 2)
+                botao_parar = tk.Button(frame_host, text="Parar MTR", command=lambda: parar_mtr(linha))
+                botao_parar.grid(row=0, column=2)
 
                 # Área de texto para exibir o resultado
                 area_texto = scrolledtext.ScrolledText(tab, width=77, height=28)
@@ -1116,7 +1120,7 @@ class ButtonManager:
         notebook.add(interface_tab, text='Interfaces MTR')
 
         # Aba 2: Aba vazia
-        empty_tab = tk.Frame(notebook, bg='white')
+        empty_tab = tk.Frame(notebook, bg='lightgray')
         notebook.add(empty_tab, text='VPS JOGO MTR')
         self.executar_mtr(empty_tab)
 
@@ -5498,7 +5502,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 77.3 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 77.4 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
