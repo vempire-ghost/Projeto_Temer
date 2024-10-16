@@ -931,7 +931,7 @@ class ButtonManager:
         self.frame_inferior_scheduler.grid_rowconfigure(0, weight=1)
 
         # Botão para reiniciar o omr-tracker VPN
-        self.botao_reiniciar_vpn_scheduler = tk.Button(self.frame_inferior_scheduler, text="Reiniciar OpenVPN", command=self.reiniciar_glorytun_vpn)
+        self.botao_reiniciar_vpn_scheduler = tk.Button(self.frame_inferior_scheduler, text="Reiniciar GloryTun", command=self.reiniciar_glorytun_vpn)
         self.botao_reiniciar_vpn_scheduler.grid(row=0, column=0, padx=10, pady=5, sticky='ew')
 
         # Botão para reiniciar o omr-tracker JOGO
@@ -946,7 +946,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 77.4", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 77.5", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MTR NO VPS
@@ -3301,12 +3301,12 @@ class ButtonManager:
         """Reinicia o serviço Glorytun através da conexão SSH já estabelecida."""
         if self.connection_established_ssh_omr_vpn.is_set():
             try:
-                self.ssh_vpn_client.exec_command("/etc/init.d/openvpn restart")
-                logger_main.info("Serviço OpenVPN reiniciado com sucesso.")
+                self.ssh_vpn_client.exec_command("/etc/init.d/glorytun restart")
+                logger_main.info("Serviço GloryTun reiniciado com sucesso.")
             except Exception as e:
-                logger_main.error(f"Erro ao reiniciar o serviço OpenVPN: {e}")
+                logger_main.error(f"Erro ao reiniciar o serviço GloryTun: {e}")
         else:
-            logger_main.error("Não foi possível reiniciar o serviço OpenVPN. Conexão SSH OMR VPN não está ativa.")
+            logger_main.error("Não foi possível reiniciar o serviço GloryTun. Conexão SSH OMR VPN não está ativa.")
 
     def reiniciar_xray_jogo(self):
         """Reinicia o serviço Xray através da conexão SSH já estabelecida com confirmação do usuário."""
@@ -5502,7 +5502,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 77.4 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 77.5 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
