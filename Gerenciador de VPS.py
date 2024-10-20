@@ -946,7 +946,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 77.5", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 78", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MTR NO VPS
@@ -3629,13 +3629,17 @@ class ButtonManager:
             self.button_counter += 1
             
             # Adicionar o botão à segunda aba
-            self.add_button_to_tab2(dialog.button_info['icon'], dialog.button_info['text'], dialog.button_info['link'],
+            self.add_button_to_tab2(dialog.button_info['icon'], 
+                                    dialog.button_info['text'], 
+                                    dialog.button_info['link'],
                                     premium_link=dialog.button_info.get('premium_link'),
                                     standard_link=dialog.button_info.get('standard_link'),
+                                    vpn_link=dialog.button_info.get('vpn_link'),       # Adiciona o campo para o link de VPS VPN
+                                    game_link=dialog.button_info.get('game_link'),     # Adiciona o campo para o link de VPS Jogo
                                     button_id=button_id)
             self.save_buttons()  # Salva os botões após adicionar um novo
 
-    def add_button_to_tab2(self, icon_path, text, link, button_id, premium_link=None, standard_link=None):
+    def add_button_to_tab2(self, icon_path, text, link, button_id, premium_link=None, standard_link=None, vpn_link=None, game_link=None):
         # Copia a imagem para a pasta "imagens" e gera um nome único
         unique_name = str(uuid.uuid4()) + os.path.splitext(icon_path)[1]
         dest_path = os.path.join('imagens', unique_name)
@@ -3665,7 +3669,9 @@ class ButtonManager:
         text_button.link = link
         text_button.premium_link = premium_link
         text_button.standard_link = standard_link
-        
+        text_button.vpn_link = vpn_link  # Adiciona a lógica para o VPS VPN
+        text_button.game_link = game_link  # Adiciona a lógica para o VPS Jogo
+
         tooltip_text = f"ID: {text_button.id}\nLink: {link}"
         text_button.tooltip = ToolTip(text_button, tooltip_text)
 
@@ -3677,6 +3683,10 @@ class ButtonManager:
             menu.add_command(label="IP Premium", command=lambda: self.run_as_admin(premium_link))
         if standard_link is not None:
             menu.add_command(label="IP Standard", command=lambda: self.run_as_admin(standard_link))
+        if vpn_link is not None:
+            menu.add_command(label="Reiniciar VPS VPN", command=lambda: self.run_as_admin(vpn_link))  # Novo item para VPS VPN
+        if game_link is not None:
+            menu.add_command(label="Reiniciar VPS Jogo", command=lambda: self.run_as_admin(game_link))  # Novo item para VPS Jogo
         menu.add_command(label="Deletar servidor", command=lambda: self.delete_button(text_button))
         text_button.bind("<Button-3>", lambda event: menu.post(event.x_root, event.y_root))
 
@@ -3686,7 +3696,7 @@ class ButtonManager:
         self.reorder_buttons_by_id()
         self.update_button_widths()
 
-    def refresh_button_to_tab2(self, icon_path, text, link, button_id, premium_link=None, standard_link=None):
+    def refresh_button_to_tab2(self, icon_path, text, link, button_id, premium_link=None, standard_link=None, vpn_link=None, game_link=None):
         # Copia a imagem para a pasta "imagens" e gera um nome único apenas se ainda não foi copiada
         if not os.path.exists(icon_path):
             unique_name = str(uuid.uuid4()) + os.path.splitext(icon_path)[1]
@@ -3719,6 +3729,8 @@ class ButtonManager:
         text_button.link = link
         text_button.premium_link = premium_link
         text_button.standard_link = standard_link
+        text_button.vpn_link = vpn_link  # Adiciona a lógica para o VPS VPN
+        text_button.game_link = game_link  # Adiciona a lógica para o VPS Jogo
 
         tooltip_text = f"ID: {text_button.id}\nLink: {link}"
         text_button.tooltip = ToolTip(text_button, tooltip_text)
@@ -3731,6 +3743,10 @@ class ButtonManager:
             menu.add_command(label="IP Premium", command=lambda: self.run_as_admin(premium_link))
         if standard_link is not None:
             menu.add_command(label="IP Standard", command=lambda: self.run_as_admin(standard_link))
+        if vpn_link is not None:
+            menu.add_command(label="Reiniciar VPS VPN", command=lambda: self.run_as_admin(vpn_link))  # Novo item para VPS VPN
+        if game_link is not None:
+            menu.add_command(label="Reiniciar VPS Jogo", command=lambda: self.run_as_admin(game_link))  # Novo item para VPS Jogo
         menu.add_command(label="Deletar servidor", command=lambda: self.delete_button(text_button))
         text_button.bind("<Button-3>", lambda event: menu.post(event.x_root, event.y_root))
 
@@ -3755,14 +3771,23 @@ class ButtonManager:
             with open("buttons.json", "r") as f:
                 buttons_data = json.load(f)
                 for button_data in buttons_data:
-                    premium_link = button_data.get("premium_link")  # Adicione esta linha
-                    standard_link = button_data.get("standard_link")  # Adicione esta linha
+                    # Carregar os links existentes
+                    premium_link = button_data.get("premium_link")
+                    standard_link = button_data.get("standard_link")
+                    vpn_link = button_data.get("vpn_link")  # Carrega o link para Reiniciar VPS VPN
+                    game_link = button_data.get("game_link")  # Carrega o link para Reiniciar VPS Jogo
 
+                    # Verifica em qual aba o botão deve ser carregado
                     if button_data.get("tab") == 2:
-                        self.refresh_button_to_tab2(button_data["icon_path"], button_data["text"], button_data["link"], button_data["id"], premium_link, standard_link)
+                        # Atualiza a função refresh_button_to_tab2 para passar os novos links
+                        self.refresh_button_to_tab2(button_data["icon_path"], button_data["text"], button_data["link"], button_data["id"],
+                                                    premium_link, standard_link, vpn_link, game_link)
                     else:
-                        self.refresh_button(button_data["icon_path"], button_data["text"], button_data["link"], button_data["id"], premium_link, standard_link)  # Modifique esta linha
+                        # Atualiza a função refresh_button para passar os novos links
+                        self.refresh_button(button_data["icon_path"], button_data["text"], button_data["link"], button_data["id"],
+                                            premium_link, standard_link, vpn_link, game_link)  # Modifique esta linha conforme necessário para a aba 1
 
+                # Reorganiza e atualiza os botões
                 self.reorder_buttons_by_id()  # Ordena os botões após carregá-los
                 self.update_button_widths()  # Atualiza a largura dos botões após carregá-los
 
@@ -3777,7 +3802,7 @@ class ButtonManager:
         # Carregar dados existentes se o arquivo já existir
         if os.path.exists("buttons.json"):
             with open("buttons.json", "r") as f:
-               buttons_data = json.load(f)
+                buttons_data = json.load(f)
 
         # Lista para armazenar icon_path dos botões existentes no arquivo JSON
         existing_button_icon_paths = [button["icon_path"] for button in buttons_data]
@@ -3797,9 +3822,11 @@ class ButtonManager:
                         "icon_path": button.icon_path,
                         "text": button.cget("text"),
                         "link": button.link,
-                        "premium_link": button.premium_link,  # Adicione esta linha
-                        "standard_link": button.standard_link,  # Adicione esta linha
-                        "tab": tab
+                        "premium_link": button.premium_link,  # Adiciona o campo premium_link
+                        "standard_link": button.standard_link,  # Adiciona o campo standard_link
+                        "vpn_link": button.vpn_link,  # Adiciona o campo vpn_link
+                        "game_link": button.game_link,  # Adiciona o campo game_link
+                        "tab": tab  # Indica em qual aba o botão está
                     }
                     buttons_data.append(button_data)
 
@@ -3816,14 +3843,20 @@ class ButtonManager:
             button_id = self.button_counter
             self.button_counter += 1
             
-            # Adicionar o botão à segunda aba
-            self.add_button(dialog.button_info['icon'], dialog.button_info['text'], dialog.button_info['link'],
-                                    premium_link=dialog.button_info.get('premium_link'),
-                                    standard_link=dialog.button_info.get('standard_link'),
-                                    button_id=button_id)
-            self.save_buttons()  # Salva os botões após adicionar um novo
+            # Adicionar o botão à aba apropriada (pode ser a primeira aba)
+            self.add_button(dialog.button_info['icon'], 
+                            dialog.button_info['text'], 
+                            dialog.button_info['link'],
+                            premium_link=dialog.button_info.get('premium_link'),
+                            standard_link=dialog.button_info.get('standard_link'),
+                            vpn_link=dialog.button_info.get('vpn_link'),       # Adiciona o campo para Reiniciar VPS VPN
+                            game_link=dialog.button_info.get('game_link'),     # Adiciona o campo para Reiniciar VPS Jogo
+                            button_id=button_id)
+            
+            # Salva os botões após adicionar um novo
+            self.save_buttons()
 
-    def add_button(self, icon_path, text, link, button_id, premium_link=None, standard_link=None):
+    def add_button(self, icon_path, text, link, button_id, premium_link=None, standard_link=None, vpn_link=None, game_link=None):
         # Copia a imagem para a pasta "imagens" e gera um nome único
         unique_name = str(uuid.uuid4()) + os.path.splitext(icon_path)[1]
         dest_path = os.path.join('imagens', unique_name)
@@ -3849,33 +3882,50 @@ class ButtonManager:
             button_id = self.button_counter
             self.button_counter += 1
 
+        # Atribuir os links e ID ao botão
         text_button.id = button_id
         text_button.link = link
         text_button.premium_link = premium_link
         text_button.standard_link = standard_link
+        text_button.vpn_link = vpn_link  # Adiciona o link para Reiniciar VPS VPN
+        text_button.game_link = game_link  # Adiciona o link para Reiniciar VPS Jogo
 
+        # Tooltip com ID e link principal
         tooltip_text = f"ID: {text_button.id}\nLink: {link}"
         text_button.tooltip = ToolTip(text_button, tooltip_text)
 
+        # Menu de contexto (botão direito)
         menu = tk.Menu(text_button, tearoff=0)
         menu.add_command(label="Editar script", command=lambda: self.edit_link(text_button))
         menu.add_command(label="Abrir pasta", command=lambda: self.open_button_folder(text_button))
         menu.add_command(label="Alterar ID", command=lambda: self.change_button_id(text_button))
+        
+        # Adiciona opções de IP Premium, IP Standard, VPN e Jogo ao menu, se os links estiverem disponíveis
         if premium_link is not None:
             menu.add_command(label="IP Premium", command=lambda: self.run_as_admin(premium_link))
         if standard_link is not None:
             menu.add_command(label="IP Standard", command=lambda: self.run_as_admin(standard_link))
-        menu.add_command(label="Deletar servidor", command=lambda: self.delete_button(text_button))
+        if vpn_link is not None:
+            menu.add_command(label="Reiniciar VPS VPN", command=lambda: self.run_as_admin(vpn_link))
+        if game_link is not None:
+            menu.add_command(label="Reiniciar VPS Jogo", command=lambda: self.run_as_admin(game_link))
         
+        menu.add_command(label="Deletar servidor", command=lambda: self.delete_button(text_button))
+
+        # Associar o menu de contexto ao clique com o botão direito
         text_button.bind("<Button-3>", lambda event: menu.post(event.x_root, event.y_root))
 
+        # Configurar ação principal do botão para rodar o link associado
         text_button.config(command=lambda: self.run_as_admin(text_button.link))
 
+        # Adicionar o botão à lista de botões
         self.buttons.append(text_button)
+        
+        # Reorganizar os botões por ID e ajustar larguras
         self.reorder_buttons_by_id()
         self.update_button_widths()
 
-    def refresh_button(self, icon_path, text, link, button_id, premium_link=None, standard_link=None):
+    def refresh_button(self, icon_path, text, link, button_id, premium_link=None, standard_link=None, vpn_link=None, game_link=None):
         # Copia a imagem para a pasta "imagens" e gera um nome único apenas se ainda não foi copiada
         if not os.path.exists(icon_path):
             unique_name = str(uuid.uuid4()) + os.path.splitext(icon_path)[1]
@@ -3883,7 +3933,7 @@ class ButtonManager:
             shutil.copy(icon_path, dest_path)
         else:
             dest_path = icon_path
-        
+
         button_frame = tk.Frame(self.button_frame)  # Cria um frame para conter a imagem e o botão de texto
         button_frame.pack(side=tk.TOP, padx=5, pady=5)
 
@@ -3904,29 +3954,46 @@ class ButtonManager:
             button_id = self.button_counter
             self.button_counter += 1
 
+        # Atribuir os links e ID ao botão
         text_button.id = button_id
         text_button.link = link
         text_button.premium_link = premium_link
         text_button.standard_link = standard_link
+        text_button.vpn_link = vpn_link  # Adiciona o link para Reiniciar VPS VPN
+        text_button.game_link = game_link  # Adiciona o link para Reiniciar VPS Jogo
 
+        # Tooltip com ID e link principal
         tooltip_text = f"ID: {text_button.id}\nLink: {link}"
         text_button.tooltip = ToolTip(text_button, tooltip_text)
 
+        # Menu de contexto (botão direito)
         menu = tk.Menu(text_button, tearoff=0)
         menu.add_command(label="Editar script", command=lambda: self.edit_link(text_button))
         menu.add_command(label="Abrir pasta", command=lambda: self.open_button_folder(text_button))
-        menu.add_command(label="Alterar ID", command=lambda: self.change_button_id(text_button))        
+        menu.add_command(label="Alterar ID", command=lambda: self.change_button_id(text_button))
+
+        # Adiciona opções de IP Premium, IP Standard, VPN e Jogo ao menu, se os links estiverem disponíveis
         if premium_link is not None:
             menu.add_command(label="IP Premium", command=lambda: self.run_as_admin(premium_link))
         if standard_link is not None:
             menu.add_command(label="IP Standard", command=lambda: self.run_as_admin(standard_link))
+        if vpn_link is not None:
+            menu.add_command(label="Reiniciar VPS VPN", command=lambda: self.run_as_admin(vpn_link))
+        if game_link is not None:
+            menu.add_command(label="Reiniciar VPS Jogo", command=lambda: self.run_as_admin(game_link))
+
         menu.add_command(label="Deletar servidor", command=lambda: self.delete_button(text_button))
-            
+
+        # Associar o menu de contexto ao clique com o botão direito
         text_button.bind("<Button-3>", lambda event: menu.post(event.x_root, event.y_root))
-        
+
+        # Configurar ação principal do botão para rodar o link associado
         text_button.config(command=lambda: self.run_as_admin(text_button.link))
 
+        # Adicionar o botão à lista de botões
         self.buttons.append(text_button)
+
+        # Reorganizar os botões por ID e ajustar larguras
         self.reorder_buttons_by_id()
         self.update_button_widths()
 
@@ -3971,7 +4038,7 @@ class ButtonManager:
        # Salva os botões atualizados
         self.resave_buttons()
 
-    def resave_buttons(self): #Função de salvar exclusiva para delete_buttons
+    def resave_buttons(self):  # Função de salvar exclusiva para delete_buttons
         # Lista para armazenar os dados dos botões a serem salvos
         buttons_data = []
 
@@ -3989,9 +4056,10 @@ class ButtonManager:
         # Lista para armazenar icon_path dos botões atuais na interface
         current_button_icon_paths = [button.icon_path for button in self.buttons if hasattr(button, 'icon_path')]
 
-        # Remover botões deletados do JSON
+        # Remover botões deletados do JSON (que não estão mais na interface)
         buttons_data = [button for button in buttons_data if button["icon_path"] in current_button_icon_paths]
 
+        # Atualizar ou adicionar os dados dos botões atuais
         for button in self.buttons:
             if hasattr(button, 'icon_path'):
                 # Verificar se o botão já está no arquivo JSON antes de adicioná-lo novamente
@@ -4001,6 +4069,7 @@ class ButtonManager:
                         tab = 2
                     else:
                         tab = 1
+
                     # Criar dados do botão para adicionar à lista
                     button_data = {
                         "id": button.id,
@@ -4009,6 +4078,8 @@ class ButtonManager:
                         "link": button.link,
                         "premium_link": button.premium_link,  # Adicione esta linha
                         "standard_link": button.standard_link,  # Adicione esta linha
+                        "vpn_link": button.vpn_link,  # Adicione esta linha
+                        "game_link": button.game_link,  # Adicione esta linha
                         "tab": tab
                     }
                     buttons_data.append(button_data)
@@ -4237,7 +4308,7 @@ class ButtonManager:
             self.reorder_buttons_by_id()  # Ordena os botões após alterar o ID
             self.atualiza_all_buttons()
 
-    def reresave_buttons(self): #Função de salvar exclusiva para função change_button_id
+    def reresave_buttons(self):  # Função de salvar exclusiva para função change_button_id
         # Lista para armazenar os dados dos botões a serem salvos
         buttons_data = []
 
@@ -4257,18 +4328,18 @@ class ButtonManager:
                 # Verificar se o botão já está no arquivo JSON antes de adicioná-lo novamente
                 if button.icon_path not in existing_button_icon_paths:
                     # Determinar o índice da aba para o novo botão
-                    if current_tab_index == 1:  # Índice 1 representa a segunda aba
-                        tab = 2
-                    else:
-                        tab = 1
+                    tab = 2 if current_tab_index == 1 else 1  # Aba 2 para índice 1
+
                     # Criar dados do botão para adicionar à lista
                     button_data = {
                         "id": button.id,
                         "icon_path": button.icon_path,
                         "text": button.cget("text"),
                         "link": button.link,
-                        "premium_link": button.premium_link,  # Adicione esta linha
-                        "standard_link": button.standard_link,  # Adicione esta linha
+                        "premium_link": button.premium_link,  # Adicionando campo premium_link
+                        "standard_link": button.standard_link,  # Adicionando campo standard_link
+                        "vpn_link": button.vpn_link,  # Adicionando campo vpn_link
+                        "game_link": button.game_link,  # Adicionando campo game_link
                         "tab": tab
                     }
                     buttons_data.append(button_data)
@@ -4279,8 +4350,10 @@ class ButtonManager:
                             bd["id"] = button.id
                             bd["text"] = button.cget("text")
                             bd["link"] = button.link
-                            #bd["premium_link"] = button.premium_link
-                            #bd["standard_link"] = button.standard_link
+                            #bd["premium_link"] = button.premium_link  # Atualizando campo premium_link
+                            #bd["standard_link"] = button.standard_link  # Atualizando campo standard_link
+                            #bd["vpn_link"] = button.vpn_link  # Atualizando campo vpn_link
+                            #bd["game_link"] = button.game_link  # Atualizando campo game_link
 
         # Salvar os dados atualizados de botões no arquivo JSON
         with open("buttons.json", "w") as f:
@@ -5376,31 +5449,52 @@ class AddButtonDialog:
         self.link = tk.StringVar()
         self.premium_link = tk.StringVar()
         self.standard_link = tk.StringVar()
+        self.vpn_link = tk.StringVar()  # Adiciona campo para VPN link
+        self.game_link = tk.StringVar()  # Adiciona campo para Game link
 
         # Frame com borda para conter todo o conteúdo
         self.main_frame = tk.Frame(self.top, borderwidth=2, relief="raised")
         self.main_frame.pack(padx=10, pady=10, fill="both", expand=True)
 
+        # Selecionar ícone
         tk.Label(self.main_frame, text="Selecionar Icone:").grid(row=0, column=0, padx=5, pady=5)
         tk.Entry(self.main_frame, textvariable=self.icon_path).grid(row=0, column=1, padx=5, pady=5)
         tk.Button(self.main_frame, text="Selecionar", command=self.select_icon).grid(row=0, column=2, padx=5, pady=5)
 
+        # Texto do botão
         tk.Label(self.main_frame, text="Texto do botão:").grid(row=1, column=0, padx=5, pady=5)
         tk.Entry(self.main_frame, textvariable=self.text).grid(row=1, column=1, padx=5, pady=5)
 
+        # Link padrão
         tk.Label(self.main_frame, text="Link:").grid(row=2, column=0, padx=5, pady=5)
         tk.Entry(self.main_frame, textvariable=self.link).grid(row=2, column=1, padx=5, pady=5)
         tk.Button(self.main_frame, text="Selecionar Arquivo", command=self.select_file).grid(row=2, column=2, padx=5, pady=5)
 
-        tk.Label(self.main_frame, text="IP Premium:").grid(row=3, column=0, padx=5, pady=5)
+        # IP Premium
+        tk.Label(self.main_frame, text="IP Premium:*").grid(row=3, column=0, padx=5, pady=5)
         tk.Entry(self.main_frame, textvariable=self.premium_link).grid(row=3, column=1, padx=5, pady=5)
         tk.Button(self.main_frame, text="Selecionar Arquivo", command=self.select_premium_file).grid(row=3, column=2, padx=5, pady=5)
 
-        tk.Label(self.main_frame, text="IP Standard:").grid(row=4, column=0, padx=5, pady=5)
+        # IP Standard
+        tk.Label(self.main_frame, text="IP Standard:*").grid(row=4, column=0, padx=5, pady=5)
         tk.Entry(self.main_frame, textvariable=self.standard_link).grid(row=4, column=1, padx=5, pady=5)
         tk.Button(self.main_frame, text="Selecionar Arquivo", command=self.select_standard_file).grid(row=4, column=2, padx=5, pady=5)
 
-        tk.Button(self.main_frame, text="Adicionar", command=self.add_button).grid(row=5, columnspan=3, padx=5, pady=5)
+        # VPN Link
+        tk.Label(self.main_frame, text="Reiniciar VPS VPN:*").grid(row=5, column=0, padx=5, pady=5)  # Adiciona label para VPN
+        tk.Entry(self.main_frame, textvariable=self.vpn_link).grid(row=5, column=1, padx=5, pady=5)  # Campo de entrada VPN
+        tk.Button(self.main_frame, text="Selecionar Arquivo", command=self.select_vpn_file).grid(row=5, column=2, padx=5, pady=5)
+
+        # Game Link
+        tk.Label(self.main_frame, text="Reiniciar VPS Jogo:*").grid(row=6, column=0, padx=5, pady=5)  # Adiciona label para Game
+        tk.Entry(self.main_frame, textvariable=self.game_link).grid(row=6, column=1, padx=5, pady=5)  # Campo de entrada Game
+        tk.Button(self.main_frame, text="Selecionar Arquivo", command=self.select_game_file).grid(row=6, column=2, padx=5, pady=5)
+
+        # Game Link
+        tk.Label(self.main_frame, text="* Campos opcionais.").grid(row=7, column=0, padx=5, pady=5)  # Adiciona label para Game
+
+        # Botão de Adicionar
+        tk.Button(self.main_frame, text="Adicionar", command=self.add_button).grid(row=8, columnspan=3, padx=5, pady=5)
 
         self.button_info = None
         self.top.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -5448,6 +5542,18 @@ class AddButtonDialog:
         self.standard_link.set(file_path)
         self.show_dialog()
 
+    def select_vpn_file(self):  # Adiciona método para selecionar VPN link
+        self.hide_dialog()
+        file_path = filedialog.askopenfilename()
+        self.vpn_link.set(file_path)
+        self.show_dialog()
+
+    def select_game_file(self):  # Adiciona método para selecionar Game link
+        self.hide_dialog()
+        file_path = filedialog.askopenfilename()
+        self.game_link.set(file_path)
+        self.show_dialog()
+
     def hide_dialog(self):
         self.top.withdraw()
 
@@ -5463,7 +5569,9 @@ class AddButtonDialog:
                 'text': self.text.get(),
                 'link': self.link.get(),
                 'premium_link': self.premium_link.get() if self.premium_link.get() else None,
-                'standard_link': self.standard_link.get() if self.standard_link.get() else None
+                'standard_link': self.standard_link.get() if self.standard_link.get() else None,
+                'vpn_link': self.vpn_link.get() if self.vpn_link.get() else None,  # Inclui campo VPN
+                'game_link': self.game_link.get() if self.game_link.get() else None  # Inclui campo Game
             }
             self.top.destroy()
         else:
@@ -5502,7 +5610,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 77.5 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 78 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
