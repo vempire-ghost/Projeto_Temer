@@ -111,7 +111,9 @@ class ButtonManager:
         self.load_initial_test()  # Carregar a configuração do arquivo config.ini ao inicializar
         self.hosts_file = 'hosts.json'
         self.hosts = ["", "", ""]  # Inicializa uma lista para armazenar os endereços
-        self.previous_state = {} # Dicionário para armazenar o estado das interfaces
+        self.monitoring_active = {}
+        self.text_areas = {}
+        self.previous_states = {}  # Dicionário para armazenar o estado anterior
 
         self.clear_log_file('app.log')  # Limpa o arquivo de log ao iniciar o programa
         self.clear_log_file('test_command.log')  # Limpa o arquivo de log ao iniciar o programa
@@ -947,38 +949,53 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 79.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 79.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MONITORAR VELOCIDADE DAS INTERFACES DOS OMR
     def start_monitoring_in_frame(self, parent_frame, title, ssh_client):
         """Inicia o monitoramento no frame fornecido, sem abrir uma nova janela."""
         
-        # Cria um Frame para o cabeçalho
-        header_frame = tk.Frame(parent_frame, height=50)
-        header_frame.pack(fill='x', padx=5, pady=5)
+        # Caso o monitoramento esteja ativo para este título, interrompe para reiniciar
+        if self.monitoring_active.get(title, False):
+            self.stop_monitoring_bmon(title)
 
-        # Adiciona rótulos no cabeçalho
-        interface_label = tk.Label(header_frame, text="Interface:", anchor='w')
-        interface_label.grid(row=0, column=0, padx=5, sticky='w')
+        # Reinicia a flag de monitoramento ativo para este título
+        self.monitoring_active[title] = True
 
-        download_label = tk.Label(header_frame, text="Download:", anchor='center')
-        download_label.grid(row=0, column=1, padx=5, sticky='n')
+        # Cria um Frame para o cabeçalho se ainda não existe para este título
+        if title not in self.text_areas:
+            header_frame = tk.Frame(parent_frame, height=50)
+            header_frame.pack(fill='x', padx=5, pady=5)
 
-        upload_label = tk.Label(header_frame, text="Upload:", anchor='e')
-        upload_label.grid(row=0, column=2, padx=5, sticky='e')
+            # Adiciona rótulos no cabeçalho
+            interface_label = tk.Label(header_frame, text=f"{title} - Interface:", anchor='w')
+            interface_label.grid(row=0, column=0, padx=5, sticky='w')
 
-        header_frame.grid_columnconfigure(0, weight=1)
-        header_frame.grid_columnconfigure(1, weight=2)
-        header_frame.grid_columnconfigure(2, weight=1)
+            download_label = tk.Label(header_frame, text="Download:", anchor='center')
+            download_label.grid(row=0, column=1, padx=5, sticky='n')
 
-        # Cria um Frame para a área de texto (redimensionado)
-        text_frame = tk.Frame(parent_frame)
-        text_frame.pack(fill='x', padx=5, pady=5)
+            upload_label = tk.Label(header_frame, text="Upload:", anchor='e')
+            upload_label.grid(row=0, column=2, padx=5, sticky='e')
 
-        # Cria o widget Text para exibir a saída, com tamanho fixo
-        text_area = tk.Text(text_frame, wrap='word', height=10, width=80, state='disabled')
-        text_area.pack(expand=False, fill='x')
+            header_frame.grid_columnconfigure(0, weight=1)
+            header_frame.grid_columnconfigure(1, weight=2)
+            header_frame.grid_columnconfigure(2, weight=1)
+
+            # Cria o Frame e área de texto apenas uma vez para este título
+            text_frame = tk.Frame(parent_frame)
+            text_frame.pack(fill='x', padx=5, pady=5)
+
+            # Cria o widget Text para exibir a saída, com tamanho fixo, associado ao título
+            text_area = tk.Text(text_frame, wrap='word', height=10, width=80, state='disabled')
+            text_area.pack(expand=False, fill='x')
+
+            # Armazena a área de texto no dicionário usando o título como chave
+            self.text_areas[title] = text_area
+
+            # Adiciona um botão para parar o monitoramento específico
+            stop_button = tk.Button(parent_frame, text=f"Parar {title}", command=lambda: self.stop_monitoring_bmon(title))
+            stop_button.pack(pady=5)
 
         # Função para executar o comando bmon via SSH
         def check_bmon(command, ssh_transport):
@@ -996,20 +1013,20 @@ class ButtonManager:
 
                 # Verifica se a conexão SSH está ativa
                 if not ssh_transport.is_active():
-                    self.update_text_area(text_area, "Conexão SSH não está ativa.\n", overwrite=True)
+                    self.update_text_area(title, "Conexão SSH não está ativa.\n", overwrite=True)
                     return
 
                 # Verifica se o bmon está disponível
                 which_output = check_bmon('which bmon', ssh_transport)
                 if not which_output.strip():
-                    self.update_text_area(text_area, "bmon não encontrado no sistema remoto.\n", overwrite=True)
+                    self.update_text_area(title, "bmon não encontrado no sistema remoto.\n", overwrite=True)
                     return
 
                 # Envia o comando bmon
                 command = 'timeout 2 bmon -o ascii'
-                while True:
+                while self.monitoring_active[title]:
                     if not ssh_client.get_transport().is_active():
-                        self.update_text_area(text_area, "Conexão SSH perdida.\n", overwrite=True)
+                        self.update_text_area(title, "Conexão SSH perdida.\n", overwrite=True)
                         break
 
                     # Executa o comando via SSH
@@ -1021,7 +1038,7 @@ class ButtonManager:
 
                     output = ""
                     while session.recv_ready():
-                        output += session.recv(4096).decode('utf-8')  # Buffer aumentado para capturar mais dados
+                        output += session.recv(4096).decode('utf-8')
 
                     if output:
                         # Filtra e processa a saída do bmon
@@ -1042,32 +1059,32 @@ class ButtonManager:
                                     values = line.split()
                                     if len(values) > 1 and any(self.convert_to_float(value) > 0 for value in values[1:]):
                                         filtered_output.append(line)
-                                        # Atualiza o estado atual
                                         interface_name = values[0]
                                         current_state[interface_name] = line
 
                         # Descarte as 5 primeiras linhas das linhas já filtradas
                         filtered_output = filtered_output[5:]
 
-                        # Agora, verifique se houve alguma alteração para atualizar a área de texto
-                        if current_state != self.previous_state:
-                            # Junta as linhas filtradas com uma quebra de linha
-                            self.update_text_area(text_area, '\n'.join(filtered_output), overwrite=True)
-                            self.previous_state = current_state  # Atualiza o estado anterior
+                        if current_state != self.previous_states.get(title, {}):
+                            self.update_text_area(title, '\n'.join(filtered_output), overwrite=True)
+                            self.previous_states[title] = current_state
                         else:
-                            # Se não houver alterações, não atualize a área de texto
-                            self.update_text_area(text_area, "", overwrite=False)
+                            self.update_text_area(title, "", overwrite=False)
 
                     else:
-                        self.update_text_area(text_area, "Nenhuma saída recebida.\n", overwrite=True)
+                        self.update_text_area(title, "Nenhuma saída recebida.\n", overwrite=True)
 
                     session.close()
 
             except Exception as e:
-                self.update_text_area(text_area, f"Erro ao executar o bmon: {e}\n", overwrite=True)
+                self.update_text_area(title, f"Erro ao executar o bmon: {e}\n", overwrite=True)
 
         # Executa o monitoramento do bmon em uma thread separada
         threading.Thread(target=monitor_bmon_in_real_time, daemon=True).start()
+
+    def stop_monitoring_bmon(self, title):
+        """Função para parar o monitoramento de um título específico."""
+        self.monitoring_active[title] = False
 
     def convert_to_float(self, value):
         """Converte strings de tamanhos com unidades para float."""
@@ -1080,16 +1097,18 @@ class ButtonManager:
         elif value.isdigit():  # Se for um número inteiro
             return float(value)
         else:
-            return 0.0  # Retorna 0.0 se não puder converter
+            return 0.0
 
-    def update_text_area(self, text_area, new_text, overwrite=False):
-        """Função para atualizar o widget Text. Sobrescreve o texto existente se overwrite for True."""
-        text_area.config(state='normal')
-        if overwrite:
-            text_area.delete(1.0, tk.END)  # Apaga o texto anterior
-        text_area.insert(tk.END, new_text)
-        text_area.see(tk.END)  # Rola até o final
-        text_area.config(state='disabled')
+    def update_text_area(self, title, new_text, overwrite=False):
+        """Atualiza a área de texto associada a um título específico."""
+        text_area = self.text_areas.get(title)
+        if text_area:
+            text_area.config(state='normal')
+            if overwrite:
+                text_area.delete(1.0, tk.END)
+            text_area.insert(tk.END, new_text)
+            text_area.see(tk.END)
+            text_area.config(state='disabled')
 
 # METODO PARA MTR NO VPS
     def executar_mtr(self, tab):
