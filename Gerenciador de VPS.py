@@ -946,8 +946,115 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 78", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 79", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
+
+# METODO PARA MONITORAR VELOCIDADE DAS INTERFACES DOS OMR
+    def start_monitoring_in_frame(self, parent_frame, title, ssh_client):
+        """Inicia o monitoramento no frame fornecido, sem abrir uma nova janela."""
+        
+        # Limpa o frame existente
+        for widget in parent_frame.winfo_children():
+            widget.destroy()
+
+        # Cria um Frame para o cabeçalho
+        header_frame = tk.Frame(parent_frame, height=50)
+        header_frame.pack(fill='x', padx=5, pady=5)
+
+        # Adiciona rótulos no cabeçalho
+        interface_label = tk.Label(header_frame, text="Interface:", anchor='w')
+        interface_label.grid(row=0, column=0, padx=5, sticky='w')
+
+        download_label = tk.Label(header_frame, text="Download:", anchor='center')
+        download_label.grid(row=0, column=1, padx=5, sticky='n')
+
+        upload_label = tk.Label(header_frame, text="Upload:", anchor='e')
+        upload_label.grid(row=0, column=2, padx=5, sticky='e')
+
+        header_frame.grid_columnconfigure(0, weight=1)
+        header_frame.grid_columnconfigure(1, weight=2)
+        header_frame.grid_columnconfigure(2, weight=1)
+
+        # Cria um Frame para a área de texto (redimensionado)
+        text_frame = tk.Frame(parent_frame)
+        text_frame.pack(fill='x', padx=5, pady=5)
+
+        # Cria o widget Text para exibir a saída, com tamanho fixo
+        text_area = tk.Text(text_frame, wrap='word', height=10, width=80, state='disabled')
+        text_area.pack(expand=False, fill='x')
+
+        # Função para executar o comando bmon via SSH
+        def check_bmon(command, ssh_transport):
+            session = ssh_transport.open_session()
+            session.get_pty()
+            session.exec_command(command)
+            output = session.recv(1024).decode('utf-8')  # Lê a saída inicial
+            session.close()
+            return output
+
+        # Função principal de monitoramento
+        def monitor_bmon_in_real_time():
+            try:
+                ssh_transport = ssh_client.get_transport()
+
+                # Verifica se a conexão SSH está ativa
+                if not ssh_transport.is_active():
+                    self.update_text_area(text_area, "Conexão SSH não está ativa.\n", overwrite=True)
+                    return
+
+                # Verifica se o bmon está disponível
+                which_output = check_bmon('which bmon', ssh_transport)
+                if not which_output.strip():
+                    self.update_text_area(text_area, "bmon não encontrado no sistema remoto.\n", overwrite=True)
+                    return
+
+                # Envia o comando bmon
+                command = 'bmon -o ascii'
+                while True:
+                    if not ssh_client.get_transport().is_active():
+                        self.update_text_area(text_area, "Conexão SSH perdida.\n", overwrite=True)
+                        break
+
+                    # Executa o comando via SSH
+                    session = ssh_transport.open_session()
+                    session.get_pty()
+                    session.exec_command(command)
+
+                    time.sleep(2)  # Pequena pausa para dar tempo ao bmon de começar a gerar saída
+
+                    output = ""
+                    while session.recv_ready():
+                        output += session.recv(4096).decode('utf-8')  # Buffer aumentado para capturar mais dados
+
+                    if output:
+                        # Filtra e processa a saída do bmon
+                        filtered_output = '\n'.join([line for line in output.splitlines() if 'eth' in line])
+
+                        if filtered_output:
+                            # Atualiza a área de texto com o resultado filtrado
+                            self.update_text_area(text_area, filtered_output, overwrite=True)
+                        else:
+                            self.update_text_area(text_area, "Nenhuma saída relevante encontrada.\n", overwrite=True)
+                    else:
+                        self.update_text_area(text_area, "Nenhuma saída recebida.\n", overwrite=True)
+
+                    session.close()
+                    time.sleep(1)  # Intervalo entre execuções para reduzir a sobrecarga de CPU
+
+            except Exception as e:
+                self.update_text_area(text_area, f"Erro ao executar o bmon: {e}\n", overwrite=True)
+
+        # Executa o monitoramento do bmon em uma thread separada
+        threading.Thread(target=monitor_bmon_in_real_time, daemon=True).start()
+
+    def update_text_area(self, text_area, new_text, overwrite=False):
+        """Função para atualizar o widget Text. Sobrescreve o texto existente se overwrite for True."""
+        text_area.config(state='normal')
+        if overwrite:
+            text_area.delete(1.0, tk.END)  # Apaga o texto anterior
+        text_area.insert(tk.END, new_text)
+        text_area.see(tk.END)  # Rola até o final
+        text_area.config(state='disabled')
 
 # METODO PARA MTR NO VPS
     def executar_mtr(self, tab):
@@ -1123,6 +1230,30 @@ class ButtonManager:
         empty_tab = tk.Frame(notebook, bg='lightgray')
         notebook.add(empty_tab, text='VPS JOGO MTR')
         self.executar_mtr(empty_tab)
+
+        # Aba 3: Monitoramento OMR
+        monitor_tab = tk.Frame(notebook, bg='white')
+        notebook.add(monitor_tab, text='Monitoramento OMR')
+
+        # Frame 1: Monitoramento VPN
+        vpn_frame = tk.Frame(monitor_tab, bg='lightgray', relief=tk.RAISED, bd=2)
+        vpn_frame.pack(side=tk.LEFT, fill='both', expand=True, padx=5, pady=5)
+
+        vpn_label = tk.Label(vpn_frame, text="Monitoramento VPN", bg='lightgray')
+        vpn_label.pack()
+
+        vpn_button = tk.Button(vpn_frame, text="Iniciar Monitor VPN", command=lambda: self.start_monitoring_in_frame(vpn_frame, "Trafego OMR VPN", self.ssh_vpn_client))
+        vpn_button.pack(pady=10)
+
+        # Frame 2: Monitoramento Jogo
+        jogo_frame = tk.Frame(monitor_tab, bg='lightgray', relief=tk.RAISED, bd=2)
+        jogo_frame.pack(side=tk.RIGHT, fill='both', expand=True, padx=5, pady=5)
+
+        jogo_label = tk.Label(jogo_frame, text="Monitoramento Jogo", bg='lightgray')
+        jogo_label.pack()
+
+        jogo_button = tk.Button(jogo_frame, text="Iniciar Monitor Jogo", command=lambda: self.start_monitoring_in_frame(jogo_frame, "Trafego OMR JOGO", self.ssh_jogo_client))
+        jogo_button.pack(pady=10)
 
         # Dicionário para armazenar referências às áreas de texto e dados de latência
         outputs = {}
