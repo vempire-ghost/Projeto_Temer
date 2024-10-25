@@ -111,6 +111,7 @@ class ButtonManager:
         self.load_initial_test()  # Carregar a configuração do arquivo config.ini ao inicializar
         self.hosts_file = 'hosts.json'
         self.hosts = ["", "", ""]  # Inicializa uma lista para armazenar os endereços
+        self.previous_state = {} # Dicionário para armazenar o estado das interfaces
 
         self.clear_log_file('app.log')  # Limpa o arquivo de log ao iniciar o programa
         self.clear_log_file('test_command.log')  # Limpa o arquivo de log ao iniciar o programa
@@ -946,17 +947,13 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 79", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 79.1", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MONITORAR VELOCIDADE DAS INTERFACES DOS OMR
     def start_monitoring_in_frame(self, parent_frame, title, ssh_client):
         """Inicia o monitoramento no frame fornecido, sem abrir uma nova janela."""
         
-        # Limpa o frame existente
-        for widget in parent_frame.winfo_children():
-            widget.destroy()
-
         # Cria um Frame para o cabeçalho
         header_frame = tk.Frame(parent_frame, height=50)
         header_frame.pack(fill='x', padx=5, pady=5)
@@ -1009,7 +1006,7 @@ class ButtonManager:
                     return
 
                 # Envia o comando bmon
-                command = 'bmon -o ascii'
+                command = 'timeout 2 bmon -o ascii'
                 while True:
                     if not ssh_client.get_transport().is_active():
                         self.update_text_area(text_area, "Conexão SSH perdida.\n", overwrite=True)
@@ -1028,24 +1025,62 @@ class ButtonManager:
 
                     if output:
                         # Filtra e processa a saída do bmon
-                        filtered_output = '\n'.join([line for line in output.splitlines() if 'eth' in line])
+                        filtered_output = []
+                        current_state = {}
 
-                        if filtered_output:
-                            # Atualiza a área de texto com o resultado filtrado
-                            self.update_text_area(text_area, filtered_output, overwrite=True)
+                        for line in output.splitlines():
+                            # Verifica se a linha contém 'eth' e se não é 'eth0'
+                            if 'eth' in line and 'eth0' not in line:
+                                # Adiciona sempre as linhas de eth1 a eth5
+                                if any(interface in line for interface in ['eth1', 'eth2', 'eth3', 'eth4', 'eth5']):
+                                    filtered_output.append(line)
+                                    # Atualiza o estado atual
+                                    interface_name = line.split()[0]
+                                    current_state[interface_name] = line
+                                else:
+                                    # Verifica se há valores diferentes de zero para outras interfaces
+                                    values = line.split()
+                                    if len(values) > 1 and any(self.convert_to_float(value) > 0 for value in values[1:]):
+                                        filtered_output.append(line)
+                                        # Atualiza o estado atual
+                                        interface_name = values[0]
+                                        current_state[interface_name] = line
+
+                        # Descarte as 5 primeiras linhas das linhas já filtradas
+                        filtered_output = filtered_output[5:]
+
+                        # Agora, verifique se houve alguma alteração para atualizar a área de texto
+                        if current_state != self.previous_state:
+                            # Junta as linhas filtradas com uma quebra de linha
+                            self.update_text_area(text_area, '\n'.join(filtered_output), overwrite=True)
+                            self.previous_state = current_state  # Atualiza o estado anterior
                         else:
-                            self.update_text_area(text_area, "Nenhuma saída relevante encontrada.\n", overwrite=True)
+                            # Se não houver alterações, não atualize a área de texto
+                            self.update_text_area(text_area, "", overwrite=False)
+
                     else:
                         self.update_text_area(text_area, "Nenhuma saída recebida.\n", overwrite=True)
 
                     session.close()
-                    time.sleep(1)  # Intervalo entre execuções para reduzir a sobrecarga de CPU
 
             except Exception as e:
                 self.update_text_area(text_area, f"Erro ao executar o bmon: {e}\n", overwrite=True)
 
         # Executa o monitoramento do bmon em uma thread separada
         threading.Thread(target=monitor_bmon_in_real_time, daemon=True).start()
+
+    def convert_to_float(self, value):
+        """Converte strings de tamanhos com unidades para float."""
+        if 'KiB' in value:
+            return float(value.replace('KiB', '').strip()) * 1024  # Convertendo KiB para bytes
+        elif 'MiB' in value:
+            return float(value.replace('MiB', '').strip()) * 1024 ** 2  # Convertendo MiB para bytes
+        elif 'GiB' in value:
+            return float(value.replace('GiB', '').strip()) * 1024 ** 3  # Convertendo GiB para bytes
+        elif value.isdigit():  # Se for um número inteiro
+            return float(value)
+        else:
+            return 0.0  # Retorna 0.0 se não puder converter
 
     def update_text_area(self, text_area, new_text, overwrite=False):
         """Função para atualizar o widget Text. Sobrescreve o texto existente se overwrite for True."""
