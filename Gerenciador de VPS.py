@@ -392,7 +392,7 @@ class ButtonManager:
         config_menu.add_command(label="Configurações de Cores", command=self.open_color_config)
         #config_menu.add_command(label="MTR VPS", command=self.executar_mtr)
         config_menu.add_command(label="Console com OMR VPN", command=self.open_ssh_terminal)
-        config_menu.add_command(label="Monitor MTR com Grafico", command=self.execute_mtr_and_plot) 
+        config_menu.add_command(label="Monitor OMR e Graficos", command=self.execute_mtr_and_plot) 
         config_menu.add_command(label="Ajuda", command=self.abrir_arquivo_ajuda)
         config_menu.add_command(label="Sobre", command=self.about)
 
@@ -949,10 +949,48 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 79.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 79.3", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA MONITORAR VELOCIDADE DAS INTERFACES DOS OMR
+    def setup_monitoring_interface(self, monitor_tab):
+        """Configura a interface de monitoramento com botões de VPN e Jogo no frame fornecido."""
+
+        # Limpa os dicionários para evitar reutilização de áreas de texto e estados anteriores
+        self.text_areas = {}
+        self.previous_states = {}
+        self.monitoring_active = {}
+
+        # Frame 1: Monitoramento VPN
+        vpn_frame = tk.Frame(monitor_tab, bg="lightgray", relief=tk.RAISED, bd=2)
+        vpn_frame.pack(side=tk.LEFT, fill="both", expand=True, padx=5, pady=5)
+
+        vpn_label = tk.Label(vpn_frame, text="Monitoramento VPN", bg="lightgray")
+        vpn_label.pack()
+
+        # Configura o botão para iniciar o monitoramento VPN
+        vpn_button = tk.Button(
+            vpn_frame,
+            text="Iniciar Monitor VPN",
+            command=lambda: self.start_monitoring_in_frame(vpn_frame, "Trafego OMR VPN", self.ssh_vpn_client)
+        )
+        vpn_button.pack(pady=10)
+
+        # Frame 2: Monitoramento Jogo
+        jogo_frame = tk.Frame(monitor_tab, bg="lightgray", relief=tk.RAISED, bd=2)
+        jogo_frame.pack(side=tk.RIGHT, fill="both", expand=True, padx=5, pady=5)
+
+        jogo_label = tk.Label(jogo_frame, text="Monitoramento Jogo", bg="lightgray")
+        jogo_label.pack()
+
+        # Configura o botão para iniciar o monitoramento do Jogo
+        jogo_button = tk.Button(
+            jogo_frame,
+            text="Iniciar Monitor Jogo",
+            command=lambda: self.start_monitoring_in_frame(jogo_frame, "Trafego OMR JOGO", self.ssh_jogo_client)
+        )
+        jogo_button.pack(pady=10)
+
     def start_monitoring_in_frame(self, parent_frame, title, ssh_client):
         """Inicia o monitoramento no frame fornecido, sem abrir uma nova janela."""
         
@@ -1278,36 +1316,17 @@ class ButtonManager:
 
         # Aba 1: Interface MTR
         interface_tab = tk.Frame(notebook, bg='white')
-        notebook.add(interface_tab, text='Interfaces MTR')
+        notebook.add(interface_tab, text='MTR dos Provedores')
 
         # Aba 2: Aba vazia
         empty_tab = tk.Frame(notebook, bg='lightgray')
-        notebook.add(empty_tab, text='VPS JOGO MTR')
+        notebook.add(empty_tab, text='MTR do VPS JOGO')
         self.executar_mtr(empty_tab)
 
         # Aba 3: Monitoramento OMR
         monitor_tab = tk.Frame(notebook, bg='white')
-        notebook.add(monitor_tab, text='Monitoramento OMR')
-
-        # Frame 1: Monitoramento VPN
-        vpn_frame = tk.Frame(monitor_tab, bg='lightgray', relief=tk.RAISED, bd=2)
-        vpn_frame.pack(side=tk.LEFT, fill='both', expand=True, padx=5, pady=5)
-
-        vpn_label = tk.Label(vpn_frame, text="Monitoramento VPN", bg='lightgray')
-        vpn_label.pack()
-
-        vpn_button = tk.Button(vpn_frame, text="Iniciar Monitor VPN", command=lambda: self.start_monitoring_in_frame(vpn_frame, "Trafego OMR VPN", self.ssh_vpn_client))
-        vpn_button.pack(pady=10)
-
-        # Frame 2: Monitoramento Jogo
-        jogo_frame = tk.Frame(monitor_tab, bg='lightgray', relief=tk.RAISED, bd=2)
-        jogo_frame.pack(side=tk.RIGHT, fill='both', expand=True, padx=5, pady=5)
-
-        jogo_label = tk.Label(jogo_frame, text="Monitoramento Jogo", bg='lightgray')
-        jogo_label.pack()
-
-        jogo_button = tk.Button(jogo_frame, text="Iniciar Monitor Jogo", command=lambda: self.start_monitoring_in_frame(jogo_frame, "Trafego OMR JOGO", self.ssh_jogo_client))
-        jogo_button.pack(pady=10)
+        notebook.add(monitor_tab, text='Monitoramento Interfaces OMR')
+        self.setup_monitoring_interface(monitor_tab)
 
         # Dicionário para armazenar referências às áreas de texto e dados de latência
         outputs = {}
@@ -5795,7 +5814,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 78 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 79.3 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
