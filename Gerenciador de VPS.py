@@ -393,8 +393,6 @@ class ButtonManager:
         #config_menu.add_command(label="MTR VPS", command=self.executar_mtr)
         config_menu.add_command(label="Console com OMR VPN", command=self.open_ssh_terminal)
         config_menu.add_command(label="Monitor OMR e Graficos", command=self.execute_mtr_and_plot)
-        config_menu.add_command(label="Instalar Bmon OMR VPN", command=self.install_bmon_vpn)
-        config_menu.add_command(label="Instalar Bmon OMR JOGO", command=self.install_bmon_jogo)
         config_menu.add_command(label="Ajuda", command=self.abrir_arquivo_ajuda)
         config_menu.add_command(label="Sobre", command=self.about)
 
@@ -951,10 +949,71 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 79.4", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 79.5", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
-# METODO PARA CHECAR E INSTALAR BMON NO OMR E FUTURAMENTE O MTR NO VPS JOGO.
+# METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
+    # Método para abrir uma janela de instalação do MTR na conexão OMR VPN
+    def install_mtr_vpn(self):
+        self.install_mtr_with_terminal(self.ssh_vpn_client, "Instalação MTR VPN")
+
+    # Método auxiliar para verificar e instalar o MTR em uma janela de terminal SSH
+    def install_mtr_with_terminal(self, ssh_client, title):
+        # Cria uma nova janela para exibir a saída do terminal
+        mtr_window = tk.Toplevel(self.master)
+        mtr_window.title(title)
+        mtr_window.geometry("700x300")
+
+        # Cria uma área de texto para exibir a saída do terminal
+        text_area = tk.Text(mtr_window, wrap='word', bg="black", fg="white")
+        text_area.pack(expand=True, fill='both')
+
+        # Função para checar e instalar o MTR
+        def check_and_install_mtr():
+            try:
+                ssh_transport = ssh_client.get_transport()
+
+                # Função auxiliar para enviar comandos e exibir a saída em tempo real
+                def run_command(command):
+                    session = ssh_transport.open_session()
+                    session.get_pty()
+                    session.exec_command(command)
+                    output = ""
+                    while True:
+                        if session.recv_ready():
+                            output += session.recv(1024).decode('utf-8')
+                            text_area.insert(tk.END, output)
+                            text_area.see(tk.END)
+                            text_area.update()
+                        if session.exit_status_ready():
+                            break
+                    session.close()
+                    return output.strip()
+
+                # Verifica se o mtr está instalado
+                text_area.insert(tk.END, "Verificando MTR...\n")
+                if not run_command('which mtr'):
+                    # Pergunta se o usuário deseja instalar o MTR
+                    install_mtr = messagebox.askyesno("Instalar MTR", "O MTR não foi encontrado. Deseja instalá-lo?")
+                    if install_mtr:
+                        # Executa a atualização do opkg
+                        text_area.insert(tk.END, "Executando opkg update...\n")
+                        run_command('opkg update')
+                        text_area.insert(tk.END, "Instalando o MTR...\n")
+                        run_command('opkg install mtr')
+                        text_area.insert(tk.END, "Instalação do MTR concluída.\n")
+                    else:
+                        text_area.insert(tk.END, "Instalação do MTR cancelada.\n")
+                else:
+                    text_area.insert(tk.END, "MTR já está instalado.\n")
+
+            except Exception as e:
+                text_area.insert(tk.END, f"Erro ao instalar o MTR: {e}\n")
+
+        # Executa a instalação em uma nova thread
+        threading.Thread(target=check_and_install_mtr).start()
+
+# METODO PARA CHECAR E INSTALAR BMON NO OMR.
     # Método para abrir uma janela de instalação do bmon na conexão VPN
     def install_bmon_vpn(self):
         self.install_bmon_with_terminal(self.ssh_vpn_client, "Instalação bmon VPN")
@@ -1359,7 +1418,7 @@ class ButtonManager:
         # Define a função para ser chamada quando a janela for fechada
         #main_window.protocol("WM_DELETE_WINDOW", on_closing)
 
-# METODO PARA MTR E GRAFICO DE CONEXÕES
+# METODO PARA MTR E GRAFICO DE CONEXÕES QUE CRIA A JANELA PRINCIPAL!
     def execute_mtr_and_plot(self):
         """Executa o comando MTR via SSH para múltiplas interfaces em uma única janela com quadros separados."""
 
@@ -1377,6 +1436,19 @@ class ButtonManager:
         main_window = tk.Toplevel(self.master)
         main_window.title("Saídas do MTR e Gráficos de Latência")
         main_window.configure(bg='white')  # Define o fundo branco
+
+        # Cria a barra de menus e adiciona o menu de Instalações
+        menubar = tk.Menu(main_window)
+        main_window.config(menu=menubar)
+
+        # Cria o submenu "Instalações" para instalação do bmon e mtr
+        install_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Instalações", menu=install_menu)
+
+        # Adiciona as opções de instalação no submenu
+        install_menu.add_command(label="Instalar bmon (OMR VPN)", command=self.install_bmon_vpn)
+        install_menu.add_command(label="Instalar bmon (OMR JOGO)", command=self.install_bmon_jogo)
+        install_menu.add_command(label="Instalar mtr (OMR VPN)", command=self.install_mtr_vpn)
 
         # Cria o notebook (abas)
         notebook = ttk.Notebook(main_window)
@@ -1760,14 +1832,14 @@ class ButtonManager:
     def show_omr_vpn_menu(self):
         options = [
             ("Abrir Luci", self.open_OMR_VPN),
-            ("Abrir Monitor de Trafego", self.monitor_bmon_vpn)
+            #("Abrir Monitor de Trafego", self.monitor_bmon_vpn)
         ]
         self.show_omr_menu(options)
 
     def show_omr_jogo_menu(self):
         options = [
             ("Abrir Luci", self.open_OMR_JOGO),
-            ("Abrir Monitor de Trafego", self.monitor_bmon_jogo)
+            #("Abrir Monitor de Trafego", self.monitor_bmon_jogo)
         ]
         self.show_omr_menu(options)
 
@@ -5882,7 +5954,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 79.3 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 79.5 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
