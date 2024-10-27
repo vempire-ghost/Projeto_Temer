@@ -392,7 +392,9 @@ class ButtonManager:
         config_menu.add_command(label="Configurações de Cores", command=self.open_color_config)
         #config_menu.add_command(label="MTR VPS", command=self.executar_mtr)
         config_menu.add_command(label="Console com OMR VPN", command=self.open_ssh_terminal)
-        config_menu.add_command(label="Monitor OMR e Graficos", command=self.execute_mtr_and_plot) 
+        config_menu.add_command(label="Monitor OMR e Graficos", command=self.execute_mtr_and_plot)
+        config_menu.add_command(label="Instalar Bmon OMR VPN", command=self.install_bmon_vpn)
+        config_menu.add_command(label="Instalar Bmon OMR JOGO", command=self.install_bmon_jogo)
         config_menu.add_command(label="Ajuda", command=self.abrir_arquivo_ajuda)
         config_menu.add_command(label="Sobre", command=self.about)
 
@@ -949,8 +951,74 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 79.3", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 79.4", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
+
+# METODO PARA CHECAR E INSTALAR BMON NO OMR E FUTURAMENTE O MTR NO VPS JOGO.
+    # Método para abrir uma janela de instalação do bmon na conexão VPN
+    def install_bmon_vpn(self):
+        self.install_bmon_with_terminal(self.ssh_vpn_client, "Instalação bmon VPN")
+
+    # Método para abrir uma janela de instalação do bmon na conexão Jogo
+    def install_bmon_jogo(self):
+        self.install_bmon_with_terminal(self.ssh_jogo_client, "Instalação bmon Jogo")
+
+    # Método auxiliar para verificar e instalar o bmon em uma janela de terminal SSH
+    def install_bmon_with_terminal(self, ssh_client, title):
+        # Cria uma nova janela para exibir a saída do terminal
+        install_window = tk.Toplevel(self.master)
+        install_window.title(title)
+        install_window.geometry("700x300")
+
+        # Cria uma área de texto para exibir a saída do terminal
+        text_area = tk.Text(install_window, wrap='word', bg="black", fg="white")
+        text_area.pack(expand=True, fill='both')
+
+        # Cria uma sessão para verificação e instalação do bmon
+        def check_and_install():
+            try:
+                ssh_transport = ssh_client.get_transport()
+
+                # Função auxiliar para enviar comandos e exibir saída
+                def run_command(command):
+                    session = ssh_transport.open_session()
+                    session.get_pty()
+                    session.exec_command(command)
+                    output = ""
+                    while True:
+                        if session.recv_ready():
+                            output += session.recv(1024).decode('utf-8')
+                            text_area.insert(tk.END, output)
+                            text_area.see(tk.END)
+                            text_area.update()
+                        if session.exit_status_ready():
+                            break
+                    session.close()
+                    return output.strip()
+
+                # Verifica se o bmon está instalado
+                text_area.insert(tk.END, "Verificando bmon...\n")
+                if not run_command('which bmon'):
+                    # Pergunta se o usuário deseja instalar o bmon
+                    install_bmon = messagebox.askyesno("Instalar bmon", f"O bmon não foi encontrado. Deseja instalá-lo?")
+                    if install_bmon:
+                        # Executa a atualização do opkg
+                        text_area.insert(tk.END, "Executando opkg update...\n")
+                        run_command('opkg update')
+                        text_area.insert(tk.END, "Instalando o bmon...\n")
+                        run_command('opkg install bmon')
+                        text_area.insert(tk.END, "Instalação do bmon concluída.\n")
+                    else:
+                        text_area.insert(tk.END, "Instalação do bmon cancelada.\n")
+                else:
+                    text_area.insert(tk.END, "bmon já está instalado.\n")
+
+            except Exception as e:
+                text_area.insert(tk.END, f"Erro ao instalar o bmon: {e}\n")
+        
+        # Executa a instalação em uma nova thread
+        threading.Thread(target=check_and_install).start()
+
 
 # METODO PARA MONITORAR VELOCIDADE DAS INTERFACES DOS OMR
     def setup_monitoring_interface(self, monitor_tab):
