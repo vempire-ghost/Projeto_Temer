@@ -949,7 +949,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 79.5", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 79.6", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -1321,7 +1321,7 @@ class ButtonManager:
                 ax.legend(loc='upper right')
 
                 # Adiciona linhas horizontais
-                for y in [20, 40, 60, 80]:
+                for y in [20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280]:
                     ax.axhline(y=y, color='black', linestyle='--', linewidth=0.5)
 
                 # Área do gráfico
@@ -1347,6 +1347,13 @@ class ButtonManager:
                         ax.set_xlim([time_window_start, now])  # Ajusta os limites do eixo X
                         ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))  # Formata o eixo X para horas
                         fig.autofmt_xdate()  # Melhora a visualização das datas
+
+                        # Define o limite superior do eixo Y dinamicamente com margem extra
+                        max_latency = max(latencias_filtered)
+                        if max_latency > 100:
+                            ax.set_ylim(0, min(max_latency * 1.2, 300))  # Expande o limite superior com uma margem de 20%
+                        else:
+                            ax.set_ylim(0, 120)  # Mantém limite em 120ms para permitir margem
                     else:
                         line.set_data([], [])  # Limpa os dados se não houver dados filtrados
 
@@ -1675,7 +1682,7 @@ class ButtonManager:
         else:
             print("A conexão SSH não está configurada.")
             
-# METODO PARA JANELA DE MONITORAMENTO GRAFICO DE CONEXÕES
+# METODO PARA JANELA DE MONITORAMENTO GRAFICO DE CONEXÕES ***METODO DEPRECIADO***
     def run_vps_vpn_pings_with_plot(self):
         """Executa o ping nas interfaces e gera gráficos separados para cada uma, ao estilo PingPlotter com Matplotlib."""
 
@@ -1822,7 +1829,7 @@ class ButtonManager:
         plt.tight_layout()  # Ajusta o layout para evitar sobreposição
         plt.show()
 
-# METODO PARA MONITORAR O TRAFEGO EM TEMPO REAL DAS INTERFACES
+# METODO PARA MONITORAR O TRAFEGO EM TEMPO REAL DAS INTERFACES ***METODO DEPRECIADO***
     def show_omr_menu(self, options):
         menu = Menu(self.master, tearoff=0)
         for label, command in options:
@@ -5954,7 +5961,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 79.5 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 79.6 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
