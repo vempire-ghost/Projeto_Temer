@@ -949,7 +949,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 79.6", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 79.7", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -1081,6 +1081,7 @@ class ButtonManager:
 
 # METODO PARA MONITORAR VELOCIDADE DAS INTERFACES DOS OMR
     def setup_monitoring_interface(self, monitor_tab):
+        main_window = monitor_tab.winfo_toplevel()
         """Configura a interface de monitoramento com botões de VPN e Jogo no frame fornecido."""
 
         # Limpa os dicionários para evitar reutilização de áreas de texto e estados anteriores
@@ -1277,6 +1278,7 @@ class ButtonManager:
 
 # METODO PARA MTR NO VPS
     def executar_mtr(self, tab):
+        main_window = tab.winfo_toplevel()
         """Executa o MTR e exibe os resultados na aba especificada."""
         # Carrega os endereços dos hosts do arquivo, se existir
         if os.path.exists(self.hosts_file):
@@ -1423,7 +1425,7 @@ class ButtonManager:
                 self.executando_mtr[i] = False  # Para a execução do MTR
 
         # Define a função para ser chamada quando a janela for fechada
-        #main_window.protocol("WM_DELETE_WINDOW", on_closing)
+        main_window.protocol("WM_DELETE_WINDOW", on_closing)
 
 # METODO PARA MTR E GRAFICO DE CONEXÕES QUE CRIA A JANELA PRINCIPAL!
     def execute_mtr_and_plot(self):
@@ -5961,7 +5963,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 79.6 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 79.7 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
