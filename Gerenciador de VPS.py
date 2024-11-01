@@ -98,6 +98,7 @@ class ButtonManager:
         self.connection_established_ssh_vps_jogo = threading.Event() # Evento para sinalizar conexão estabelecida
         self.connection_established_ssh_vps_vpn_bind = threading.Event() # Evento para sinalizar conexão estabelecida
         self.connection_established_ssh_vps_jogo_bind = threading.Event() # Evento para sinalizar conexão estabelecida
+        self.connection_established_ssh_vps_jogo_via_vpn = threading.Event()  # Evento para sinalizar conexão estabelecida via VPN
         self.stop_event_ssh = threading.Event()
         self.stop_event_proxy = threading.Event()
         self.transport_lock = threading.Lock()
@@ -253,6 +254,13 @@ class ButtonManager:
         self.config.set('ssh_vps_jogo_bind', 'password', '')
         self.config.set('ssh_vps_jogo_bind', 'port', '')
 
+        # Adiciona a seção 'ssh_vps_jogo_via_vpn'
+        self.config.add_section('ssh_vps_jogo_via_vpn')
+        self.config.set('ssh_vps_jogo_via_vpn', 'host', '')
+        self.config.set('ssh_vps_jogo_via_vpn', 'username', '')
+        self.config.set('ssh_vps_jogo_via_vpn', 'password', '')
+        self.config.set('ssh_vps_jogo_via_vpn', 'port', '')
+
         # Adiciona a seção 'general' para configurações gerais
         self.config.add_section('general')
         self.config.set('general', 'criar_usuario_ssh', str(self.criar_usuario_ssh))
@@ -311,6 +319,12 @@ class ButtonManager:
             'username': self.config.get('ssh_vps_jogo_bind', 'username', fallback=''),
             'password': self.config.get('ssh_vps_jogo_bind', 'password', fallback=''),
             'port': self.config.get('ssh_vps_jogo_bind', 'port', fallback='')
+        }
+        self.ssh_vps_jogo_via_vpn_config = {
+            'host': self.config.get('ssh_vps_jogo_via_vpn', 'host', fallback=''),
+            'username': self.config.get('ssh_vps_jogo_via_vpn', 'username', fallback=''),
+            'password': self.config.get('ssh_vps_jogo_via_vpn', 'password', fallback=''),
+            'port': self.config.get('ssh_vps_jogo_via_vpn', 'port', fallback='')
         }
         self.load_general_config()  # Carrega as configurações gerais
 
@@ -405,6 +419,7 @@ class ButtonManager:
         connections_menu.add_command(label="Reconectar ssh VPS JOGO", command=self.reconectar_vps_jogo)
         connections_menu.add_command(label="Reconectar ssh via VPS VPN", command=self.reconectar_vps_vpn_bind)
         connections_menu.add_command(label="Reconectar ssh via VPS JOGO", command=self.reconectar_vps_jogo_bind)
+        connections_menu.add_command(label="Reconectar ssh VPS JOGO via VPN", command=self.reconectar_vps_jogo_via_vpn)
 
     # Reconecta OMR VPN
     def reconectar_omr_vpn(self):
@@ -448,6 +463,13 @@ class ButtonManager:
         self.ssh_vps_jogo_bind_client = None
         self.connection_established_ssh_vps_jogo_bind.clear()
         self.master.after(1000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_bind_connection).start())
+
+    # Reconecta VPS Jogo via VPN
+    def reconectar_vps_jogo_via_vpn(self):
+        self.ssh_vps_jogo_via_vpn_client.close()
+        self.ssh_vps_jogo_via_vpn_client = None
+        self.connection_established_ssh_vps_jogo_via_vpn.clear()
+        self.master.after(1000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_via_vpn_connection).start())
 
     def abrir_arquivo_ajuda (self):
         caminho_arquivo_ajuda = os.path.abspath("Ajuda.chm")
@@ -785,6 +807,7 @@ class ButtonManager:
         self.master.after(4000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_connection).start())
         self.master.after(5000, lambda: threading.Thread(target=self.establish_ssh_vps_vpn_bind_connection).start())
         self.master.after(6000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_bind_connection).start())
+        self.master.after(7000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_via_vpn_connection).start())
 
         # Cria o Notebook
         self.notebook = ttk.Notebook(self.master)
@@ -949,7 +972,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 79.7", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 80", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -1286,7 +1309,7 @@ class ButtonManager:
                 self.hosts = json.load(f)
 
         # Verifica se a conexão SSH está ativa
-        if hasattr(self, 'ssh_vps_jogo_client') and self.ssh_vps_jogo_client is not None:
+        if hasattr(self, 'ssh_vps_jogo_via_vpn_client') and self.ssh_vps_jogo_client is not None:
             # Variável de controle para a execução do MTR
             self.executando_mtr = [False, False, False]  # Para três hosts
             self.thread_mtr = [None, None, None]
@@ -1377,7 +1400,7 @@ class ButtonManager:
                     def run_mtr():
                         while self.executando_mtr[index]:
                             # Executa o comando via SSH
-                            stdin, stdout, stderr = self.ssh_vps_jogo_client.exec_command(command)
+                            stdin, stdout, stderr = self.ssh_vps_jogo_via_vpn_client.exec_command(command)
                             resultado = stdout.read().decode()  # Lê a saída do comando
 
                             # Atualiza a área de texto com o resultado
@@ -2050,6 +2073,10 @@ class ButtonManager:
         """Estabelece e mantém uma conexão SSH persistente via VPS Jogo."""
         self.establish_ssh_connection('vps_jogo_bind', bind_ip)
 
+    def establish_ssh_vps_jogo_via_vpn_connection(self, bind_ip='192.168.101.2'):
+        """Estabelece e mantém uma conexão SSH persistente para VPS Jogo via VPN."""
+        self.establish_ssh_connection('vps_jogo_via_vpn', bind_ip)
+
     def establish_ssh_connection(self, connection_type, bind_ip=None, port_local=None):
         """Estabelece e mantém uma conexão SSH persistente com tentativas de reconexão contínuas."""
         max_retries = 500000
@@ -2084,6 +2111,10 @@ class ButtonManager:
             elif connection_type == 'vps_jogo_bind':
                 config = self.config['ssh_vps_jogo_bind']
                 connection_event = self.connection_established_ssh_vps_jogo_bind
+                port_local = config.get('port_local', None)
+            elif connection_type == 'vps_jogo_via_vpn':
+                config = self.config['ssh_vps_jogo_via_vpn']
+                connection_event = self.connection_established_ssh_vps_jogo_via_vpn
                 port_local = config.get('port_local', None)
             else:
                 logger_test_command.error("Tipo de conexão inválido.")
@@ -2190,6 +2221,8 @@ class ButtonManager:
                         self.transport_vps_vpn_bind = transport
                     elif connection_type == 'vps_jogo_bind':
                         self.transport_vps_jogo_bind = transport
+                    elif connection_type == 'vps_jogo_via_vpn':
+                        self.transport_vps_jogo_via_vpn = transport
                     # Você pode adicionar outras opções de conexão aqui...
 
                     # Tentativa de autenticação com todas as chaves disponíveis
@@ -2272,6 +2305,9 @@ class ButtonManager:
                     elif connection_type == 'vps_jogo_bind':
                         self.ssh_vps_jogo_bind_client = ssh_client
                         logger_test_command.info("Conexão SSH (vps_jogo_bind) estabelecida com sucesso.")
+                    elif connection_type == 'vps_jogo_via_vpn':
+                        self.ssh_vps_jogo_via_vpn_client = ssh_client
+                        logger_test_command.info("Conexão SSH (vps_jogo_via_vpn) estabelecida com sucesso.")
 
                     # Verifica se `port_local` foi fornecido
                     if port_local:
@@ -2299,6 +2335,18 @@ class ButtonManager:
                             logger_proxy.info(f"Iniciando túnel SSH na porta local {port_local} para o tipo de conexão {connection_type}.")
                             # Passa a instância de transporte específica para o SOCKS proxy
                             threading.Thread(target=self.start_socks_proxy, args=(port_local, connection_type, self.transport_vps_jogo_bind)).start()
+
+                        elif connection_type == 'vps_jogo_via_vpn':
+                            if self.transport_vps_jogo_via_vpn is None:
+                                logger_proxy.error("O transporte SSH (vps_jogo_via_vpn) não foi inicializado corretamente.")
+                                return
+
+                            self.transport_vps_jogo_via_vpn.set_keepalive(30)  # Envia pacotes keepalive a cada 30 segundos
+                            logger_proxy.info("Keepalive configurado para o transporte SSH (vps_jogo_via_vpn).")
+
+                            logger_proxy.info(f"Iniciando túnel SSH na porta local {port_local} para o tipo de conexão {connection_type}.")
+                            # Passa a instância de transporte específica para o SOCKS proxy
+                            threading.Thread(target=self.start_socks_proxy, args=(port_local, connection_type, self.transport_vps_jogo_via_vpn)).start()
 
                         else:
                             self.transport = ssh_client.get_transport()
@@ -2330,6 +2378,8 @@ class ButtonManager:
                                 transport = self.transport_vps_vpn_bind
                             elif connection_type == 'vps_jogo_bind':
                                 transport = self.transport_vps_jogo_bind
+                            elif connection_type == 'vps_jogo_via_vpn':
+                                transport = self.transport_vps_jogo_via_vpn
                             else:
                                 transport = self.transport
                             
@@ -2394,6 +2444,8 @@ class ButtonManager:
                                 ssh_client = self.ssh_vps_vpn_bind_client
                             elif connection_type == 'vps_jogo_bind':
                                 ssh_client = self.ssh_vps_jogo_bind_client
+                            elif connection_type == 'vps_jogo_via_vpn':
+                                ssh_client = self.ssh_vps_jogo_via_vpn_client
                             
                             if ssh_client is None:
                                 logger_test_command.error(f"SSHClient para o tipo de conexão {connection_type} não foi inicializado corretamente.")
@@ -2459,6 +2511,10 @@ class ButtonManager:
                             self.ssh_vps_jogo_bind_client.close()
                             self.ssh_vps_jogo_bind_client = None
                             self.connection_established_ssh_vps_jogo_bind.clear()
+                        elif connection_type == 'vps_jogo_via_vpn':
+                            self.ssh_vps_jogo_via_vpn_client.close()
+                            self.ssh_vps_jogo_via_vpn_client = None
+                            self.connection_established_ssh_vps_jogo_via_vpn.clear()
                         break
 
             except paramiko.AuthenticationException as e:
@@ -5299,18 +5355,39 @@ class OMRManagerDialog:
         self.port_local_vps_jogo_bind_entry = tk.Entry(frame_vps_jogo_bind, width=7)
         self.port_local_vps_jogo_bind_entry.grid(row=3, column=1, padx=5, pady=5)
 
-        # Rótulo de texto logo abaixo dos frames
-        tk.Label(frame_ssh_bind, text="Configure aqui seu host SSH que será conectado através dos túneis MPTCP. Se informado uma porta local, também será criado um proxy SOCKS5 para servir de túnel SSH para TCP.", anchor=tk.W, wraplength=800, justify=tk.LEFT).grid(row=1, column=0, columnspan=5, pady=0, sticky=tk.W)
-        # Rótulo de texto logo abaixo dos frames
-        tk.Label(frame_ssh_bind, text="As chaves privadas devem ser salvas na pasta 'ssh_keys' acessivel na tela de Configurações de SSH.", anchor=tk.W, wraplength=800, justify=tk.LEFT).grid(row=2, column=0, columnspan=5, pady=0, sticky=tk.W)
+        # Frame SSH VPS JOGO via VPN
+        frame_vps_jogo_via_vpn = tk.Frame(frame_ssh_bind, borderwidth=1, relief=tk.RAISED)
+        frame_vps_jogo_via_vpn.grid(row=1, column=0, padx=5, pady=5, sticky=tk.W)
 
-        # Rótulo de texto acima do botão alinhado à esquerda
-        #tk.Label(frame_ssh_bind, text="", anchor=tk.W).grid(row=1, column=1, columnspan=5, pady=20, sticky=tk.W)
-        #tk.Label(frame_ssh_bind, text="Marcar esta opção irá criar um usuario e senha no OMR de acordo com as configurações definidas acima.", anchor=tk.W).grid(row=2, column=0, columnspan=5, pady=0, sticky=tk.W)
+        tk.Label(frame_vps_jogo_via_vpn, text="Host VPS JOGO via VPN:").grid(row=0, column=0, sticky=tk.W)
+        self.host_vps_jogo_via_vpn_entry = tk.Entry(frame_vps_jogo_via_vpn, width=30)
+        self.host_vps_jogo_via_vpn_entry.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
+
+        self.port_vps_jogo_via_vpn_entry = tk.Entry(frame_vps_jogo_via_vpn, width=7)
+        self.port_vps_jogo_via_vpn_entry.grid(row=0, column=2, padx=5, pady=5, sticky=tk.E)
+
+        tk.Label(frame_vps_jogo_via_vpn, text="Usuário:").grid(row=1, column=0, sticky=tk.W)
+        self.user_vps_jogo_via_vpn_entry = tk.Entry(frame_vps_jogo_via_vpn, width=30)
+        self.user_vps_jogo_via_vpn_entry.grid(row=1, column=1, padx=5, pady=5)
+
+        tk.Label(frame_vps_jogo_via_vpn, text="Senha:").grid(row=2, column=0, sticky=tk.W)
+        self.password_vps_jogo_via_vpn_entry = tk.Entry(frame_vps_jogo_via_vpn, show='*', width=30)
+        self.password_vps_jogo_via_vpn_entry.grid(row=2, column=1, padx=5, pady=5)
+
+        tk.Label(frame_vps_jogo_via_vpn, text="Porta Local:").grid(row=3, column=0, sticky=tk.W)
+        self.port_local_vps_jogo_via_vpn_entry = tk.Entry(frame_vps_jogo_via_vpn, width=7)
+        self.port_local_vps_jogo_via_vpn_entry.grid(row=3, column=1, padx=5, pady=5)
+
+        # Rótulo de texto logo abaixo dos frames
+        tk.Label(frame_ssh_bind, text="Configure aqui seu host SSH que será conectado através dos túneis MPTCP. Se informado uma porta local, também será criado um proxy SOCKS5 para servir de túnel SSH para TCP.", anchor=tk.W, wraplength=800, justify=tk.LEFT).grid(row=2, column=0, columnspan=5, pady=0, sticky=tk.W)
+        tk.Label(frame_ssh_bind, text="VPS JOGO via VPN utilizado exclusivamente para testes MTR.", anchor=tk.W, wraplength=800, justify=tk.LEFT).grid(row=3, column=0, columnspan=5, pady=0, sticky=tk.W)
+
+        # Rótulo de texto logo abaixo dos frames
+        tk.Label(frame_ssh_bind, text="As chaves privadas devem ser salvas na pasta 'ssh_keys' acessível na tela de Configurações de SSH.", anchor=tk.W, wraplength=800, justify=tk.LEFT).grid(row=4, column=0, columnspan=5, pady=0, sticky=tk.W)
 
         # Botão para salvar as configurações
         save_button = tk.Button(frame_ssh_bind, text="Salvar", command=self.save_bind_credentials)
-        save_button.grid(row=3, column=0, columnspan=2, pady=10)
+        save_button.grid(row=5, column=0, columnspan=2, pady=10)
 
         # Carregar informações ao inicializar
         self.load_bind_credentials()
@@ -5336,6 +5413,13 @@ class OMRManagerDialog:
         self.password_vps_jogo_bind_entry.insert(0, config['ssh_vps_jogo_bind'].get('password', ''))
         self.port_local_vps_jogo_bind_entry.insert(0, config['ssh_vps_jogo_bind'].get('port_local', ''))
 
+        # Carregar as informações para VPS JOGO via VPN
+        self.host_vps_jogo_via_vpn_entry.insert(0, config['ssh_vps_jogo_via_vpn'].get('host', ''))
+        self.port_vps_jogo_via_vpn_entry.insert(0, config['ssh_vps_jogo_via_vpn'].get('port', ''))
+        self.user_vps_jogo_via_vpn_entry.insert(0, config['ssh_vps_jogo_via_vpn'].get('username', ''))
+        self.password_vps_jogo_via_vpn_entry.insert(0, config['ssh_vps_jogo_via_vpn'].get('password', ''))
+        self.port_local_vps_jogo_via_vpn_entry.insert(0, config['ssh_vps_jogo_via_vpn'].get('port_local', ''))
+
     def save_bind_credentials(self):
         config = configparser.ConfigParser()
         config.read('config.ini')
@@ -5356,6 +5440,15 @@ class OMRManagerDialog:
             'username': self.user_vps_jogo_bind_entry.get(),
             'port_local': self.port_local_vps_jogo_bind_entry.get(),
             'password': self.password_vps_jogo_bind_entry.get()
+        }
+
+        # Salvar as informações para VPS JOGO via VPN
+        config['ssh_vps_jogo_via_vpn'] = {
+            'host': self.host_vps_jogo_via_vpn_entry.get(),
+            'port': self.port_vps_jogo_via_vpn_entry.get(),
+            'username': self.user_vps_jogo_via_vpn_entry.get(),
+            'port_local': self.port_local_vps_jogo_via_vpn_entry.get(),
+            'password': self.password_vps_jogo_via_vpn_entry.get()
         }
 
         with open('config.ini', 'w') as configfile:
@@ -5963,7 +6056,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 79.7 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 80 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
