@@ -7,6 +7,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import select
 import struct
+import time
 
 # Configuração do logger
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%d/%m/%Y %H:%M:%S')
@@ -18,7 +19,6 @@ file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
-# Mutex permanece o mesmo
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\temerproxy")
 if ctypes.windll.kernel32.GetLastError() == 183:
     logger.error("Já existe uma instância do programa em execução. Programa encerrado.")
@@ -30,14 +30,11 @@ class SocksProxy:
         self.bind_ip = bind_ip
         self.udp_sessions = {}
         self.running = True
-
-    def clear_log_file(self, log_file_path):
-        open(log_file_path, 'w').close()
+        self.session_locks = {}
 
     def start_socks_proxy(self):
         ctypes.windll.kernel32.SetConsoleTitleW("Proxy TCP/UDP")
 
-        # Servidor TCP
         tcp_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tcp_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         tcp_server.bind(('0.0.0.0', self.local_port))
@@ -111,15 +108,15 @@ class SocksProxy:
 
     def handle_udp_associate(self, client_socket, client_addr, dest_addr, dest_port):
         try:
-            # Criar socket UDP para relay
+            # Criar socket UDP para relay com timeout
             relay_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             relay_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            relay_socket.settimeout(300)  # 5 minutos de timeout
             relay_socket.bind((self.bind_ip, 0))
             relay_addr, relay_port = relay_socket.getsockname()
 
             logger.info(f"[{self.bind_ip}:{self.local_port}] UDP Associate: Relay criado em {relay_addr}:{relay_port}")
             logger.info(f"[{self.bind_ip}:{self.local_port}] UDP Associate: Cliente original em {client_addr[0]}:{client_addr[1]}")
-            logger.info(f"[{self.bind_ip}:{self.local_port}] UDP Associate: Destino solicitado {dest_addr}:{dest_port}")
 
             # Responder ao cliente com endereço do relay
             response = struct.pack('!BBBB4sH', 
@@ -129,110 +126,151 @@ class SocksProxy:
             )
             client_socket.sendall(response)
 
-            # Configurar sessão UDP
+            # Configurar sessão UDP com timestamp
             session = {
                 'client_socket': client_socket,
                 'relay_socket': relay_socket,
                 'client_addr': client_addr[0],
                 'client_port': None,
                 'remote_addr': None,
-                'remote_port': None
+                'remote_port': None,
+                'last_activity': time.time(),
+                'active': True
             }
 
             session_key = (relay_addr, relay_port)
+            self.session_locks[session_key] = threading.Lock()
             self.udp_sessions[session_key] = session
 
-            udp_thread = threading.Thread(target=self.handle_udp_traffic, args=(session,))
+            # Iniciar threads de monitoramento
+            udp_thread = threading.Thread(target=self.handle_udp_traffic, args=(session_key,))
             udp_thread.daemon = True
             udp_thread.start()
 
-            while self.running:
-                try:
-                    client_socket.setblocking(False)
-                    data = client_socket.recv(1)
-                    if not data:
-                        break
-                except BlockingIOError:
-                    pass
-                except Exception:
-                    break
-
-            self.cleanup_udp_session(session_key)
+            tcp_monitor = threading.Thread(target=self.monitor_tcp_connection, args=(session_key, client_socket))
+            tcp_monitor.daemon = True
+            tcp_monitor.start()
 
         except Exception as e:
             logger.error(f"[{self.bind_ip}:{self.local_port}] Erro no UDP Associate: {e}")
-            client_socket.close()
+            self.cleanup_udp_session(session_key)
 
-    def handle_udp_traffic(self, session):
-        relay_socket = session['relay_socket']
+    def handle_udp_traffic(self, session_key):
+        try:
+            while self.running:
+                with self.session_locks[session_key]:
+                    if session_key not in self.udp_sessions:
+                        break
+                    session = self.udp_sessions[session_key]
+                    if not session['active']:
+                        break
+                    relay_socket = session['relay_socket']
 
-        while self.running:
-            try:
-                readable, _, _ = select.select([relay_socket], [], [], 1.0)
-                if not readable:
-                    continue
-
-                data, addr = relay_socket.recvfrom(65535)
-                if not data:
-                    continue
-
-                logger.debug(f"[{self.bind_ip}:{self.local_port}] UDP: Recebido pacote de {addr[0]}:{addr[1]}")
-
-                # Se for um pacote do cliente
-                if session['client_port'] is None or addr[0] == session['client_addr']:
-                    # Atualizar a porta do cliente se ainda não definida
-                    if session['client_port'] is None:
-                        session['client_port'] = addr[1]
-                        logger.info(f"[{self.bind_ip}:{self.local_port}] UDP: Porta do cliente definida como {addr[1]}")
-
-                    # Processar cabeçalho SOCKS UDP
-                    if len(data) < 10:
+                try:
+                    readable, _, _ = select.select([relay_socket], [], [], 1.0)
+                    if not readable:
                         continue
 
-                    frag = data[2]
-                    atyp = data[3]
-                    
-                    if frag != 0:
+                    data, addr = relay_socket.recvfrom(65535)
+                    if not data:
                         continue
 
-                    if atyp == 0x01:  # IPv4
-                        dest_addr = socket.inet_ntoa(data[4:8])
-                        dest_port = struct.unpack('!H', data[8:10])[0]
-                        header_size = 10
-                    elif atyp == 0x03:  # Domain
-                        length = data[4]
-                        dest_addr = data[5:5+length].decode()
-                        dest_port = struct.unpack('!H', data[5+length:7+length])[0]
-                        header_size = 7 + length
-                    else:
-                        continue
+                    with self.session_locks[session_key]:
+                        session['last_activity'] = time.time()
 
-                    # Atualizar endereço remoto
-                    if session['remote_addr'] != dest_addr or session['remote_port'] != dest_port:
+                    # Se for um pacote do cliente
+                    if session['client_port'] is None or addr[0] == session['client_addr']:
+                        if session['client_port'] is None:
+                            session['client_port'] = addr[1]
+                            logger.info(f"[{self.bind_ip}:{self.local_port}] UDP: Porta do cliente definida como {addr[1]}")
+
+                        # Processar cabeçalho SOCKS UDP
+                        if len(data) < 10:
+                            continue
+
+                        frag = data[2]
+                        atyp = data[3]
+                        
+                        if frag != 0:
+                            continue
+
+                        if atyp == 0x01:  # IPv4
+                            dest_addr = socket.inet_ntoa(data[4:8])
+                            dest_port = struct.unpack('!H', data[8:10])[0]
+                            header_size = 10
+                        elif atyp == 0x03:  # Domain
+                            length = data[4]
+                            dest_addr = data[5:5+length].decode()
+                            dest_port = struct.unpack('!H', data[5+length:7+length])[0]
+                            header_size = 7 + length
+                        else:
+                            continue
+
+                        # Atualizar endereço remoto
                         session['remote_addr'] = dest_addr
                         session['remote_port'] = dest_port
-                        logger.info(f"[{self.bind_ip}:{self.local_port}] UDP: Novo destino configurado {dest_addr}:{dest_port}")
 
-                    # Enviar payload para o destino
-                    payload = data[header_size:]
-                    relay_socket.sendto(payload, (dest_addr, dest_port))
-                    logger.debug(f"[{self.bind_ip}:{self.local_port}] UDP: Enviado para {dest_addr}:{dest_port}")
+                        # Enviar payload para o destino
+                        payload = data[header_size:]
+                        relay_socket.sendto(payload, (dest_addr, dest_port))
 
-                # Se for resposta do servidor
-                elif addr[0] == session['remote_addr'] and addr[1] == session['remote_port']:
-                    # Construir resposta SOCKS UDP
-                    udp_header = struct.pack('!HB', 0, 0) + \
-                                bytes([0x01]) + \
-                                socket.inet_aton(addr[0]) + \
-                                struct.pack('!H', addr[1])
-                    
-                    response = udp_header + data
-                    relay_socket.sendto(response, (session['client_addr'], session['client_port']))
-                    logger.debug(f"[{self.bind_ip}:{self.local_port}] UDP: Resposta enviada para {session['client_addr']}:{session['client_port']}")
+                    # Se for resposta do servidor
+                    elif addr[0] == session['remote_addr'] and addr[1] == session['remote_port']:
+                        # Construir resposta SOCKS UDP
+                        udp_header = struct.pack('!HB', 0, 0) + \
+                                    bytes([0x01]) + \
+                                    socket.inet_aton(addr[0]) + \
+                                    struct.pack('!H', addr[1])
+                        
+                        response = udp_header + data
+                        relay_socket.sendto(response, (session['client_addr'], session['client_port']))
 
-            except Exception as e:
-                logger.error(f"[{self.bind_ip}:{self.local_port}] Erro no processamento UDP: {e}")
-                break
+                except socket.timeout:
+                    continue
+                except Exception as e:
+                    logger.error(f"[{self.bind_ip}:{self.local_port}] Erro no processamento UDP: {e}")
+                    break
+
+        except Exception as e:
+            logger.error(f"[{self.bind_ip}:{self.local_port}] Erro fatal no handler UDP: {e}")
+        finally:
+            self.cleanup_udp_session(session_key)
+
+    def monitor_tcp_connection(self, session_key, client_socket):
+        """Monitora a conexão TCP de controle"""
+        try:
+            while self.running:
+                if session_key not in self.udp_sessions:
+                    break
+
+                with self.session_locks[session_key]:
+                    session = self.udp_sessions[session_key]
+                    if not session['active']:
+                        break
+
+                    # Verificar inatividade
+                    if time.time() - session['last_activity'] > 300:  # 5 minutos
+                        logger.info(f"[{self.bind_ip}:{self.local_port}] Sessão UDP expirada por inatividade")
+                        break
+
+                try:
+                    # Verificar se a conexão TCP ainda está ativa
+                    client_socket.setblocking(False)
+                    if client_socket.recv(1):
+                        # Se recebermos dados, algo está errado
+                        break
+                except BlockingIOError:
+                    # Normal - conexão ainda ativa
+                    time.sleep(1)
+                    continue
+                except Exception:
+                    # Erro na conexão
+                    break
+
+            self.cleanup_udp_session(session_key)
+        except Exception as e:
+            logger.error(f"[{self.bind_ip}:{self.local_port}] Erro no monitor TCP: {e}")
+            self.cleanup_udp_session(session_key)
 
     def handle_tcp_connection(self, client_socket, addr, port):
         try:
@@ -256,15 +294,20 @@ class SocksProxy:
             client_socket.close()
 
     def cleanup_udp_session(self, session_key):
-        if session_key in self.udp_sessions:
-            session = self.udp_sessions[session_key]
-            try:
-                session['relay_socket'].close()
-                session['client_socket'].close()
-            except:
-                pass
-            del self.udp_sessions[session_key]
-            logger.info(f"[{self.bind_ip}:{self.local_port}] Sessão UDP encerrada para {session_key}")
+        with self.session_locks.get(session_key, threading.Lock()):
+            if session_key in self.udp_sessions:
+                session = self.udp_sessions[session_key]
+                session['active'] = False
+                try:
+                    session['relay_socket'].close()
+                    session['client_socket'].close()
+                except:
+                    pass
+                del self.udp_sessions[session_key]
+                logger.info(f"[{self.bind_ip}:{self.local_port}] Sessão UDP encerrada para {session_key}")
+
+        if session_key in self.session_locks:
+            del self.session_locks[session_key]
 
     def forward_data(self, source, destination):
         try:
@@ -300,8 +343,8 @@ if __name__ == '__main__':
 
     # Configuração dos proxies
     proxy_configs = [
-        {"port": 8889, "bind_ip": "192.168.100.2"},
-        {"port": 8890, "bind_ip": "192.168.101.2"}
+        {"port": 8890, "bind_ip": "192.168.100.2"},
+        {"port": 8889, "bind_ip": "192.168.101.2"}
     ]
     
     # Iniciar cada instância do proxy em uma thread separada
