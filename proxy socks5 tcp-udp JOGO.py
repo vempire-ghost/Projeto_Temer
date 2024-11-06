@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%d/%m/%Y %H:%M:%S')
 logger = logging.getLogger('proxy_tcp_udp_logger')
 
-file_handler = RotatingFileHandler('proxy_tcp_udp.log', maxBytes=5*1024*1024, backupCount=3)
+file_handler = RotatingFileHandler('proxy_tcp_udp_jogo.log', maxBytes=5*1024*1024, backupCount=3)
 file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
@@ -30,7 +30,7 @@ class SocksProxy:
         self.bind_ip = bind_ip
         self.udp_sessions = {}
         self.running = True
-        self.clear_log_file('proxy_tcp_udp.log')
+        self.clear_log_file('proxy_tcp_udp_jogo.log')
 
     def clear_log_file(self, log_file_path):
         open(log_file_path, 'w').close()

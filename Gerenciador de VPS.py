@@ -972,7 +972,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 90.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 90.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -3119,11 +3119,17 @@ class ButtonManager:
         log_text_proxy.pack(expand=1, fill=tk.BOTH)
         notebook.add(log_frame_proxy, text='Logs do Proxy SSH')
 
-        # Aba 5: Logs do Proxy TCP
-        log_frame_proxy_tcp = tk.Frame(notebook)
-        log_text_proxy_tcp = scrolledtext.ScrolledText(log_frame_proxy_tcp, wrap=tk.WORD, state=tk.NORMAL)
-        log_text_proxy_tcp.pack(expand=1, fill=tk.BOTH)
-        notebook.add(log_frame_proxy_tcp, text='Logs do Proxy TCP')
+        # Aba 5: Logs do Proxy TCP VPN
+        log_frame_proxy_tcp_vpn = tk.Frame(notebook)
+        log_text_proxy_tcp_vpn = scrolledtext.ScrolledText(log_frame_proxy_tcp_vpn, wrap=tk.WORD, state=tk.NORMAL)
+        log_text_proxy_tcp_vpn.pack(expand=1, fill=tk.BOTH)
+        notebook.add(log_frame_proxy_tcp_vpn, text='Logs do Proxy TCP VPN')
+
+        # Aba 5: Logs do Proxy TCP VPN
+        log_frame_proxy_tcp_jogo = tk.Frame(notebook)
+        log_text_proxy_tcp_jogo = scrolledtext.ScrolledText(log_frame_proxy_tcp_jogo, wrap=tk.WORD, state=tk.NORMAL)
+        log_text_proxy_tcp_jogo.pack(expand=1, fill=tk.BOTH)
+        notebook.add(log_frame_proxy_tcp_jogo, text='Logs do Proxy TCP JOGO')
 
         # Variável para controlar o scroll automático
         self.auto_scroll = True
@@ -3157,12 +3163,19 @@ class ButtonManager:
                 log_text_proxy.insert(tk.END, logs_proxy)
                 log_text_proxy.see(tk.END)
 
-                # Novo: Carregar os logs do Proxy TCP
-                with open('proxy_tcp_udp.log', 'r') as file:
-                    logs_proxy_tcp = file.read()
-                log_text_proxy_tcp.delete(1.0, tk.END)
-                log_text_proxy_tcp.insert(tk.END, logs_proxy_tcp)
-                log_text_proxy_tcp.see(tk.END)
+                # Novo: Carregar os logs do Proxy TCP VPN
+                with open('proxy_tcp_udp_vpn.log', 'r') as file:
+                    logs_proxy_tcp_vpn = file.read()
+                log_text_proxy_tcp_vpn.delete(1.0, tk.END)
+                log_text_proxy_tcp_vpn.insert(tk.END, logs_proxy_tcp_vpn)
+                log_text_proxy_tcp_vpn.see(tk.END)
+
+                # Novo: Carregar os logs do Proxy TCP JOGO
+                with open('proxy_tcp_udp_jogo.log', 'r') as file:
+                    logs_proxy_tcp_jogo = file.read()
+                log_text_proxy_tcp_jogo.delete(1.0, tk.END)
+                log_text_proxy_tcp_jogo.insert(tk.END, logs_proxy_tcp_jogo)
+                log_text_proxy_tcp_jogo.see(tk.END)
 
             # Agendar a próxima atualização
             self.update_logs_id = log_window.after(1000, update_logs)
@@ -6074,7 +6087,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 90.1 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 90.2 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
