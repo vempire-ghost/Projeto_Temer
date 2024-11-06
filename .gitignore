@@ -24,6 +24,7 @@ Scripts Locais\teste.bat
 !proxy socks5 tcp-udp JOGO.py
 !Compilar Proxy TCP-UDP VPN.ps1
 !Compilar Proxy TCP-UDP JOGO.ps1
+!proxy socks5 tcp-udp geral.py
 
 # Não ignorar diretórios específicos e seus conteúdos
 !diretorio_que_quero_monitorar/
