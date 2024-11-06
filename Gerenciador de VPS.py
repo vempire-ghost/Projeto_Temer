@@ -972,7 +972,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 90", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 90.1", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -2031,7 +2031,7 @@ class ButtonManager:
         window.destroy()
 
 # METODO PARA INICIAR SOCKS5 TCP PARA SER USADO PARA ENCAMINHAR O TRAFEGO PARA O TUNEL MPTCP
-    def iniciar_proxy_socks5(self):
+    def iniciar_proxy_socks5_vpn(self):
         # Verifica se o programa está rodando como executável compilado ou script Python
         if getattr(sys, 'frozen', False):  # Indica que o programa está compilado
             pasta_atual = os.path.dirname(sys.executable)
@@ -2039,14 +2039,31 @@ class ButtonManager:
             pasta_atual = os.path.dirname(os.path.abspath(__file__))
         
         # Caminho completo para o executável "proxy socks5 tcp.exe"
-        caminho_executavel = os.path.join(pasta_atual, 'proxy socks5 tcp.exe')
+        caminho_executavel = os.path.join(pasta_atual, 'proxy socks5 tcp-udp VPN.exe')
+        
+        try:
+            # Inicia o programa "proxy socks5 tcp-udp VPN.exe"
+            subprocess.Popen([caminho_executavel], shell=True)
+            print("Proxy SOCKS5 TCP/UDP VPN iniciado com sucesso.")
+        except Exception as e:
+            print(f"Erro ao iniciar o proxy SOCKS5 TCP/UDP JOGO: {e}")
+
+    def iniciar_proxy_socks5_jogo(self):
+        # Verifica se o programa está rodando como executável compilado ou script Python
+        if getattr(sys, 'frozen', False):  # Indica que o programa está compilado
+            pasta_atual = os.path.dirname(sys.executable)
+        else:
+            pasta_atual = os.path.dirname(os.path.abspath(__file__))
+        
+        # Caminho completo para o executável "proxy socks5 tcp-udp JOGO.exe"
+        caminho_executavel = os.path.join(pasta_atual, 'proxy socks5 tcp-udp JOGO.exe')
         
         try:
             # Inicia o programa "proxy socks5 tcp.exe"
             subprocess.Popen([caminho_executavel], shell=True)
-            print("Proxy SOCKS5 TCP iniciado com sucesso.")
+            print("Proxy SOCKS5 TCP/UDP JOGO iniciado com sucesso.")
         except Exception as e:
-            print(f"Erro ao iniciar o proxy SOCKS5 TCP: {e}")
+            print(f"Erro ao iniciar o proxy SOCKS5 TCP/UDP JOGO: {e}")
 
 # LOGICA PARA ESTABELECER CONEXÕES SSH E UTILIZA-LAS NO PROGRAMA
     def establish_ssh_vpn_connection(self):
@@ -2269,7 +2286,8 @@ class ButtonManager:
                 # Usar lock para proteger o acesso ao cliente SSH e transporte
                 with self.transport_lock:
                     if connection_type == 'vpn':
-                        self.iniciar_proxy_socks5()
+                        self.iniciar_proxy_socks5_vpn()
+                        self.iniciar_proxy_socks5_jogo()
                         self.ssh_vpn_client = ssh_client
                         self.master.after(1000, self.executar_comandos_scheduler)
                         self.stop_ping_provedor.clear()
@@ -6056,7 +6074,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 90 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 90.1 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
