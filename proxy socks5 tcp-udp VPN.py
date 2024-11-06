@@ -19,7 +19,7 @@ file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
 # Mutex permanece o mesmo
-mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\temerproxy")
+mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\temerproxy-vpn")
 if ctypes.windll.kernel32.GetLastError() == 183:
     logger.error("Já existe uma instância do programa em execução. Programa encerrado.")
     sys.exit(0)
@@ -43,7 +43,7 @@ class SocksProxy:
         tcp_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         tcp_server.bind(('0.0.0.0', self.local_port))
         tcp_server.listen(100)
-        logger.info(f"Proxy SOCKS iniciado (TCP): 0.0.0.0:{self.local_port}")
+        logger.info(f"Proxy SOCKS iniciado (TCP/UDP): 192.168.101.2:{self.local_port}")
 
         while self.running:
             try:
@@ -95,7 +95,7 @@ class SocksProxy:
 
             dest_port = int.from_bytes(client_socket.recv(2), 'big')
             
-            logger.info(f"Pedido SOCKS5: cmd={cmd}, addr={dest_addr}, port={dest_port}")
+            logger.info(f"Pedido SOCKS5: cmd={cmd}, addr={dest_addr}, 192.168.101.2 port={dest_port}")
 
             if cmd == 0x01:  # CONNECT (TCP)
                 self.handle_tcp_connection(client_socket, dest_addr, dest_port)
@@ -292,7 +292,7 @@ class SocksProxy:
 
 if __name__ == '__main__':
     local_port = 8889
-    bind_ip = '192.168.100.2'
+    bind_ip = '192.168.101.2'
 
     proxy = SocksProxy(local_port, bind_ip)
     try:

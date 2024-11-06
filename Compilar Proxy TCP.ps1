@@ -1,1 +1,0 @@
-pyinstaller --onefile --noconsole "proxy socks5 tcp.py" 

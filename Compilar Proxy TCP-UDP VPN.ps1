@@ -1,0 +1,1 @@
+pyinstaller --onefile --noconsole "proxy socks5 tcp-udp VPN.py" 
