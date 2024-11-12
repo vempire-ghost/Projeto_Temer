@@ -528,14 +528,23 @@ class ButtonManager:
         with open("window_position.json", "w") as f:
             json.dump(position, f)
 
-# FUNÇÃO DE ENDERRAMENTO DO PROGRAMA ENCERRANDO OS THREADS E ESPERANDO PARA NÃO CAUSAR NENHUM PROBLEMA.
+# FUNÇÃO DE ENCERRAMENTO DO PROGRAMA ENCERRANDO OS THREADS E ESPERANDO PARA NÃO CAUSAR NENHUM PROBLEMA.
     def suicidar_temer(self):
+        # Verifica se o programa está rodando como executável compilado ou script Python
+        if getattr(sys, 'frozen', False):  # Indica que o programa está compilado
+            pasta_atual = os.path.dirname(sys.executable)
+        else:
+            pasta_atual = os.path.dirname(os.path.abspath(__file__))
+        
+        # Caminho completo para o executável "hakai.exe"
+        caminho_executavel = os.path.join(pasta_atual, 'hakai.exe')
+        
         try:
-            # Comando para finalizar o processo
-            subprocess.run(['taskkill', '/IM', 'Gerenciador de VPS.exe', '/F'], check=True)
-            print("Processo 'Gerenciador de VPS.exe' finalizado com sucesso.")
-        except subprocess.CalledProcessError:
-            print("Falha ao tentar finalizar o processo.")
+            # Inicia o programa "hakai.exe"
+            subprocess.Popen([caminho_executavel], shell=True)
+            print("Hakai iniciado com sucesso.")
+        except Exception as e:
+            print(f"Erro ao iniciar o Hakai: {e}")
 
     def on_close(self):
         self.master.after(100, self.prepare_for_closing)  # Agendar a execução de prepare_for_closing após 100 ms
@@ -553,8 +562,9 @@ class ButtonManager:
         self.stop_pinging_threads()
         self.stop_verificar_vm()
         self.save_window_position()
+        self.suicidar_temer()
         plt.close('all')  # Fecha todos os gráficos
-        self.master.after(1000, self.suicidar_temer)
+        #self.master.after(1000, self.suicidar_temer)
         self.save_color_map()  # Salva o mapeamento de cores
 
         # Aguardar 900ms antes de destruir o widget
@@ -972,7 +982,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 90.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 90.3", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -6087,7 +6097,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 90.2 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 90.3 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")

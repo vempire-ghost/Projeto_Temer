@@ -25,6 +25,8 @@ Scripts Locais\teste.bat
 !Compilar Proxy TCP-UDP VPN.ps1
 !Compilar Proxy TCP-UDP JOGO.ps1
 !proxy socks5 tcp-udp geral.py
+!hakai.py
+!compila hakai.ps1
 
 # Não ignorar diretórios específicos e seus conteúdos
 !diretorio_que_quero_monitorar/
