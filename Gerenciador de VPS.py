@@ -982,7 +982,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 90.4", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 90.5", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -1135,7 +1135,7 @@ class ButtonManager:
         # Configura o botão para iniciar o monitoramento VPN
         vpn_button = tk.Button(
             vpn_frame,
-            text="Iniciar Monitor VPN",
+            text="Iniciar Monitoramento VPN",
             command=lambda: self.start_monitoring_in_frame(vpn_frame, "Trafego OMR VPN", self.ssh_vpn_client)
         )
         vpn_button.pack(pady=10)
@@ -1150,7 +1150,7 @@ class ButtonManager:
         # Configura o botão para iniciar o monitoramento do Jogo
         jogo_button = tk.Button(
             jogo_frame,
-            text="Iniciar Monitor Jogo",
+            text="Iniciar Monitoramento Jogo",
             command=lambda: self.start_monitoring_in_frame(jogo_frame, "Trafego OMR JOGO", self.ssh_jogo_client)
         )
         jogo_button.pack(pady=10)
@@ -1221,7 +1221,7 @@ class ButtonManager:
             self.text_areas[f"{title}_averages"] = averages_text
 
             # Adiciona um botão para parar o monitoramento específico
-            stop_button = tk.Button(parent_frame, text=f"Parar {title}", 
+            stop_button = tk.Button(parent_frame, text=f"Parar Monitoramento {title}", 
                                   command=lambda: self.stop_monitoring_bmon(title))
             stop_button.pack(pady=5)
 
@@ -1310,28 +1310,24 @@ class ButtonManager:
         threading.Thread(target=monitor_bmon_in_real_time, daemon=True).start()
 
     def process_interface_speeds(self, title, line):
-        """Processa as velocidades das interfaces para cálculo de médias."""
+        """Processa as velocidades das interfaces para cálculo de médias incrementais."""
         parts = line.split()
         if len(parts) >= 4:  # Garantindo que temos pelo menos 4 colunas
             interface = parts[0]
             if interface not in self.interface_measurements[title]:
-                self.interface_measurements[title][interface] = {'rx': [], 'tx': []}
+                self.interface_measurements[title][interface] = {'total_rx': 0, 'total_tx': 0, 'count': 0}
             
             # Extrai velocidades de download (segunda coluna) e upload (quarta coluna)
             rx_speed = self.convert_to_float(parts[1])  # Download - segunda coluna
             tx_speed = self.convert_to_float(parts[3])  # Upload - quarta coluna
             
-            # Armazena as medições
-            self.interface_measurements[title][interface]['rx'].append(rx_speed)
-            self.interface_measurements[title][interface]['tx'].append(tx_speed)
-            
-            # Mantém apenas as últimas 10 medições
-            max_measurements = 10
-            self.interface_measurements[title][interface]['rx'] = self.interface_measurements[title][interface]['rx'][-max_measurements:]
-            self.interface_measurements[title][interface]['tx'] = self.interface_measurements[title][interface]['tx'][-max_measurements:]
+            # Atualiza o somatório e o número de medições
+            self.interface_measurements[title][interface]['total_rx'] += rx_speed
+            self.interface_measurements[title][interface]['total_tx'] += tx_speed
+            self.interface_measurements[title][interface]['count'] += 1
 
     def update_average_speeds(self, title):
-        """Atualiza o display das velocidades médias em formato tabular."""
+        """Atualiza o display das velocidades médias em formato tabular usando médias incrementais."""
         if not self.interface_measurements.get(title):
             return
 
@@ -1343,18 +1339,32 @@ class ButtonManager:
         content = ""
         for interface in sorted(self.interface_measurements[title].keys()):
             measurements = self.interface_measurements[title][interface]
-            if measurements['rx'] and measurements['tx']:
-                avg_rx = sum(measurements['rx']) / len(measurements['rx'])
-                avg_tx = sum(measurements['tx']) / len(measurements['tx'])
+            if measurements['count'] > 0:
+                avg_rx = measurements['total_rx'] / measurements['count']
+                avg_tx = measurements['total_tx'] / measurements['count']
                 
-                # Formata os valores no mesmo estilo do bmon (com KiB)
-                content += f"{interface:<15}{avg_rx:>10.2f}KiB{avg_tx:>15.2f}KiB\n"
+                # Formata os valores usando a função de formatação de velocidade
+                formatted_avg_rx = self.format_speed(avg_rx)
+                formatted_avg_tx = self.format_speed(avg_tx)
+                
+                # Cria o conteúdo com as médias formatadas
+                content += f"{interface:<15}{formatted_avg_rx:>20}{formatted_avg_tx:>20}\n"
         
         # Combina cabeçalho e conteúdo
         table = header + content
         
         # Atualiza a área de texto das médias
         self.update_text_area(f"{title}_averages", table, overwrite=True)
+
+    def format_speed(self, speed):
+        """Converte e formata velocidades em uma unidade apropriada."""
+        units = ["B/s", "KiB/s", "MiB/s", "GiB/s"]
+        factor = 1024.0
+        for unit in units:
+            if speed < factor:
+                return f"{speed:.2f} {unit}"
+            speed /= factor
+        return f"{speed:.2f} TiB/s"  # Para valores muito grandes
 
     def stop_monitoring_bmon(self, title):
         """Função para parar o monitoramento de um título específico."""
@@ -6175,9 +6185,9 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 90.3 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 90.5 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
-        self.add_text_with_image(button_frame, "Código: Mano GPT com auxilio Fox Copilot", "icone3.png")
+        self.add_text_with_image(button_frame, "Código: Mano GPT e Claudeo com auxilio de Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
         self.add_text_with_image(button_frame, "Liferuler: CAOS", "chora.png")
         self.add_text_with_image(button_frame, "Gerente e Ouvinte: Naminha Pixu", "mimo.png")
