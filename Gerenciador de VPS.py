@@ -982,7 +982,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 90.3", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 90.4", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -1121,6 +1121,9 @@ class ButtonManager:
         self.text_areas = {}
         self.previous_states = {}
         self.monitoring_active = {}
+        # Adiciona dicionários para armazenar as médias
+        self.interface_speeds = {}
+        self.interface_measurements = {}
 
         # Frame 1: Monitoramento VPN
         vpn_frame = tk.Frame(monitor_tab, bg="lightgray", relief=tk.RAISED, bd=2)
@@ -1161,6 +1164,12 @@ class ButtonManager:
 
         # Reinicia a flag de monitoramento ativo para este título
         self.monitoring_active[title] = True
+        
+        # Inicializa os dicionários para este título se não existirem
+        if title not in self.interface_speeds:
+            self.interface_speeds[title] = {}
+        if title not in self.interface_measurements:
+            self.interface_measurements[title] = {}
 
         # Cria um Frame para o cabeçalho se ainda não existe para este título
         if title not in self.text_areas:
@@ -1189,11 +1198,31 @@ class ButtonManager:
             text_area = tk.Text(text_frame, wrap='word', height=10, width=80, state='disabled')
             text_area.pack(expand=False, fill='x')
 
-            # Armazena a área de texto no dicionário usando o título como chave
+            # Adiciona o frame para médias
+            averages_frame = tk.Frame(parent_frame, relief=tk.SUNKEN, bd=1)
+            averages_frame.pack(fill='x', padx=5, pady=5)
+            
+            averages_label = tk.Label(averages_frame, text="Velocidades Médias:", font=('Courier', 10, 'bold'))
+            averages_label.pack(pady=2)
+            
+            # Cria área de texto para as médias usando fonte monoespaçada
+            averages_text = tk.Text(averages_frame, wrap='none', height=7, width=80, 
+                                  font=('Courier', 10), state='disabled')
+            averages_text.pack(expand=False, fill='x')
+            
+            # Adiciona scrollbar horizontal para a área de médias
+            averages_scroll = tk.Scrollbar(averages_frame, orient='horizontal', 
+                                         command=averages_text.xview)
+            averages_text.configure(xscrollcommand=averages_scroll.set)
+            averages_scroll.pack(fill='x')
+            
+            # Armazena as áreas de texto no dicionário
             self.text_areas[title] = text_area
+            self.text_areas[f"{title}_averages"] = averages_text
 
             # Adiciona um botão para parar o monitoramento específico
-            stop_button = tk.Button(parent_frame, text=f"Parar {title}", command=lambda: self.stop_monitoring_bmon(title))
+            stop_button = tk.Button(parent_frame, text=f"Parar {title}", 
+                                  command=lambda: self.stop_monitoring_bmon(title))
             stop_button.pack(pady=5)
 
         # Função para executar o comando bmon via SSH
@@ -1210,63 +1239,62 @@ class ButtonManager:
             try:
                 ssh_transport = ssh_client.get_transport()
 
-                # Verifica se a conexão SSH está ativa
                 if not ssh_transport.is_active():
                     self.update_text_area(title, "Conexão SSH não está ativa.\n", overwrite=True)
                     return
 
-                # Verifica se o bmon está disponível
                 which_output = check_bmon('which bmon', ssh_transport)
                 if not which_output.strip():
                     self.update_text_area(title, "bmon não encontrado no sistema remoto.\n", overwrite=True)
                     return
 
-                # Envia o comando bmon
                 command = 'timeout 2 bmon -o ascii'
                 while self.monitoring_active[title]:
                     if not ssh_client.get_transport().is_active():
                         self.update_text_area(title, "Conexão SSH perdida.\n", overwrite=True)
                         break
 
-                    # Executa o comando via SSH
                     session = ssh_transport.open_session()
                     session.get_pty()
                     session.exec_command(command)
 
-                    time.sleep(2)  # Pequena pausa para dar tempo ao bmon de começar a gerar saída
+                    time.sleep(2)
 
                     output = ""
                     while session.recv_ready():
                         output += session.recv(4096).decode('utf-8')
 
                     if output:
-                        # Filtra e processa a saída do bmon
                         filtered_output = []
                         current_state = {}
 
                         for line in output.splitlines():
-                            # Verifica se a linha contém 'eth' e se não é 'eth0'
                             if 'eth' in line and 'eth0' not in line:
-                                # Adiciona sempre as linhas de eth1 a eth5
                                 if any(interface in line for interface in ['eth1', 'eth2', 'eth3', 'eth4', 'eth5']):
                                     filtered_output.append(line)
-                                    # Atualiza o estado atual
                                     interface_name = line.split()[0]
                                     current_state[interface_name] = line
+                                    
+                                    # Processa as velocidades para médias
+                                    self.process_interface_speeds(title, line)
                                 else:
-                                    # Verifica se há valores diferentes de zero para outras interfaces
                                     values = line.split()
                                     if len(values) > 1 and any(self.convert_to_float(value) > 0 for value in values[1:]):
                                         filtered_output.append(line)
                                         interface_name = values[0]
                                         current_state[interface_name] = line
+                                        
+                                        # Processa as velocidades para médias
+                                        self.process_interface_speeds(title, line)
 
-                        # Descarte as 5 primeiras linhas das linhas já filtradas
                         filtered_output = filtered_output[5:]
 
                         if current_state != self.previous_states.get(title, {}):
                             self.update_text_area(title, '\n'.join(filtered_output), overwrite=True)
                             self.previous_states[title] = current_state
+                            
+                            # Atualiza o display das médias
+                            self.update_average_speeds(title)
                         else:
                             self.update_text_area(title, "", overwrite=False)
 
@@ -1281,9 +1309,59 @@ class ButtonManager:
         # Executa o monitoramento do bmon em uma thread separada
         threading.Thread(target=monitor_bmon_in_real_time, daemon=True).start()
 
+    def process_interface_speeds(self, title, line):
+        """Processa as velocidades das interfaces para cálculo de médias."""
+        parts = line.split()
+        if len(parts) >= 4:  # Garantindo que temos pelo menos 4 colunas
+            interface = parts[0]
+            if interface not in self.interface_measurements[title]:
+                self.interface_measurements[title][interface] = {'rx': [], 'tx': []}
+            
+            # Extrai velocidades de download (segunda coluna) e upload (quarta coluna)
+            rx_speed = self.convert_to_float(parts[1])  # Download - segunda coluna
+            tx_speed = self.convert_to_float(parts[3])  # Upload - quarta coluna
+            
+            # Armazena as medições
+            self.interface_measurements[title][interface]['rx'].append(rx_speed)
+            self.interface_measurements[title][interface]['tx'].append(tx_speed)
+            
+            # Mantém apenas as últimas 10 medições
+            max_measurements = 10
+            self.interface_measurements[title][interface]['rx'] = self.interface_measurements[title][interface]['rx'][-max_measurements:]
+            self.interface_measurements[title][interface]['tx'] = self.interface_measurements[title][interface]['tx'][-max_measurements:]
+
+    def update_average_speeds(self, title):
+        """Atualiza o display das velocidades médias em formato tabular."""
+        if not self.interface_measurements.get(title):
+            return
+
+        # Cabeçalho da tabela
+        header = f"{'Interface':<15}{'Download':<20}{'Upload':<20}\n"
+        header += "-" * 55 + "\n"  # Linha separadora
+        
+        # Conteúdo da tabela
+        content = ""
+        for interface in sorted(self.interface_measurements[title].keys()):
+            measurements = self.interface_measurements[title][interface]
+            if measurements['rx'] and measurements['tx']:
+                avg_rx = sum(measurements['rx']) / len(measurements['rx'])
+                avg_tx = sum(measurements['tx']) / len(measurements['tx'])
+                
+                # Formata os valores no mesmo estilo do bmon (com KiB)
+                content += f"{interface:<15}{avg_rx:>10.2f}KiB{avg_tx:>15.2f}KiB\n"
+        
+        # Combina cabeçalho e conteúdo
+        table = header + content
+        
+        # Atualiza a área de texto das médias
+        self.update_text_area(f"{title}_averages", table, overwrite=True)
+
     def stop_monitoring_bmon(self, title):
         """Função para parar o monitoramento de um título específico."""
         self.monitoring_active[title] = False
+        # Limpa as medições ao parar o monitoramento
+        if title in self.interface_measurements:
+            self.interface_measurements[title].clear()
 
     def convert_to_float(self, value):
         """Converte strings de tamanhos com unidades para float."""
