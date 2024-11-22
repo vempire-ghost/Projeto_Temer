@@ -982,7 +982,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 90.5", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 91", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -1397,6 +1397,149 @@ class ButtonManager:
             text_area.see(tk.END)
             text_area.config(state='disabled')
 
+# METODO PARA PING NO VPS
+    def executar_ping(self, tab):
+        main_window = tab.winfo_toplevel()
+        """Executa o Ping e exibe os resultados na aba especificada."""
+        # Carrega os endereços dos hosts do arquivo, se existir
+        if os.path.exists(self.hosts_file):
+            with open(self.hosts_file, 'r') as f:
+                self.hosts = json.load(f)
+
+        # Verifica se a conexão SSH está ativa
+        if hasattr(self, 'ssh_vps_jogo_via_vpn_client') and self.ssh_vps_jogo_client is not None:
+            # Variável de controle para a execução do Ping
+            self.executando_ping = [False, False, False]  # Para três hosts
+            self.thread_ping = [None, None, None]
+
+            # Função para criar uma seção Ping
+            def criar_secao_ping(linha):
+                # Frame para encapsular a linha do host e botões
+                frame_host = tk.Frame(tab, bg="lightgray", bd=2, relief="groove")  # Frame com fundo cinza claro, borda e relevo
+                frame_host.grid(row=0, column=linha * 3, sticky='n', pady=5)  # Adiciona um pouco de espaçamento
+
+                # Entrada do host
+                entrada_host = tk.Entry(frame_host, width=40)
+                entrada_host.grid(row=0, column=0)
+                entrada_host.insert(0, self.hosts[linha] if linha < len(self.hosts) else "")  # Preenche com o host salvo
+
+                # Botões para iniciar e parar Ping
+                botao_executar = tk.Button(frame_host, text="Iniciar Ping", command=lambda: iniciar_ping(linha))
+                botao_executar.grid(row=0, column=1)
+
+                botao_parar = tk.Button(frame_host, text="Parar Ping", command=lambda: parar_ping(linha))
+                botao_parar.grid(row=0, column=2)
+
+                # Área de texto para exibir o resultado
+                area_texto = scrolledtext.ScrolledText(tab, width=77, height=28)
+                area_texto.grid(row=1, column=linha * 3, columnspan=3, pady=(10, 0))
+
+                # Criação da figura para o gráfico
+                fig, ax = plt.subplots(figsize=(6, 4))
+                line, = ax.plot([], [], label='Latência (ms)', color='blue')
+                ax.set_title(f"Latência {linha + 1}")
+                ax.set_ylabel("Latência (ms)")
+                ax.set_xlabel("Tempo")
+                ax.set_ylim(0, 100)  # Define um limite para a latência
+                ax.legend(loc='upper right')
+
+                # Adiciona linhas horizontais
+                for y in [20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280]:
+                    ax.axhline(y=y, color='black', linestyle='--', linewidth=0.5)
+
+                # Área do gráfico
+                canvas = FigureCanvasTkAgg(fig, master=tab)
+                canvas.get_tk_widget().grid(row=2, column=linha * 3, columnspan=3, pady=(10, 0))
+
+                # Listas para armazenar dados de latência e timestamps
+                latencias = []
+                timestamps = []
+
+                # Função para atualizar o gráfico
+                def update_graph():
+                    now = datetime.now()
+                    time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
+
+                    # Filtra timestamps e latências dentro da janela de tempo
+                    timestamps_filtered = [t for t in timestamps if t >= time_window_start]
+                    latencias_filtered = latencias[-len(timestamps_filtered):]  # Limita os dados correspondentes
+
+                    # Atualiza os dados da linha do gráfico
+                    if timestamps_filtered and latencias_filtered:
+                        line.set_data(timestamps_filtered, latencias_filtered)
+                        ax.set_xlim([time_window_start, now])  # Ajusta os limites do eixo X
+                        ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))  # Formata o eixo X para horas
+                        fig.autofmt_xdate()  # Melhora a visualização das datas
+
+                        # Define o limite superior do eixo Y dinamicamente com margem extra
+                        max_latency = max(latencias_filtered)
+                        if max_latency > 100:
+                            ax.set_ylim(0, min(max_latency * 1.2, 300))  # Expande o limite superior com uma margem de 20%
+                        else:
+                            ax.set_ylim(0, 120)  # Mantém limite em 120ms para permitir margem
+                    else:
+                        line.set_data([], [])  # Limpa os dados se não houver dados filtrados
+
+                    canvas.draw()  # Atualiza o canvas
+
+                # Função para iniciar o Ping
+                def iniciar_ping(index):
+                    if self.executando_ping[index]:
+                        return  # Não inicia outra thread se já estiver em execução
+
+                    host = entrada_host.get()
+                    self.hosts[index] = host  # Armazena o host na lista
+                    with open(self.hosts_file, 'w') as f:  # Salva os hosts
+                        json.dump(self.hosts, f)
+
+                    command = f"ping -n -c 1 {host}"
+                    self.executando_ping[index] = True
+
+                    def run_ping():
+                        while self.executando_ping[index]:
+                            # Executa o comando via SSH
+                            stdin, stdout, stderr = self.ssh_vps_jogo_via_vpn_client.exec_command(command)
+                            resultado = stdout.read().decode()  # Lê a saída do comando
+
+                            # Atualiza a área de texto com o resultado
+                            area_texto.delete(1.0, tk.END)  # Limpa a área de texto
+                            area_texto.insert(tk.END, resultado)  # Insere o resultado
+                            area_texto.see(tk.END)  # Rola para o final
+
+                            # Processa a saída do Ping
+                            match = re.search(r'time=(\d+\.?\d*) ms', resultado)
+                            if match:
+                                latency = float(match.group(1))
+                                latencias.append(latency)
+                                timestamps.append(datetime.now())  # Armazena o timestamp atual
+
+                            # Limita a exibição a um intervalo de 60 minutos
+                            while len(latencias) > 3600:  # Mantém apenas os últimos 3600 dados
+                                latencias.pop(0)
+                                timestamps.pop(0)
+
+                            update_graph()  # Chama a função para atualizar o gráfico
+
+                            time.sleep(1)  # Aguarda 1 segundo antes de executar novamente
+
+                    self.thread_ping[index] = threading.Thread(target=run_ping)
+                    self.thread_ping[index].start()
+
+                def parar_ping(index):
+                    self.executando_ping[index] = False  # Para a execução do Ping
+
+            # Criação de três seções de Ping
+            for i in range(3):
+                criar_secao_ping(i)
+
+        # Função para fechar a janela corretamente
+        def on_closing():
+            for i in range(3):  # Para cada host, parar a execução do Ping
+                self.executando_ping[i] = False  # Para a execução do Ping
+
+        # Define a função para ser chamada quando a janela for fechada
+        main_window.protocol("WM_DELETE_WINDOW", on_closing)
+
 # METODO PARA MTR NO VPS
     def executar_mtr(self, tab):
         main_window = tab.winfo_toplevel()
@@ -1588,12 +1731,17 @@ class ButtonManager:
         interface_tab = tk.Frame(notebook, bg='white')
         notebook.add(interface_tab, text='MTR dos Provedores')
 
-        # Aba 2: Aba vazia
+        # Aba 2: MTR VPS JOGO
         empty_tab = tk.Frame(notebook, bg='lightgray')
-        notebook.add(empty_tab, text='MTR do VPS JOGO')
+        notebook.add(empty_tab, text='MTR no VPS JOGO')
         self.executar_mtr(empty_tab)
 
-        # Aba 3: Monitoramento OMR
+        # Aba 3: PING VPS JOGO
+        empty_tab = tk.Frame(notebook, bg='lightgray')
+        notebook.add(empty_tab, text='PING no VPS JOGO')
+        self.executar_ping(empty_tab)
+
+        # Aba 4: Monitoramento OMR
         monitor_tab = tk.Frame(notebook, bg='white')
         notebook.add(monitor_tab, text='Monitoramento Interfaces OMR')
         self.setup_monitoring_interface(monitor_tab)
@@ -6185,7 +6333,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 90.5 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 91 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT e Claudeo com auxilio de Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
