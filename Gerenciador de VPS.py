@@ -982,7 +982,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 91", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 91.1", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -1405,6 +1405,15 @@ class ButtonManager:
         if os.path.exists(self.hosts_file):
             with open(self.hosts_file, 'r') as f:
                 self.hosts = json.load(f)
+                # Garante que self.hosts é uma lista de listas
+                if not isinstance(self.hosts, list) or len(self.hosts) != 3:
+                    self.hosts = [[] for _ in range(3)]
+                else:
+                    self.hosts = [
+                        host_list if isinstance(host_list, list) else [] for host_list in self.hosts
+                    ]
+        else:
+            self.hosts = [[] for _ in range(3)]  # Inicializa com listas vazias para três testes
 
         # Verifica se a conexão SSH está ativa
         if hasattr(self, 'ssh_vps_jogo_via_vpn_client') and self.ssh_vps_jogo_client is not None:
@@ -1418,10 +1427,13 @@ class ButtonManager:
                 frame_host = tk.Frame(tab, bg="lightgray", bd=2, relief="groove")  # Frame com fundo cinza claro, borda e relevo
                 frame_host.grid(row=0, column=linha * 3, sticky='n', pady=5)  # Adiciona um pouco de espaçamento
 
-                # Entrada do host
-                entrada_host = tk.Entry(frame_host, width=40)
-                entrada_host.grid(row=0, column=0)
-                entrada_host.insert(0, self.hosts[linha] if linha < len(self.hosts) else "")  # Preenche com o host salvo
+                # Combobox para seleção de host
+                combobox_var = tk.StringVar()
+                combobox_host = ttk.Combobox(frame_host, textvariable=combobox_var, width=37)
+                combobox_host.grid(row=0, column=0)
+                combobox_host['values'] = self.hosts[linha]  # Preenche com os últimos hosts
+                if self.hosts[linha]:
+                    combobox_host.set(self.hosts[linha][0])  # Define o último host usado como padrão
 
                 # Botões para iniciar e parar Ping
                 botao_executar = tk.Button(frame_host, text="Iniciar Ping", command=lambda: iniciar_ping(linha))
@@ -1487,10 +1499,15 @@ class ButtonManager:
                     if self.executando_ping[index]:
                         return  # Não inicia outra thread se já estiver em execução
 
-                    host = entrada_host.get()
-                    self.hosts[index] = host  # Armazena o host na lista
-                    with open(self.hosts_file, 'w') as f:  # Salva os hosts
-                        json.dump(self.hosts, f)
+                    host = combobox_var.get()
+                    if host and host not in self.hosts[index]:
+                        self.hosts[index].insert(0, host)  # Adiciona o novo host ao início da lista
+                        self.hosts[index] = self.hosts[index][:10]  # Limita a lista aos últimos 10 hosts
+                        with open(self.hosts_file, 'w') as f:  # Salva os hosts
+                            json.dump(self.hosts, f)
+
+                        # Atualiza a lista suspensa
+                        combobox_host['values'] = self.hosts[index]
 
                     command = f"ping -n -c 1 {host}"
                     self.executando_ping[index] = True
@@ -1509,7 +1526,7 @@ class ButtonManager:
                             # Processa a saída do Ping
                             match = re.search(r'time=(\d+\.?\d*) ms', resultado)
                             if match:
-                                latency = float(match.group(1))
+                                latency = round(float(match.group(1)))  # Arredonda para o inteiro mais próximo
                                 latencias.append(latency)
                                 timestamps.append(datetime.now())  # Armazena o timestamp atual
 
@@ -1548,6 +1565,15 @@ class ButtonManager:
         if os.path.exists(self.hosts_file):
             with open(self.hosts_file, 'r') as f:
                 self.hosts = json.load(f)
+                # Garante que self.hosts é uma lista de listas
+                if not isinstance(self.hosts, list) or len(self.hosts) != 3:
+                    self.hosts = [[] for _ in range(3)]
+                else:
+                    self.hosts = [
+                        host_list if isinstance(host_list, list) else [] for host_list in self.hosts
+                    ]
+        else:
+            self.hosts = [[] for _ in range(3)]  # Inicializa com listas vazias para três testes
 
         # Verifica se a conexão SSH está ativa
         if hasattr(self, 'ssh_vps_jogo_via_vpn_client') and self.ssh_vps_jogo_client is not None:
@@ -1561,10 +1587,13 @@ class ButtonManager:
                 frame_host = tk.Frame(tab, bg="lightgray", bd=2, relief="groove")  # Frame com fundo cinza claro, borda e relevo
                 frame_host.grid(row=0, column=linha * 3, sticky='n', pady=5)  # Adiciona um pouco de espaçamento
 
-                # Entrada do host
-                entrada_host = tk.Entry(frame_host, width=40)
-                entrada_host.grid(row=0, column=0)
-                entrada_host.insert(0, self.hosts[linha] if linha < len(self.hosts) else "")  # Preenche com o host salvo
+                # Combobox para seleção de host
+                combobox_var = tk.StringVar()
+                combobox_host = ttk.Combobox(frame_host, textvariable=combobox_var, width=37)
+                combobox_host.grid(row=0, column=0)
+                combobox_host['values'] = self.hosts[linha]  # Preenche com os últimos hosts
+                if self.hosts[linha]:
+                    combobox_host.set(self.hosts[linha][0])  # Define o último host usado como padrão
 
                 # Botões para iniciar e parar MTR
                 botao_executar = tk.Button(frame_host, text="Iniciar MTR", command=lambda: iniciar_mtr(linha))
@@ -1630,10 +1659,15 @@ class ButtonManager:
                     if self.executando_mtr[index]:
                         return  # Não inicia outra thread se já estiver em execução
 
-                    host = entrada_host.get()
-                    self.hosts[index] = host  # Armazena o host na lista
-                    with open(self.hosts_file, 'w') as f:  # Salva os hosts
-                        json.dump(self.hosts, f)
+                    host = combobox_var.get()
+                    if host and host not in self.hosts[index]:
+                        self.hosts[index].insert(0, host)  # Adiciona o novo host ao início da lista
+                        self.hosts[index] = self.hosts[index][:10]  # Limita a lista aos últimos 10 hosts
+                        with open(self.hosts_file, 'w') as f:  # Salva os hosts
+                            json.dump(self.hosts, f)
+
+                        # Atualiza a lista suspensa
+                        combobox_host['values'] = self.hosts[index]
 
                     command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 {host}"
                     self.executando_mtr[index] = True
@@ -6333,7 +6367,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 91 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 91.1 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT e Claudeo com auxilio de Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
