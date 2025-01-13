@@ -982,7 +982,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 91.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 91.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -1943,23 +1943,75 @@ class ButtonManager:
             # Cria a janela principal do terminal
             root = tk.Tk()
             root.title("Terminal SSH")
-
+            
             # Área de texto para exibir a saída
             output_area = scrolledtext.ScrolledText(root, wrap=tk.WORD, height=40, width=100, font=("Consolas", 10))
             output_area.pack(pady=10)
-
+            
             # Entrada do usuário
             input_area = tk.Entry(root, width=80, font=("Consolas", 10))
             input_area.pack(pady=10)
-
+            
+            # Histórico de comandos
+            command_history = []
+            history_index = 0
+            
             # Inicia a sessão interativa
             channel = self.ssh_vpn_client.invoke_shell()
-
-            def send_command(event):
+            
+            def send_command(event=None):
+                nonlocal history_index
                 command = input_area.get()
+                if command:  # Só adiciona ao histórico se não estiver vazio
+                    command_history.append(command)
+                    history_index = len(command_history)
                 input_area.delete(0, tk.END)  # Limpa a entrada
                 output_area.insert(tk.END, f"$ {command}\n")  # Mostra o comando no terminal
                 channel.send(command + '\n')  # Envia o comando para o servidor
+
+            def handle_key(event):
+                nonlocal history_index
+                
+                # Ctrl+C - Interrompe o comando atual
+                if event.keysym == 'c' and event.state & 0x4:
+                    channel.send('\x03')
+                    return "break"
+                    
+                # Ctrl+D - Envia EOF
+                elif event.keysym == 'd' and event.state & 0x4:
+                    channel.send('\x04')
+                    return "break"
+                    
+                # Ctrl+L - Limpa a tela
+                elif event.keysym == 'l' and event.state & 0x4:
+                    output_area.delete(1.0, tk.END)
+                    return "break"
+                    
+                # Seta para cima - Comando anterior
+                elif event.keysym == 'Up':
+                    if command_history and history_index > 0:
+                        history_index -= 1
+                        input_area.delete(0, tk.END)
+                        input_area.insert(0, command_history[history_index])
+                    return "break"
+                    
+                # Seta para baixo - Próximo comando
+                elif event.keysym == 'Down':
+                    if history_index < len(command_history) - 1:
+                        history_index += 1
+                        input_area.delete(0, tk.END)
+                        input_area.insert(0, command_history[history_index])
+                    elif history_index == len(command_history) - 1:
+                        history_index = len(command_history)
+                        input_area.delete(0, tk.END)
+                    return "break"
+                    
+                # Tab - Auto-completar (básico)
+                elif event.keysym == 'Tab':
+                    current_text = input_area.get()
+                    if current_text:
+                        channel.send(current_text + '\t')
+                    return "break"
 
             def update_output():
                 # Verifica se há saída do canal
@@ -1969,19 +2021,22 @@ class ButtonManager:
                     text = Text.from_ansi(output)
                     output_area.insert(tk.END, str(text))  # Mostra a saída no terminal
                     output_area.see(tk.END)  # Rolagem automática para o final
-
                 # Chama a função novamente após 100ms
                 root.after(100, update_output)
 
-            # Liga o evento de pressionar Enter à função de enviar comando
+            # Liga os eventos de teclado
             input_area.bind("<Return>", send_command)
-
+            input_area.bind("<Key>", handle_key)
+            
+            # Foco inicial na área de entrada
+            input_area.focus_set()
+            
             # Inicia a atualização da saída
             update_output()
-
+            
             # Inicia a interface gráfica
             root.mainloop()
-
+            
             # Fecha o canal ao fechar a janela
             channel.close()
         else:
@@ -6367,7 +6422,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 91.1 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 91.2 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT e Claudeo com auxilio de Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
