@@ -1939,108 +1939,147 @@ class ButtonManager:
 
 # METODO PARA SHELL SSH
     def open_ssh_terminal(self):
-        if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
-            # Cria a janela principal do terminal
+        if hasattr(self, 'ssh_vpn_client') and hasattr(self, 'ssh_jogo_client') and hasattr(self, 'ssh_vps_vpn_client') and hasattr(self, 'ssh_vps_jogo_client'):
+            # Cria a janela principal para a escolha do SSH
             root = tk.Tk()
-            root.title("Terminal SSH")
-            
-            # Área de texto para exibir a saída
-            output_area = scrolledtext.ScrolledText(root, wrap=tk.WORD, height=40, width=100, font=("Consolas", 10))
-            output_area.pack(pady=10)
-            
-            # Entrada do usuário
-            input_area = tk.Entry(root, width=80, font=("Consolas", 10))
-            input_area.pack(pady=10)
-            
-            # Histórico de comandos
-            command_history = []
-            history_index = 0
-            
-            # Inicia a sessão interativa
-            channel = self.ssh_vpn_client.invoke_shell()
-            
-            def send_command(event=None):
-                nonlocal history_index
-                command = input_area.get()
-                if command:  # Só adiciona ao histórico se não estiver vazio
-                    command_history.append(command)
-                    history_index = len(command_history)
-                input_area.delete(0, tk.END)  # Limpa a entrada
-                output_area.insert(tk.END, f"$ {command}\n")  # Mostra o comando no terminal
-                channel.send(command + '\n')  # Envia o comando para o servidor
+            root.title("Escolher Conexão SSH")
 
-            def handle_key(event):
-                nonlocal history_index
-                
-                # Ctrl+C - Interrompe o comando atual
-                if event.keysym == 'c' and event.state & 0x4:
-                    channel.send('\x03')
-                    return "break"
-                    
-                # Ctrl+D - Envia EOF
-                elif event.keysym == 'd' and event.state & 0x4:
-                    channel.send('\x04')
-                    return "break"
-                    
-                # Ctrl+L - Limpa a tela
-                elif event.keysym == 'l' and event.state & 0x4:
-                    output_area.delete(1.0, tk.END)
-                    return "break"
-                    
-                # Seta para cima - Comando anterior
-                elif event.keysym == 'Up':
-                    if command_history and history_index > 0:
-                        history_index -= 1
-                        input_area.delete(0, tk.END)
-                        input_area.insert(0, command_history[history_index])
-                    return "break"
-                    
-                # Seta para baixo - Próximo comando
-                elif event.keysym == 'Down':
-                    if history_index < len(command_history) - 1:
-                        history_index += 1
-                        input_area.delete(0, tk.END)
-                        input_area.insert(0, command_history[history_index])
-                    elif history_index == len(command_history) - 1:
-                        history_index = len(command_history)
-                        input_area.delete(0, tk.END)
-                    return "break"
-                    
-                # Tab - Auto-completar (básico)
-                elif event.keysym == 'Tab':
-                    current_text = input_area.get()
-                    if current_text:
-                        channel.send(current_text + '\t')
-                    return "break"
+            # Canal que será compartilhado entre as funções
+            channel = None
 
-            def update_output():
-                # Verifica se há saída do canal
-                if channel.recv_ready():
-                    output = channel.recv(1024).decode('utf-8')
-                    # Usando rich para adicionar a saída ao console
-                    text = Text.from_ansi(output)
-                    output_area.insert(tk.END, str(text))  # Mostra a saída no terminal
-                    output_area.see(tk.END)  # Rolagem automática para o final
-                # Chama a função novamente após 100ms
-                root.after(100, update_output)
+            # Função para escolher a conexão SSH
+            def choose_connection(selected_ssh):
+                nonlocal channel  # Agora o `channel` será compartilhado entre as funções aninhadas
+                # Define o canal de acordo com a escolha
+                if selected_ssh == 'VPN SSH':
+                    channel = self.ssh_vpn_client.invoke_shell()
+                elif selected_ssh == 'Jogo SSH':
+                    channel = self.ssh_jogo_client.invoke_shell()
+                elif selected_ssh == 'VPS VPN SSH':
+                    channel = self.ssh_vps_vpn_client.invoke_shell()
+                elif selected_ssh == 'VPS Jogo SSH':
+                    channel = self.ssh_vps_jogo_client.invoke_shell()
 
-            # Liga os eventos de teclado
-            input_area.bind("<Return>", send_command)
-            input_area.bind("<Key>", handle_key)
-            
-            # Foco inicial na área de entrada
-            input_area.focus_set()
-            
-            # Inicia a atualização da saída
-            update_output()
-            
-            # Inicia a interface gráfica
+                # Fecha a janela de escolha de SSH e abre a janela do terminal
+                root.destroy()
+                self.open_terminal_window(channel)
+
+            # Menu para selecionar qual SSH usar
+            ssh_options = ['VPN SSH', 'Jogo SSH', 'VPS VPN SSH', 'VPS Jogo SSH']
+            selected_ssh = tk.StringVar(root)
+            selected_ssh.set(ssh_options[0])  # Define a primeira opção como padrão
+
+            # Cria o OptionMenu para selecionar o SSH
+            ssh_menu = tk.OptionMenu(root, selected_ssh, *ssh_options)
+            ssh_menu.pack(pady=20)
+
+            # Botão para confirmar a escolha
+            confirm_button = tk.Button(root, text="Conectar", command=lambda: choose_connection(selected_ssh.get()))
+            confirm_button.pack(pady=10)
+
+            # Inicia a interface para escolher a conexão SSH
             root.mainloop()
-            
-            # Fecha o canal ao fechar a janela
-            channel.close()
         else:
-            print("A conexão SSH não está configurada.")
+            print("As conexões SSH não estão configuradas corretamente.")
+
+    def open_terminal_window(self, channel):
+        # Cria a janela principal do terminal
+        root = tk.Tk()
+        root.title("Terminal SSH")
+        
+        # Área de texto para exibir a saída
+        output_area = scrolledtext.ScrolledText(root, wrap=tk.WORD, height=40, width=100, font=("Consolas", 10))
+        output_area.pack(pady=10)
+        
+        # Entrada do usuário
+        input_area = tk.Entry(root, width=80, font=("Consolas", 10))
+        input_area.pack(pady=10)
+        
+        # Histórico de comandos
+        command_history = []
+        history_index = 0
+        
+        # Inicia a sessão interativa
+        def send_command(event=None):
+            nonlocal history_index
+            command = input_area.get()
+            if command:  # Só adiciona ao histórico se não estiver vazio
+                command_history.append(command)
+                history_index = len(command_history)
+            input_area.delete(0, tk.END)  # Limpa a entrada
+            output_area.insert(tk.END, f"$ {command}\n")  # Mostra o comando no terminal
+            channel.send(command + '\n')  # Envia o comando para o servidor
+
+        def handle_key(event):
+            nonlocal history_index
+            
+            # Ctrl+C - Interrompe o comando atual
+            if event.keysym == 'c' and event.state & 0x4:
+                channel.send('\x03')
+                return "break"
+                
+            # Ctrl+D - Envia EOF
+            elif event.keysym == 'd' and event.state & 0x4:
+                channel.send('\x04')
+                return "break"
+                
+            # Ctrl+L - Limpa a tela
+            elif event.keysym == 'l' and event.state & 0x4:
+                output_area.delete(1.0, tk.END)
+                return "break"
+                
+            # Seta para cima - Comando anterior
+            elif event.keysym == 'Up':
+                if command_history and history_index > 0:
+                    history_index -= 1
+                    input_area.delete(0, tk.END)
+                    input_area.insert(0, command_history[history_index])
+                return "break"
+                
+            # Seta para baixo - Próximo comando
+            elif event.keysym == 'Down':
+                if history_index < len(command_history) - 1:
+                    history_index += 1
+                    input_area.delete(0, tk.END)
+                    input_area.insert(0, command_history[history_index])
+                elif history_index == len(command_history) - 1:
+                    history_index = len(command_history)
+                    input_area.delete(0, tk.END)
+                return "break"
+                
+            # Tab - Auto-completar (básico)
+            elif event.keysym == 'Tab':
+                current_text = input_area.get()
+                if current_text:
+                    channel.send(current_text + '\t')
+                return "break"
+
+        def update_output():
+            # Verifica se há saída do canal
+            if channel.recv_ready():
+                output = channel.recv(1024).decode('utf-8')
+                # Usando rich para adicionar a saída ao console
+                text = Text.from_ansi(output)
+                output_area.insert(tk.END, str(text))  # Mostra a saída no terminal
+                output_area.see(tk.END)  # Rolagem automática para o final
+            # Chama a função novamente após 100ms
+            root.after(100, update_output)
+
+        # Liga os eventos de teclado
+        input_area.bind("<Return>", send_command)
+        input_area.bind("<Key>", handle_key)
+        
+        # Foco inicial na área de entrada
+        input_area.focus_set()
+        
+        # Inicia a atualização da saída
+        update_output()
+        
+        # Inicia a interface gráfica
+        root.mainloop()
+        
+        # Fecha o canal ao fechar a janela
+        channel.close()
             
 # METODO PARA JANELA DE MONITORAMENTO GRAFICO DE CONEXÕES ***METODO DEPRECIADO***
     def run_vps_vpn_pings_with_plot(self):
