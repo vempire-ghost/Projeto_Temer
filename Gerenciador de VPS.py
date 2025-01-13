@@ -982,7 +982,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 91.4", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 91.5", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -1939,77 +1939,87 @@ class ButtonManager:
 
 # METODO PARA SHELL SSH
     def open_ssh_terminal(self):
-        if hasattr(self, 'ssh_vpn_client') and hasattr(self, 'ssh_jogo_client') and hasattr(self, 'ssh_vps_vpn_client') and hasattr(self, 'ssh_vps_jogo_client'):
-            # Função para carregar a posição e tamanho da janela
-            def load_window_position(root):
-                if os.path.isfile("shell_selector.json"):
-                    with open("shell_selector.json", "r") as f:
-                        position = json.load(f)
-                        root.geometry("{}x{}+{}+{}".format(position["width"], position["height"], position["x"], position["y"]))
+        # Função para carregar a posição e tamanho da janela
+        def load_window_position(root):
+            if os.path.isfile("shell_selector.json"):
+                with open("shell_selector.json", "r") as f:
+                    position = json.load(f)
+                    root.geometry("{}x{}+{}+{}".format(position["width"], position["height"], position["x"], position["y"]))
+        
+        # Função para salvar a posição e tamanho da janela
+        def save_window_position(root):
+            position = {
+                "x": root.winfo_x(),
+                "y": root.winfo_y(),
+                "width": root.winfo_width(),
+                "height": root.winfo_height()
+            }
+            with open("shell_selector.json", "w") as f:
+                json.dump(position, f)
+
+        # Função para verificar se as conexões SSH estão estabelecidas
+        def verify_ssh_connections():
+            if hasattr(self, 'ssh_vpn_client') and hasattr(self, 'ssh_jogo_client') and \
+               hasattr(self, 'ssh_vps_vpn_client') and hasattr(self, 'ssh_vps_jogo_client'):
+                return True
+            return False
+
+        # Cria a janela principal para a escolha do SSH
+        root = tk.Tk()
+        root.title("Escolher Conexão SSH")
+
+        # Carregar a posição e o tamanho da janela, se o arquivo existir
+        load_window_position(root)
+
+        # Canal que será compartilhado entre as funções
+        channel = None
+
+        # Função para escolher a conexão SSH
+        def choose_connection(selected_ssh):
+            nonlocal channel  # Agora o `channel` será compartilhado entre as funções aninhadas
             
-            # Função para salvar a posição e tamanho da janela
-            def save_window_position(root):
-                position = {
-                    "x": root.winfo_x(),
-                    "y": root.winfo_y(),
-                    "width": root.winfo_width(),
-                    "height": root.winfo_height()
-                }
-                with open("shell_selector.json", "w") as f:
-                    json.dump(position, f)
+            # Verifica se as conexões SSH estão estabelecidas
+            if not verify_ssh_connections():
+                print("As conexões SSH não estão configuradas corretamente.")
+                return
 
-            # Cria a janela principal para a escolha do SSH
-            root = tk.Tk()
-            root.title("Escolher Conexão SSH")
+            # Define o canal de acordo com a escolha
+            if selected_ssh == 'OMR VPN':
+                channel = self.ssh_vpn_client.invoke_shell()
+            elif selected_ssh == 'OMR JOGO':
+                channel = self.ssh_jogo_client.invoke_shell()
+            elif selected_ssh == 'VPS VPN':
+                channel = self.ssh_vps_vpn_client.invoke_shell()
+            elif selected_ssh == 'VPS JOGO':
+                channel = self.ssh_vps_jogo_client.invoke_shell()
 
-            # Carregar a posição e o tamanho da janela, se o arquivo existir
-            load_window_position(root)
+            # Fecha a janela de escolha de SSH e abre a janela do terminal
+            root.destroy()
+            self.open_terminal_window(channel)
 
-            # Canal que será compartilhado entre as funções
-            channel = None
+        # Menu para selecionar qual SSH usar
+        ssh_options = ['OMR VPN', 'OMR JOGO', 'VPS VPN', 'VPS JOGO']
+        selected_ssh = tk.StringVar(root)
+        selected_ssh.set(ssh_options[0])  # Define a primeira opção como padrão
 
-            # Função para escolher a conexão SSH
-            def choose_connection(selected_ssh):
-                nonlocal channel  # Agora o `channel` será compartilhado entre as funções aninhadas
-                # Define o canal de acordo com a escolha
-                if selected_ssh == 'OMR VPN':
-                    channel = self.ssh_vpn_client.invoke_shell()
-                elif selected_ssh == 'OMR JOGO':
-                    channel = self.ssh_jogo_client.invoke_shell()
-                elif selected_ssh == 'VPS VPN':
-                    channel = self.ssh_vps_vpn_client.invoke_shell()
-                elif selected_ssh == 'VPS JOGO':
-                    channel = self.ssh_vps_jogo_client.invoke_shell()
+        # Cria o OptionMenu para selecionar o SSH
+        ssh_menu = tk.OptionMenu(root, selected_ssh, *ssh_options)
+        ssh_menu.pack(pady=20)
 
-                # Fecha a janela de escolha de SSH e abre a janela do terminal
-                root.destroy()
-                self.open_terminal_window(channel)
+        # Botão para confirmar a escolha
+        confirm_button = tk.Button(root, text="Conectar", command=lambda: choose_connection(selected_ssh.get()))
+        confirm_button.pack(pady=10)
 
-            # Menu para selecionar qual SSH usar
-            ssh_options = ['OMR VPN', 'OMR JOGO', 'VPS VPN', 'VPS JOGO']
-            selected_ssh = tk.StringVar(root)
-            selected_ssh.set(ssh_options[0])  # Define a primeira opção como padrão
+        # Função para salvar a posição e o tamanho da janela antes de fechar
+        def on_close():
+            save_window_position(root)
+            root.destroy()
 
-            # Cria o OptionMenu para selecionar o SSH
-            ssh_menu = tk.OptionMenu(root, selected_ssh, *ssh_options)
-            ssh_menu.pack(pady=20)
+        # Configura o comportamento de fechamento
+        root.protocol("WM_DELETE_WINDOW", on_close)
 
-            # Botão para confirmar a escolha
-            confirm_button = tk.Button(root, text="Conectar", command=lambda: choose_connection(selected_ssh.get()))
-            confirm_button.pack(pady=10)
-
-            # Função para salvar a posição e o tamanho da janela antes de fechar
-            def on_close():
-                save_window_position(root)
-                root.destroy()
-
-            # Configura o comportamento de fechamento
-            root.protocol("WM_DELETE_WINDOW", on_close)
-
-            # Inicia a interface para escolher a conexão SSH
-            root.mainloop()
-        else:
-            print("As conexões SSH não estão configuradas corretamente.")
+        # Inicia a interface para escolher a conexão SSH
+        root.mainloop()
 
     def open_terminal_window(self, channel):
         # Cria a janela principal do terminal
@@ -6490,7 +6500,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 91.4 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 91.5 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT e Claudeo com auxilio de Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
