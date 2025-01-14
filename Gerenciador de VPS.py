@@ -982,7 +982,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 91.5", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 92", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -1946,7 +1946,7 @@ class ButtonManager:
                     position = json.load(f)
                     root.geometry("{}x{}+{}+{}".format(position["width"], position["height"], position["x"], position["y"]))
         
-        # Função para salvar a posição e tamanho da janela
+        # Função para salvar a posição e o tamanho da janela
         def save_window_position(root):
             position = {
                 "x": root.winfo_x(),
@@ -1957,12 +1957,36 @@ class ButtonManager:
             with open("shell_selector.json", "w") as f:
                 json.dump(position, f)
 
-        # Função para verificar se as conexões SSH estão estabelecidas
+        # Função para verificar se as conexões SSH estão configuradas no arquivo config.ini
         def verify_ssh_connections():
-            if hasattr(self, 'ssh_vpn_client') and hasattr(self, 'ssh_jogo_client') and \
-               hasattr(self, 'ssh_vps_vpn_client') and hasattr(self, 'ssh_vps_jogo_client'):
-                return True
-            return False
+            required_sections = ['ssh_vpn', 'ssh_jogo', 'ssh_vps_vpn', 'ssh_vps_jogo']
+            return all(section in self.config for section in required_sections)
+
+        # Função para iniciar o ssh-agent
+        def start_ssh_agent():
+            # Tenta iniciar o ssh-agent se não estiver em execução
+            result = subprocess.run(['ssh-agent', '-s'], capture_output=True, text=True)
+            if result.returncode == 0:
+                # Configura o ambiente SSH_AUTH_SOCK com o resultado
+                for line in result.stdout.splitlines():
+                    if line.startswith('SSH_AUTH_SOCK'):
+                        os.environ['SSH_AUTH_SOCK'] = line.split('=')[1].strip(';')
+                print("ssh-agent iniciado com sucesso.")
+            else:
+                print("Erro ao iniciar o ssh-agent:", result.stderr)
+
+        # Função para carregar todas as chaves SSH no ssh-agent
+        def load_ssh_keys():
+            ssh_key_dir = 'ssh_keys'
+            for filename in os.listdir(ssh_key_dir):
+                key_path = os.path.join(ssh_key_dir, filename)
+                if os.path.isfile(key_path):  # Verifica se é um arquivo regular
+                    # Carregar a chave no ssh-agent
+                    result = subprocess.run(['ssh-add', key_path], capture_output=True, text=True)
+                    if result.returncode == 0:
+                        print(f"Chave carregada com sucesso: {filename}")
+                    else:
+                        print(f"Erro ao carregar a chave {filename}: {result.stderr}")
 
         # Cria a janela principal para a escolha do SSH
         root = tk.Tk()
@@ -1971,31 +1995,48 @@ class ButtonManager:
         # Carregar a posição e o tamanho da janela, se o arquivo existir
         load_window_position(root)
 
-        # Canal que será compartilhado entre as funções
-        channel = None
-
         # Função para escolher a conexão SSH
         def choose_connection(selected_ssh):
-            nonlocal channel  # Agora o `channel` será compartilhado entre as funções aninhadas
-            
-            # Verifica se as conexões SSH estão estabelecidas
+            # Verifica se as conexões SSH estão configuradas
             if not verify_ssh_connections():
                 print("As conexões SSH não estão configuradas corretamente.")
                 return
 
-            # Define o canal de acordo com a escolha
-            if selected_ssh == 'OMR VPN':
-                channel = self.ssh_vpn_client.invoke_shell()
-            elif selected_ssh == 'OMR JOGO':
-                channel = self.ssh_jogo_client.invoke_shell()
-            elif selected_ssh == 'VPS VPN':
-                channel = self.ssh_vps_vpn_client.invoke_shell()
-            elif selected_ssh == 'VPS JOGO':
-                channel = self.ssh_vps_jogo_client.invoke_shell()
+            # Mapeia a escolha para a seção correspondente no config.ini
+            ssh_mapping = {
+                'OMR VPN': 'ssh_vpn',
+                'OMR JOGO': 'ssh_jogo',
+                'VPS VPN': 'ssh_vps_vpn',
+                'VPS JOGO': 'ssh_vps_jogo'
+            }
 
-            # Fecha a janela de escolha de SSH e abre a janela do terminal
+            ssh_section = ssh_mapping[selected_ssh]
+
+            # Carrega as informações de conexão
+            host = self.config[ssh_section]['host']
+            username = self.config[ssh_section]['username']
+            port = self.config[ssh_section].get('port', '22')
+
+            # Verifica se a senha está presente
+            password = self.config[ssh_section].get('password', None)
+
+            # Iniciar o ssh-agent
+            start_ssh_agent()
+
+            # Carregar as chaves SSH no ssh-agent
+            load_ssh_keys()
+
+            # Comando SSH, com suporte a senha se necessário
+            if password:
+                ssh_command = f"ssh -p {port} {username}@{host}"
+            else:
+                ssh_command = f"ssh -p {port} {username}@{host}"
+
+            # Executa o comando SSH no PowerShell
+            subprocess.run(['powershell', '-NoExit', '-Command', ssh_command])
+
+            # Fecha a janela de escolha de SSH
             root.destroy()
-            self.open_terminal_window(channel)
 
         # Menu para selecionar qual SSH usar
         ssh_options = ['OMR VPN', 'OMR JOGO', 'VPS VPN', 'VPS JOGO']
@@ -2021,6 +2062,7 @@ class ButtonManager:
         # Inicia a interface para escolher a conexão SSH
         root.mainloop()
 
+# **METODO DEPRECIADO** POR NÃO SER UTIL NO MOMENTO, CRIAR UM SHELL DO ZERO É MUITO TRABALHOSO, UTILIZEI O SSH DO WINDOWS PARA EXIBIR O TERMINAL.
     def open_terminal_window(self, channel):
         # Cria a janela principal do terminal
         root = tk.Tk()
@@ -2102,7 +2144,7 @@ class ButtonManager:
                 output_area.insert(tk.END, str(text))  # Mostra a saída no terminal
                 output_area.see(tk.END)  # Rolagem automática para o final
             # Chama a função novamente após 100ms
-            root.after(100, update_output)
+            root.after(1, update_output)
 
         # Liga os eventos de teclado
         input_area.bind("<Return>", send_command)
@@ -6500,7 +6542,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 91.5 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 92 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT e Claudeo com auxilio de Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
