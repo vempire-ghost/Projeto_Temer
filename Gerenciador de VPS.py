@@ -982,7 +982,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 92", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 92.1", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -1995,7 +1995,6 @@ class ButtonManager:
         # Carregar a posição e o tamanho da janela, se o arquivo existir
         load_window_position(root)
 
-        # Função para escolher a conexão SSH
         def choose_connection(selected_ssh):
             # Verifica se as conexões SSH estão configuradas
             if not verify_ssh_connections():
@@ -2027,13 +2026,13 @@ class ButtonManager:
             load_ssh_keys()
 
             # Comando SSH, com suporte a senha se necessário
-            if password:
-                ssh_command = f"ssh -p {port} {username}@{host}"
-            else:
-                ssh_command = f"ssh -p {port} {username}@{host}"
+            ssh_command = f"ssh -p {port} {username}@{host}"
 
-            # Executa o comando SSH no PowerShell
-            subprocess.run(['powershell', '-NoExit', '-Command', ssh_command])
+            # Caminho completo para o PowerShell
+            powershell_path = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+
+            # Executa o comando SSH no PowerShell de forma assíncrona
+            subprocess.Popen([powershell_path, '-NoExit', '-Command', ssh_command])
 
             # Fecha a janela de escolha de SSH
             root.destroy()
@@ -6542,7 +6541,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 92 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 92.1 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT e Claudeo com auxilio de Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
