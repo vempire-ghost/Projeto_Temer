@@ -44,6 +44,11 @@ if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
     print("Já existe uma instância do programa em execução. Programa encerrado.")
     sys.exit(0)
 
+# Cria a pasta Logs se ela não existir
+log_dir = 'Logs'
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
 # Configuração básica do logging para salvar em dois arquivos diferentes
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%d/%m/%Y %H:%M:%S')
 
@@ -53,28 +58,28 @@ formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datef
 # Logger principal
 logger_main = logging.getLogger('main_logger')
 # Usando RotatingFileHandler em vez de FileHandler, com limite de 5 MB e até 3 backups
-main_handler = RotatingFileHandler('app.log', maxBytes=5*1024*1024, backupCount=3)
+main_handler = RotatingFileHandler(os.path.join(log_dir, 'app.log'), maxBytes=5*1024*1024, backupCount=3)
 main_handler.setLevel(logging.INFO)
 main_handler.setFormatter(formatter)
 logger_main.addHandler(main_handler)
 
 # Logger secundário para o run_test_command
 logger_test_command = logging.getLogger('test_command_logger')
-test_command_handler = RotatingFileHandler('test_command.log', maxBytes=5*1024*1024, backupCount=3)
+test_command_handler = RotatingFileHandler(os.path.join(log_dir, 'test_command.log'), maxBytes=5*1024*1024, backupCount=3)
 test_command_handler.setLevel(logging.INFO)
 test_command_handler.setFormatter(formatter)
 logger_test_command.addHandler(test_command_handler)
 
 # Logger para provedor_test
 logger_provedor_test = logging.getLogger('provedor_test_logger')
-provedor_test_handler = RotatingFileHandler('provedor_test.log', maxBytes=5*1024*1024, backupCount=3)
+provedor_test_handler = RotatingFileHandler(os.path.join(log_dir, 'provedor_test.log'), maxBytes=5*1024*1024, backupCount=3)
 provedor_test_handler.setLevel(logging.INFO)
 provedor_test_handler.setFormatter(formatter)
 logger_provedor_test.addHandler(provedor_test_handler)
 
 # Logger para proxy
 logger_proxy = logging.getLogger('proxy_logger')
-proxy_handler = RotatingFileHandler('proxy.log', maxBytes=5*1024*1024, backupCount=3)
+proxy_handler = RotatingFileHandler(os.path.join(log_dir, 'proxy.log'), maxBytes=5*1024*1024, backupCount=3)
 proxy_handler.setLevel(logging.INFO)
 proxy_handler.setFormatter(formatter)
 logger_proxy.addHandler(proxy_handler)
@@ -116,10 +121,10 @@ class ButtonManager:
         self.text_areas = {}
         self.previous_states = {}  # Dicionário para armazenar o estado anterior
 
-        self.clear_log_file('app.log')  # Limpa o arquivo de log ao iniciar o programa
-        self.clear_log_file('test_command.log')  # Limpa o arquivo de log ao iniciar o programa
-        self.clear_log_file('provedor_test.log')  # Limpa o arquivo de log ao iniciar o programa
-        self.clear_log_file('proxy.log')  # Limpa o arquivo de log ao iniciar o programa
+        self.clear_log_file(os.path.join('Logs', 'app.log'))  # Limpa o arquivo de log ao iniciar o programa
+        self.clear_log_file(os.path.join('Logs', 'test_command.log'))  # Limpa o arquivo de log ao iniciar o programa
+        self.clear_log_file(os.path.join('Logs', 'provedor_test.log'))  # Limpa o arquivo de log ao iniciar o programa
+        self.clear_log_file(os.path.join('Logs', 'proxy.log'))  # Limpa o arquivo de log ao iniciar o programa
 
         # Verifica e cria o arquivo de configuração se não existir
         self.config_file = 'config.ini'
@@ -982,7 +987,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 92.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 92.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -3592,40 +3597,46 @@ class ButtonManager:
         # Função para atualizar o widget de texto com novas entradas de log
         def update_logs():
             if self.auto_scroll:  # Atualiza apenas se o scroll automático estiver ativo
-                with open('app.log', 'r') as file:
+                # Caminho da pasta de logs
+                log_dir = 'Logs'
+
+                # Atualiza os logs do app.log
+                with open(os.path.join(log_dir, 'app.log'), 'r') as file:
                     logs_main = file.read()
                 log_text_main.delete(1.0, tk.END)
                 log_text_main.insert(tk.END, logs_main)
                 log_text_main.see(tk.END)
 
-                with open('test_command.log', 'r') as file:
+                # Atualiza os logs do test_command.log
+                with open(os.path.join(log_dir, 'test_command.log'), 'r') as file:
                     logs_test = file.read()
                 log_text_test.delete(1.0, tk.END)
                 log_text_test.insert(tk.END, logs_test)
                 log_text_test.see(tk.END)
 
-                with open('provedor_test.log', 'r') as file:
+                # Atualiza os logs do provedor_test.log
+                with open(os.path.join(log_dir, 'provedor_test.log'), 'r') as file:
                     logs_provedor = file.read()
                 log_text_provedor.delete(1.0, tk.END)
                 log_text_provedor.insert(tk.END, logs_provedor)
                 log_text_provedor.see(tk.END)
 
-                # Novo: Carregar os logs do Proxy
-                with open('proxy.log', 'r') as file:
+                # Atualiza os logs do proxy.log
+                with open(os.path.join(log_dir, 'proxy.log'), 'r') as file:
                     logs_proxy = file.read()
                 log_text_proxy.delete(1.0, tk.END)
                 log_text_proxy.insert(tk.END, logs_proxy)
                 log_text_proxy.see(tk.END)
 
-                # Novo: Carregar os logs do Proxy TCP VPN
-                with open('proxy_tcp_udp_vpn.log', 'r') as file:
+                # Atualiza os logs do proxy_tcp_udp_vpn.log
+                with open(os.path.join(log_dir, 'proxy_tcp_udp_vpn.log'), 'r') as file:
                     logs_proxy_tcp_vpn = file.read()
                 log_text_proxy_tcp_vpn.delete(1.0, tk.END)
                 log_text_proxy_tcp_vpn.insert(tk.END, logs_proxy_tcp_vpn)
                 log_text_proxy_tcp_vpn.see(tk.END)
 
-                # Novo: Carregar os logs do Proxy TCP JOGO
-                with open('proxy_tcp_udp_jogo.log', 'r') as file:
+                # Atualiza os logs do proxy_tcp_udp_jogo.log
+                with open(os.path.join(log_dir, 'proxy_tcp_udp_jogo.log'), 'r') as file:
                     logs_proxy_tcp_jogo = file.read()
                 log_text_proxy_tcp_jogo.delete(1.0, tk.END)
                 log_text_proxy_tcp_jogo.insert(tk.END, logs_proxy_tcp_jogo)
@@ -6541,7 +6552,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 92.1 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 92.2 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT e Claudeo com auxilio de Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
