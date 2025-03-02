@@ -1,8 +1,15 @@
 import time
 import subprocess
 import sys
+import os
 
 class GerenciadorDeProcesso:
+    def __init__(self):
+        # Cria a pasta Logs se ela não existir
+        self.log_dir = 'Logs'
+        if not os.path.exists(self.log_dir):
+            os.makedirs(self.log_dir)
+
     def suicidar_temer(self):
         try:
             # Usando CREATE_NO_WINDOW para executar silenciosamente
@@ -18,14 +25,16 @@ class GerenciadorDeProcesso:
                 stderr=subprocess.PIPE
             )
             
-            # Opcional: se você ainda quiser registrar o sucesso em um arquivo de log
-            with open('hakai.log', 'a') as f:
-                 f.write("Processo 'Gerenciador de VPS.exe' finalizado com sucesso.\n")
+            # Registra o sucesso no arquivo de log dentro da pasta Logs
+            log_path = os.path.join(self.log_dir, 'hakai.log')
+            with open(log_path, 'a') as f:
+                f.write("Processo 'Gerenciador de VPS.exe' finalizado com sucesso.\n")
             
         except subprocess.CalledProcessError:
-            # Opcional: registrar erro em um arquivo de log
-            with open('hakai.log', 'a') as f:
-                 f.write("Falha ao tentar finalizar o processo.\n")
+            # Registra o erro no arquivo de log dentro da pasta Logs
+            log_path = os.path.join(self.log_dir, 'hakai.log')
+            with open(log_path, 'a') as f:
+                f.write("Falha ao tentar finalizar o processo.\n")
             pass
 
 if __name__ == "__main__":
