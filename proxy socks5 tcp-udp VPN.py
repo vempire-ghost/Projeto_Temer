@@ -7,13 +7,23 @@ import logging
 from logging.handlers import RotatingFileHandler
 import select
 import struct
+import os
 
-# Configuração do logger permanece a mesma
+# Cria a pasta Logs se ela não existir
+log_dir = 'Logs'
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+# Configuração do logger
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%d/%m/%Y %H:%M:%S')
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%d/%m/%Y %H:%M:%S')
 logger = logging.getLogger('proxy_tcp_udp_logger')
 
-file_handler = RotatingFileHandler('proxy_tcp_udp_vpn.log', maxBytes=5*1024*1024, backupCount=3)
+# Define o caminho do arquivo de log dentro da pasta Logs
+log_file_path = os.path.join(log_dir, 'proxy_tcp_udp_vpn.log')
+
+# Configura o RotatingFileHandler para salvar na pasta Logs
+file_handler = RotatingFileHandler(log_file_path, maxBytes=5*1024*1024, backupCount=3)
 file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
