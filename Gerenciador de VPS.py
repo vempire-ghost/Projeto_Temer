@@ -987,7 +987,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 92.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 93", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -5049,13 +5049,13 @@ class ButtonManager:
 
         # Carregar a posição salva
         self.load_output_position(output_window)
-    
+        
         # Frames para dividir a tela horizontalmente
         top_frame = tk.Frame(output_window)
         top_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-    
+        
         bottom_frame = tk.Frame(output_window)
-        bottom_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        # bottom_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)  # Removido para ocultar por padrão
 
         # TextAreas para as saídas
         colored_text_area = scrolledtext.ScrolledText(top_frame, wrap=tk.WORD, width=100, height=15, state=tk.DISABLED, bg="black", fg="lightgray")
@@ -5154,7 +5154,7 @@ class ButtonManager:
                             uncolored_widget.insert(tk.END, "\nLoop terminou devido à inatividade.\n", 'inactivity')
                             uncolored_widget.config(state=tk.DISABLED)
                             uncolored_widget.see(tk.END)
-                
+                    
                             break  # Sai do loop após o tempo de inatividade
 
                 colored_widget.update_idletasks()
@@ -5168,18 +5168,20 @@ class ButtonManager:
         # Cria um thread para leitura assíncrona do arquivo temporário
         threading.Thread(target=read_temp_file, args=(temp_file_path, colored_text_area, uncolored_text_area), daemon=True).start()
 
-    def append_colored_text(self, text_widget, text):
-        for line in text.splitlines():
-            tag = None
-            for value in self.color_map.keys():
-                if line.startswith(value):
-                    tag = value
-                    break
-            
-            if tag:
-                text_widget.insert(tk.END, line + '\n', tag)
+        # Adiciona um botão para mostrar/ocultar o conteúdo da tela de baixo
+        def toggle_bottom_frame():
+            if bottom_frame.winfo_ismapped():
+                bottom_frame.pack_forget()
+                toggle_button.config(text="Mostrar Log Completo")
             else:
-                text_widget.insert(tk.END, line + '\n')
+                bottom_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+                toggle_button.config(text="Ocultar Log Completo")
+
+        toggle_button = tk.Button(output_window, text="Mostrar Log Completo", command=toggle_bottom_frame)
+        toggle_button.pack(side=tk.BOTTOM, padx=10, pady=10)
+
+        # Oculta o bottom_frame por padrão
+        bottom_frame.pack_forget()
 
     def load_output_position(self, window):
         if os.path.isfile("output_position.json"):
@@ -6552,9 +6554,9 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 92.2 | 2024 - 2024", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 93 | 2024 - 2024", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
-        self.add_text_with_image(button_frame, "Código: Mano GPT e Claudeo com auxilio de Fox Copilot", "icone3.png")
+        self.add_text_with_image(button_frame, "Código: Mano GPT, Claudeo e Baleia Chinesa com auxilio de Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
         self.add_text_with_image(button_frame, "Liferuler: CAOS", "chora.png")
         self.add_text_with_image(button_frame, "Gerente e Ouvinte: Naminha Pixu", "mimo.png")
