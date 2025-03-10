@@ -42,8 +42,14 @@ class SocksProxy:
         self.running = True
         self.clear_log_file('proxy_tcp_udp_jogo.log')
 
-    def clear_log_file(self, log_file_path):
-        open(log_file_path, 'w').close()
+    def clear_log_file(self, log_file_name, log_dir='Logs'):
+        # Define o caminho completo do arquivo de log
+        log_file_path = os.path.join(log_dir, log_file_name)
+        # Verifica se o arquivo existe antes de tentar limpá-lo
+        if os.path.exists(log_file_path):
+            open(log_file_path, 'w').close()
+        else:
+            print(f"Arquivo de log não encontrado: {log_file_path}")
 
     def start_socks_proxy(self):
         ctypes.windll.kernel32.SetConsoleTitleW("Proxy TCP/UDP")
