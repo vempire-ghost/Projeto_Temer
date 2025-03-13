@@ -987,7 +987,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 93.1", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 93.2", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -5087,10 +5087,11 @@ class ButtonManager:
         close_button = tk.Button(output_window, text="Fechar", command=close_window_and_finalize)
         close_button.pack(side=tk.BOTTOM, padx=10, pady=10)
 
-        # Variável para controlar o progresso
+        # Variáveis para controlar o progresso
         self.progresso = 0
         self.script_iniciado = False
         self.script_finalizado = False
+        self.desligamento_iniciado = False
 
         # Função para atualizar o progresso
         def atualizar_progresso():
@@ -5098,11 +5099,20 @@ class ButtonManager:
                 # Aumenta o progresso gradualmente (até 99%)
                 if self.progresso < 99:
                     self.progresso += 1
-                progress_label.config(text=f"Progresso da inicialização: {self.progresso}%")
+                progress_label.config(text=f"Progresso da Inicialização: {self.progresso}%")
+                output_window.after(500, atualizar_progresso)  # Atualiza a cada 500ms
+            elif self.desligamento_iniciado and not self.script_finalizado:
+                # Aumenta o progresso gradualmente (até 99%)
+                if self.progresso < 99:
+                    self.progresso += 1
+                progress_label.config(text=f"Progresso do Desligamento: {self.progresso}%")
                 output_window.after(500, atualizar_progresso)  # Atualiza a cada 500ms
             elif self.script_finalizado:
                 # Define o progresso como 100% quando o script termina
-                progress_label.config(text="Progresso da inicialização: 100%")
+                if self.desligamento_iniciado:
+                    progress_label.config(text="Progresso do Desligamento: 100%")
+                else:
+                    progress_label.config(text="Progresso da Inicialização: 100%")
 
         # Arquivo temporário para redirecionar a saída do processo
         temp_file = tempfile.NamedTemporaryFile(delete=False)
@@ -5135,6 +5145,11 @@ class ButtonManager:
                                 self.script_iniciado = True
                                 self.progresso = 0
                                 atualizar_progresso()  # Inicia a atualização do progresso
+
+                            if "INICIO DO DESLIGAMENTO" in line:
+                                self.desligamento_iniciado = True
+                                self.progresso = 0
+                                atualizar_progresso()  # Inicia a atualização do progresso do desligamento
 
                             if "FIM DO SCRIPT" in line:
                                 self.script_finalizado = True
@@ -6586,7 +6601,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 93.1 | 2024 - 2025", "icone1.png")
+        self.add_text_with_image(button_frame, "Versão: Beta 93.2 | 2024 - 2025", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT, Claudeo e Baleia Chinesa com auxilio de Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
