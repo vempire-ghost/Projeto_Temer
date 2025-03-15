@@ -38,7 +38,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.3"
+    return "Beta 93.4"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -124,6 +124,7 @@ class ButtonManager:
         self.monitoring_active = {}
         self.text_areas = {}
         self.previous_states = {}  # Dicionário para armazenar o estado anterior
+        self.last_modified_config_ini = 0  # Armazena a data da última modificação do arquivo
 
         self.clear_log_file(os.path.join('Logs', 'app.log'))  # Limpa o arquivo de log ao iniciar o programa
         self.clear_log_file(os.path.join('Logs', 'test_command.log'))  # Limpa o arquivo de log ao iniciar o programa
@@ -291,8 +292,19 @@ class ButtonManager:
             self.config.write(configfile)
 
     def load_ssh_configurations(self):
-        # Recarrega as configurações de SSH para vpn e jogo
+        # Verifica se o arquivo foi modificado desde a última leitura
+        current_modified = os.path.getmtime(self.config_file)
+        if current_modified <= self.last_modified_config_ini:
+            print("Arquivo de configuração não foi modificado. Usando cache.")
+            return
+
+        # Atualiza a data da última modificação
+        self.last_modified_config_ini = current_modified
+
+        # Recarrega as configurações de SSH
         self.config.read(self.config_file)
+
+        # Carrega as configurações de SSH para vpn e jogo
         self.ssh_vpn_config = {
             'host': self.config.get('ssh_vpn', 'host', fallback=''),
             'username': self.config.get('ssh_vpn', 'username', fallback=''),
@@ -335,6 +347,7 @@ class ButtonManager:
             'password': self.config.get('ssh_vps_jogo_via_vpn', 'password', fallback=''),
             'port': self.config.get('ssh_vps_jogo_via_vpn', 'port', fallback='')
         }
+
         self.load_general_config()  # Carrega as configurações gerais
 
         print("Configurações de SSH recarregadas com sucesso.")
