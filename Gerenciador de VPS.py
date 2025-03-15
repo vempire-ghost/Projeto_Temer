@@ -36,6 +36,10 @@ from rich.console import Console
 from rich.text import Text
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+# Função para retornar a versão
+def get_version():
+    return "Beta 93.3"
+
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
 
@@ -987,7 +991,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text="Projeto Temer - ©VempirE_GhosT - Versão: beta 93.2", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text=f"Projeto Temer - ©VempirE_GhosT - Versão: {get_version()}", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
@@ -1732,6 +1736,7 @@ class ButtonManager:
 
 # METODO PARA MTR E GRAFICO DE CONEXÕES QUE CRIA A JANELA PRINCIPAL!
     def execute_mtr_and_plot(self):
+        self.auto_realign = True  # Flag para controlar o realinhamento automático
         """Executa o comando MTR via SSH para múltiplas interfaces em uma única janela com quadros separados."""
 
         host = self.ssh_vps_jogo_config['host']
@@ -1791,15 +1796,12 @@ class ButtonManager:
         loss_data = {iface: [] for iface in interfaces}  # Nova lista para perda de pacotes
         timestamps = {iface: [] for iface in interfaces}
 
-        # Limite de entradas para 60 minutos de dados (3600 segundos, considerando 1 leitura por segundo)
-        MAX_ENTRIES = 3600
-
         # Função para gerenciar o tamanho dos dados e evitar crescimento excessivo
         def manage_data_size(interface):
-            if len(timestamps[interface]) > MAX_ENTRIES:
-                timestamps[interface] = timestamps[interface][-MAX_ENTRIES:]
-                pings_data[interface] = pings_data[interface][-MAX_ENTRIES:]
-                loss_data[interface] = loss_data[interface][-MAX_ENTRIES:]
+            if len(timestamps[interface]) > 3600 * 24:  # Limite de 24 horas de dados
+                timestamps[interface] = timestamps[interface][-3600 * 24:]
+                pings_data[interface] = pings_data[interface][-3600 * 24:]
+                loss_data[interface] = loss_data[interface][-3600 * 24:]
 
         # Cria um evento para controle de parada
         stop_event = threading.Event()
@@ -1808,25 +1810,22 @@ class ButtonManager:
         # Função para atualizar o gráfico de forma thread-safe usando 'after'
         def update_graph_safe(interface, line, loss_line, ax):
             now = datetime.now()
-            time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
-
-            # Limitar o número de pings e timestamps aos últimos 60 minutos
-            timestamps_filtered = [t for t in timestamps[interface] if t >= time_window_start]
-            pings_data_filtered = pings_data[interface][-len(timestamps_filtered):]  # Limita os dados correspondentes
-            loss_data_filtered = loss_data[interface][-len(timestamps_filtered):]  # Limita a perda de pacotes
 
             # Verifica se há dados disponíveis
-            if timestamps_filtered and pings_data_filtered:
-                line.set_data(timestamps_filtered, pings_data_filtered)
+            if timestamps[interface] and pings_data[interface]:
+                line.set_data(timestamps[interface], pings_data[interface])
             else:
                 line.set_data([], [])
 
-            if timestamps_filtered and loss_data_filtered:
-                loss_line.set_data(timestamps_filtered, loss_data_filtered)
+            if timestamps[interface] and loss_data[interface]:
+                loss_line.set_data(timestamps[interface], loss_data[interface])
             else:
                 loss_line.set_data([], [])
 
-            ax.set_xlim([time_window_start, now])
+            # Realinha o gráfico automaticamente apenas se a flag estiver ativada
+            if self.auto_realign:
+                time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
+                ax.set_xlim([time_window_start, now])
 
             # Formata o eixo X para exibir apenas as horas e minutos (HH:MM)
             ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))  # Formata corretamente as horas
@@ -1864,6 +1863,9 @@ class ButtonManager:
             canvas = FigureCanvasTkAgg(fig, master=frame)
             canvas.draw()
             canvas.get_tk_widget().pack(pady=(5, 0), anchor='w', fill='both')  # Alinhando os gráficos à esquerda
+
+            # Adiciona funcionalidade de zoom e pan
+            self.add_zoom_pan(canvas, ax)
 
             # Função para executar o MTR e coletar latências e perdas de pacotes
             def execute_mtr_and_collect(interface, line, loss_line, ax):
@@ -1929,6 +1931,15 @@ class ButtonManager:
             mtr_thread = threading.Thread(target=execute_mtr_and_collect, args=(interface, line, loss_line, ax))
             mtr_thread.start()
 
+        # Função para alternar o realinhamento automático
+        def toggle_auto_realign():
+            self.auto_realign = not self.auto_realign
+            auto_realign_button.config(text="Desativar Realinhamento" if self.auto_realign else "Ativar Realinhamento")
+
+        # Botão para alternar o realinhamento automático
+        auto_realign_button = tk.Button(interface_tab, text="Desativar Realinhamento", command=toggle_auto_realign)
+        auto_realign_button.grid(row=1, column=0, columnspan=len(interfaces), pady=10)
+
         # Função para fechar a janela corretamente
         def on_closing():
             stop_event.set()  # Aciona o evento de parada para as threads
@@ -1941,6 +1952,65 @@ class ButtonManager:
 
         # Define a função para ser chamada quando a janela for fechada
         main_window.protocol("WM_DELETE_WINDOW", on_closing)
+
+    def add_zoom_pan(self, canvas, ax):
+        """Adiciona funcionalidade de zoom e pan ao gráfico."""
+        def on_scroll(event):
+            if event.inaxes is None:
+                return
+            cur_xlim = ax.get_xlim()
+            cur_ylim = ax.get_ylim()
+
+            xdata = event.xdata  # get event x location
+            ydata = event.ydata  # get event y location
+
+            if event.button == 'up':
+                # Zoom in
+                scale_factor = 1 / 1.5
+            elif event.button == 'down':
+                # Zoom out
+                scale_factor = 1.5
+            else:
+                return
+
+            new_width = (cur_xlim[1] - cur_xlim[0]) * scale_factor
+            new_height = (cur_ylim[1] - cur_ylim[0]) * scale_factor
+
+            relx = (cur_xlim[1] - xdata) / (cur_xlim[1] - cur_xlim[0])
+            rely = (cur_ylim[1] - ydata) / (cur_ylim[1] - cur_ylim[0])
+
+            ax.set_xlim([xdata - new_width * (1 - relx), xdata + new_width * relx])
+            ax.set_ylim([ydata - new_height * (1 - rely), ydata + new_height * rely])
+            canvas.draw()
+
+        def on_press(event):
+            if event.button != 1:
+                return
+            x, y = event.x, event.y
+            start_x, start_y = ax.transData.inverted().transform((x, y))
+            xlim = ax.get_xlim()
+            ylim = ax.get_ylim()
+
+            def on_motion(event):
+                if event.button != 1:
+                    return
+                x, y = event.x, event.y
+                end_x, end_y = ax.transData.inverted().transform((x, y))
+                dx = end_x - start_x
+                dy = end_y - start_y
+                ax.set_xlim([xlim[0] - dx, xlim[1] - dx])
+                ax.set_ylim([ylim[0] - dy, ylim[1] - dy])
+                canvas.draw()
+
+            def on_release(event):
+                canvas.mpl_disconnect(cid_motion)
+                canvas.mpl_disconnect(cid_release)
+
+            cid_motion = canvas.mpl_connect('motion_notify_event', on_motion)
+            cid_release = canvas.mpl_connect('button_release_event', on_release)
+
+        canvas.mpl_connect('scroll_event', on_scroll)
+        canvas.mpl_connect('button_press_event', on_press)
 
 # METODO PARA SHELL SSH
     def open_ssh_terminal(self):
@@ -6601,7 +6671,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, "Versão: Beta 93.2 | 2024 - 2025", "icone1.png")
+        self.add_text_with_image(button_frame, f"Versão: {get_version()} | 2024 - 2025", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT, Claudeo e Baleia Chinesa com auxilio de Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
