@@ -38,7 +38,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.4"
+    return "Beta 93.5"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -130,6 +130,11 @@ class ButtonManager:
         self.clear_log_file(os.path.join('Logs', 'test_command.log'))  # Limpa o arquivo de log ao iniciar o programa
         self.clear_log_file(os.path.join('Logs', 'provedor_test.log'))  # Limpa o arquivo de log ao iniciar o programa
         self.clear_log_file(os.path.join('Logs', 'proxy.log'))  # Limpa o arquivo de log ao iniciar o programa
+
+        # Contadores de falhas
+        self.unifique_fail_count = 0
+        self.claro_fail_count = 0
+        self.coopera_fail_count = 0
 
         # Verifica e cria o arquivo de configuração se não existir
         self.config_file = 'config.ini'
@@ -805,30 +810,36 @@ class ButtonManager:
         # Botão para Unifique
         self.unifique_status = tk.Button(self.status_frame, text="UNIFIQUE: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=self.test_unifique)
         self.unifique_status.grid(row=0, column=0, padx=5, pady=2, sticky=tk.W)
+        # Tooltip para contador de falhas da Unifique
+        self.tooltip_fail_unifique = ToolTip(self.unifique_status, "Quedas desde o início: 0")
+        
         # Ping para Unifique
         self.unifique_status_button = tk.Button(self.status_frame, text="--", bg='lightgray', relief='flat', command=self.reconectar_vps_jogo)
         self.unifique_status_button.grid(row=1, column=0, padx=5, pady=0, sticky=tk.N)
-
         # Adicionando ToolTip na Label do Ping para Unifique
         self.tooltip_ping_unifique = ToolTip(self.unifique_status_button, "Latencia em tempo real da conexão para com o servidor do VPS JOGO.")
 
         # Botão para Claro
         self.claro_status = tk.Button(self.status_frame, text="CLARO: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=self.test_claro)
         self.claro_status.grid(row=0, column=1, padx=5, pady=2, sticky=tk.W)
+        # Tooltip para contador de falhas da Claro
+        self.tooltip_fail_claro = ToolTip(self.claro_status, "Quedas desde o início: 0")
+        
         # Ping para Claro
         self.claro_status_button = tk.Button(self.status_frame, text="--", bg='lightgray', relief='flat', command=self.reconectar_vps_jogo)
         self.claro_status_button.grid(row=1, column=1, padx=5, pady=0, sticky=tk.N)
-
         # Adicionando ToolTip na Label do Ping para Claro
         self.tooltip_ping_claro = ToolTip(self.claro_status_button, "Latencia em tempo real da conexão para com o servidor do VPS JOGO.")
 
         # Botão para Coopera
         self.coopera_status = tk.Button(self.status_frame, text="COOPERA: Offline", bg='red', fg='black', justify=tk.CENTER, borderwidth=1, relief=tk.SOLID, command=self.test_coopera)
         self.coopera_status.grid(row=0, column=2, padx=5, pady=2, sticky=tk.W)
+        # Tooltip para contador de falhas da Coopera
+        self.tooltip_fail_coopera = ToolTip(self.coopera_status, "Quedas desde o início: 0")
+    
         # Ping para Coopera
         self.coopera_status_button = tk.Button(self.status_frame, text="--", bg='lightgray', relief='flat', command=self.reconectar_vps_jogo)
         self.coopera_status_button.grid(row=1, column=2, padx=5, pady=0, sticky=tk.N)
-
         # Adicionando ToolTip na Label do Ping para Coopera
         self.tooltip_ping_coopera = ToolTip(self.coopera_status_button, "Latencia em tempo real da conexão para com o servidor do VPS JOGO.")
 
@@ -3486,6 +3497,16 @@ class ButtonManager:
         self.unifique_status.config(text="UNIFIQUE: Offline", bg='red')
         self.claro_status.config(text="CLARO: Offline", bg='red')
         self.coopera_status.config(text="COOPERA: Offline", bg='red')
+        
+        # Incrementa todos os contadores
+        #self.unifique_fail_count += 1
+        #self.claro_fail_count += 1
+        #self.coopera_fail_count += 1
+        
+        # Atualiza as tooltips
+        #self.tooltip_fail_unifique.text = f"Quedas desde o início: {self.unifique_fail_count}"
+        #self.tooltip_fail_claro.text = f"Quedas desde o início: {self.claro_fail_count}"
+        #self.tooltip_fail_coopera.text = f"Quedas desde o início: {self.coopera_fail_count}"
 
     def update_status_labels(self):
         """Atualiza os labels a cada 30 segundos, se a conexão SSH estiver estabelecida."""
@@ -3508,18 +3529,37 @@ class ButtonManager:
                 output = output_queue.get()  # Espera até receber o output
                 if output is None:
                     logger_provedor_test.error(f"Erro: A saída do comando é None.")
-                    self.master.after(0, lambda: button.config(text=f"{name}: Offline", bg='red'))
+                    self.master.after(0, lambda: self.update_interface_status(button, name, False))
                     return
 
                 if name.lower() in output.lower():
-                    self.master.after(0, lambda: button.config(text=f"{name}: Online", bg='green'))
+                    self.master.after(0, lambda: self.update_interface_status(button, name, True))
                 else:
-                    self.master.after(0, lambda: button.config(text=f"{name}: Offline", bg='red'))
+                    self.master.after(0, lambda: self.update_interface_status(button, name, False))
             except Exception as e:
                 logger_provedor_test.error(f"Erro ao verificar status: {e}")
+                self.master.after(0, lambda: self.update_interface_status(button, name, False))
 
         # Cria e inicia a thread para processar o resultado
         threading.Thread(target=thread_function).start()
+
+    def update_interface_status(self, button, name, is_online):
+        """Atualiza o status da interface e incrementa o contador se offline"""
+        if is_online:
+            button.config(text=f"{name}: Online", bg='green')
+        else:
+            button.config(text=f"{name}: Offline", bg='red')
+            # Incrementa o contador de falhas apropriado
+            if name == 'UNIFIQUE':
+                self.unifique_fail_count += 1
+                self.tooltip_fail_unifique.text = f"Quedas desde o início: {self.unifique_fail_count}"
+            elif name == 'CLARO':
+                self.claro_fail_count += 1
+                self.tooltip_fail_claro.text = f"Quedas desde o início: {self.claro_fail_count}"
+            elif name == 'COOPERA':
+                self.coopera_fail_count += 1
+                self.tooltip_fail_coopera.text = f"Quedas desde o início: {self.coopera_fail_count}"
+            
 
     def check_status(self):
         """Verifica o status das interfaces usando as conexões SSH apropriadas."""
