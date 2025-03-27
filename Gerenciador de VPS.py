@@ -1817,8 +1817,9 @@ class ButtonManager:
         # Dicionário para armazenar referências às áreas de texto e dados de latência
         outputs = {}
         pings_data = {iface: [] for iface in interfaces}
-        loss_data = {iface: [] for iface in interfaces}  # Nova lista para perda de pacotes
+        loss_data = {iface: [] for iface in interfaces}
         timestamps = {iface: [] for iface in interfaces}
+        marker_times = {iface: [] for iface in interfaces}  # Armazena os momentos com IPs especiais
 
         # Função para gerenciar o tamanho dos dados e evitar crescimento excessivo
         def manage_data_size(interface):
@@ -1830,6 +1831,37 @@ class ButtonManager:
         # Cria um evento para controle de parada
         stop_event = threading.Event()
         callbacks = []  # Lista para rastrear callbacks
+
+        # Função para verificar IPs especiais
+        def check_special_ips(interface, output):
+            """Verifica se o segundo salto do MTR contém IPs especiais para a interface."""
+            special_ips = {
+                'eth2': ['192.168.10.254', '192.168.2.1'],  # Unifique
+                'eth4': ['192.168.1.1', '192.168.2.1'],     # Claro
+                'eth5': ['192.168.1.1', '192.168.10.254']   # Coopera
+            }
+            
+            try:
+                lines = output.strip().splitlines()
+                
+                # Pula cabeçalhos e processa a partir do primeiro salto
+                for line in lines[3:]:  # Linhas 0-2 são cabeçalhos
+                    if '|--' not in line:
+                        continue
+                        
+                    # Extrai número do salto e IP
+                    parts = line.split()
+                    hop_number = int(line.split('.|--')[0])  # Ex: "2.|--" -> 2
+                    ip = parts[1]  # Segundo elemento é o IP
+                    
+                    # Verifica apenas o segundo salto (roteador)
+                    if hop_number == 2 and ip in special_ips.get(interface, []):
+                        return True
+                        
+            except Exception as e:
+                print(f"Erro ao verificar IPs especiais: {e}")
+            
+            return False
 
         # Função para atualizar o gráfico de forma thread-safe usando 'after'
         def update_graph_safe(interface, line, loss_line, ax):
@@ -1846,14 +1878,24 @@ class ButtonManager:
             else:
                 loss_line.set_data([], [])
 
+            # Limpa marcadores antigos (compatível com todas versões do Matplotlib)
+            for artist in list(ax.lines):  # Usa list() para criar cópia segura
+                if hasattr(artist, 'get_marker') and artist.get_marker() == '^':
+                    artist.remove()
+
+            # Adiciona novos marcadores
+            for marker_time in marker_times[interface]:
+                ax.plot(marker_time, 0, 'k^', markersize=8, clip_on=False, zorder=10)
+
+            # Linha de base para os marcadores
+            ax.axhline(y=0, color='gray', linewidth=0.5, alpha=0.3)
+
             # Realinha o gráfico automaticamente apenas se a flag estiver ativada
             if self.auto_realign:
                 time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
                 ax.set_xlim([time_window_start, now])
 
-            # Formata o eixo X para exibir apenas as horas e minutos (HH:MM)
-            ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))  # Formata corretamente as horas
-
+            ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))
             ax.figure.canvas.draw()
 
         for idx, interface in enumerate(interfaces):
@@ -1896,9 +1938,13 @@ class ButtonManager:
                 command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 -I {interface} {host}"
                 if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
                     try:
-                        while not stop_event.is_set():  # Verifica se o evento de parada foi acionado
+                        while not stop_event.is_set():
                             stdin, stdout, stderr = self.ssh_vpn_client.exec_command(command)
                             output = stdout.read().decode()
+
+                            # Verifica se há IPs especiais
+                            if check_special_ips(interface, output):
+                                marker_times[interface].append(datetime.now())
 
                             # Atualiza a área de texto com a saída do MTR no thread principal
                             callback_id = self.master.after(0, lambda: update_output_area(interface, output))
@@ -1931,16 +1977,13 @@ class ButtonManager:
                                         loss_data[interface].append(None)  # Caso não consiga converter
 
                                 # Chama a atualização do gráfico de forma segura (usando 'after')
-                                callback_id = self.master.after(0, update_graph_safe, interface, line, loss_line, ax)
-                                callbacks.append(callback_id)  # Armazena o ID do callback
+                            callback_id = self.master.after(0, update_graph_safe, interface, line, loss_line, ax)
+                            callbacks.append(callback_id)
 
-                                # Limita o tamanho dos dados
-                                manage_data_size(interface)
-
-                                time.sleep(1)  # Aguarda 1 segundo para o próximo MTR
+                            time.sleep(1)
                     except Exception as e:
                         callback_id = self.master.after(0, lambda: outputs[interface].insert(tk.END, f"Erro ao executar MTR para {interface_names[interface]}: {e}\n"))
-                        callbacks.append(callback_id)  # Armazena o ID do callback
+                        callbacks.append(callback_id)
 
             # Função para atualizar a área de saída de texto no thread principal
             def update_output_area(interface, output):
