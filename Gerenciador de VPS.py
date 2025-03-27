@@ -38,7 +38,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.5"
+    return "Beta 93.7"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -1885,7 +1885,7 @@ class ButtonManager:
 
             # Adiciona novos marcadores
             for marker_time in marker_times[interface]:
-                ax.plot(marker_time, 0, 'k^', markersize=8, clip_on=False, zorder=10)
+                ax.plot(marker_time, 0, 'k^', markersize=7, clip_on=False, zorder=10)
 
             # Linha de base para os marcadores
             ax.axhline(y=0, color='gray', linewidth=0.5, alpha=0.3)
@@ -1894,6 +1894,10 @@ class ButtonManager:
             if self.auto_realign:
                 time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
                 ax.set_xlim([time_window_start, now])
+                # Restaura os limites originais do eixo Y
+                ax.set_ylim(0, 300)
+                # Remove qualquer zoom/pan aplicado (reseta a view)
+                ax.autoscale_view(scalex=True, scaley=True)
 
             ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))
             ax.figure.canvas.draw()
@@ -1916,10 +1920,18 @@ class ButtonManager:
             # Inicializa as linhas do gráfico
             line, = ax.plot([], [], label=f'{interface_names[interface]} Latência', color='blue')
             loss_line, = ax.plot([], [], label='Perda de Pacotes (%)', color='red')  # Linha para perda de pacotes
+
+            # Cria uma linha fantasma apenas para a legenda dos marcadores
+            marker_line = ax.plot([], [], 'k^', markersize=8, label='Quedas de Conexão')[0]
+
             ax.set_title(f"Latência e Perda de Pacotes para {interface_names[interface]}")
             ax.set_ylabel("Latência (ms) / Perda de Pacotes (%)")
             ax.set_ylim(0, 300)
-            ax.legend(loc='upper right')
+
+            # Atualiza a legenda para mostrar apenas a latência e os marcadores
+            ax.legend([line, marker_line], 
+                      [f'{interface_names[interface]} Latência', 'Quedas de Conexão'],
+                      loc='upper right')
 
             # Adiciona linhas horizontais pretas nas alturas de 100 e 200 ms, sem labels
             ax.axhline(y=100, color='black', linestyle='--', linewidth=0.5)  # Linha para 100 ms, mais fina
