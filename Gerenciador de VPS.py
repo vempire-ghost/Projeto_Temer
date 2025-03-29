@@ -38,7 +38,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.8"
+    return "Beta 93.9"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -2136,20 +2136,42 @@ class ButtonManager:
                         os.environ['SSH_AUTH_SOCK'] = line.split('=')[1].strip(';')
                 print("ssh-agent iniciado com sucesso.")
             else:
-                print("Erro ao iniciar o ssh-agent:", result.stderr)
+                error_msg = "Erro ao iniciar o ssh-agent:\n\n" + result.stderr
+                error_msg += "\n\nPor favor, ative o serviço OpenSSH Authentication Agent:"
+                error_msg += "\n1. Pressione Win+R, digite 'services.msc' e pressione Enter"
+                error_msg += "\n2. Localize 'OpenSSH Authentication Agent' na lista"
+                error_msg += "\n3. Clique com o botão direito e selecione 'Propriedades'"
+                error_msg += "\n4. Mude o 'Tipo de inicialização' para 'Automático'"
+                error_msg += "\n5. Clique em 'Iniciar' para ativar o serviço agora"
+                error_msg += "\n6. Aplique as alterações e feche a janela"
+                
+                print(error_msg)
+                
+                # Exibe caixa de mensagem do Windows
+                ctypes.windll.user32.MessageBoxW(0, error_msg, "Erro ao iniciar ssh-agent", 0x10)
 
         # Função para carregar todas as chaves SSH no ssh-agent
         def load_ssh_keys():
             ssh_key_dir = 'ssh_keys'
+            if not os.path.isdir(ssh_key_dir):
+                print(f"Diretório de chaves SSH não encontrado: {ssh_key_dir}")
+                return
+            
             for filename in os.listdir(ssh_key_dir):
                 key_path = os.path.join(ssh_key_dir, filename)
-                if os.path.isfile(key_path):  # Verifica se é um arquivo regular
-                    # Carregar a chave no ssh-agent
-                    result = subprocess.run(['ssh-add', key_path], capture_output=True, text=True)
-                    if result.returncode == 0:
-                        print(f"Chave carregada com sucesso: {filename}")
-                    else:
-                        print(f"Erro ao carregar a chave {filename}: {result.stderr}")
+                if os.path.isfile(key_path) and not filename.endswith('.pub'):
+                    try:
+                        result = subprocess.run(
+                            ['ssh-add', key_path], 
+                            capture_output=True, 
+                            text=True
+                        )
+                        if result.returncode == 0:
+                            print(f"Chave carregada com sucesso: {filename}")
+                        else:
+                            print(f"Erro ao carregar a chave {filename}: {result.stderr}")
+                    except Exception as e:
+                        print(f"Erro ao processar chave {filename}: {str(e)}")
 
         # Cria a janela principal para a escolha do SSH
         root = tk.Tk()
