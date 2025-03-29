@@ -38,7 +38,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.7"
+    return "Beta 93.8"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -1820,6 +1820,7 @@ class ButtonManager:
         loss_data = {iface: [] for iface in interfaces}
         timestamps = {iface: [] for iface in interfaces}
         marker_times = {iface: [] for iface in interfaces}  # Armazena os momentos com IPs especiais
+        marker_counts = {iface: 0 for iface in interfaces}  # Contador de quedas por interface
 
         # Função para gerenciar o tamanho dos dados e evitar crescimento excessivo
         def manage_data_size(interface):
@@ -1856,12 +1857,13 @@ class ButtonManager:
                     
                     # Verifica apenas o segundo salto (roteador)
                     if hop_number == 2 and ip in special_ips.get(interface, []):
-                        return True
+                        marker_counts[interface] += 1  # Incrementa o contador
+                        return True  # Retorna True quando encontra IP especial
                         
             except Exception as e:
                 print(f"Erro ao verificar IPs especiais: {e}")
             
-            return False
+            return False  # Retorna False quando não encontra IP especial
 
         # Função para atualizar o gráfico de forma thread-safe usando 'after'
         def update_graph_safe(interface, line, loss_line, ax):
@@ -1878,7 +1880,7 @@ class ButtonManager:
             else:
                 loss_line.set_data([], [])
 
-            # Limpa marcadores antigos (compatível com todas versões do Matplotlib)
+            # Limpa marcadores antigos
             for artist in list(ax.lines):  # Usa list() para criar cópia segura
                 if hasattr(artist, 'get_marker') and artist.get_marker() == '^':
                     artist.remove()
@@ -1889,6 +1891,12 @@ class ButtonManager:
 
             # Linha de base para os marcadores
             ax.axhline(y=0, color='gray', linewidth=0.5, alpha=0.3)
+
+            # Atualiza a legenda com o contador atualizado
+            ax.legend([line, marker_line], 
+                      [f'{interface_names[interface]} Latência', 
+                       f'Quedas de Conexão ({marker_counts[interface]})'],
+                      loc='upper right')
 
             # Realinha o gráfico automaticamente apenas se a flag estiver ativada
             if self.auto_realign:
@@ -1924,13 +1932,14 @@ class ButtonManager:
             # Cria uma linha fantasma apenas para a legenda dos marcadores
             marker_line = ax.plot([], [], 'k^', markersize=8, label='Quedas de Conexão')[0]
 
-            ax.set_title(f"Latência e Perda de Pacotes para {interface_names[interface]}")
+            ax.set_title(f"Latência e Quedas de Conexão para {interface_names[interface]}")
             ax.set_ylabel("Latência (ms) / Perda de Pacotes (%)")
             ax.set_ylim(0, 300)
 
-            # Atualiza a legenda para mostrar apenas a latência e os marcadores
+            # Atualiza a legenda para mostrar apenas a latência e os marcadores com contador
             ax.legend([line, marker_line], 
-                      [f'{interface_names[interface]} Latência', 'Quedas de Conexão'],
+                      [f'{interface_names[interface]} Latência', 
+                       f'Quedas de Conexão ({marker_counts[interface]})'],
                       loc='upper right')
 
             # Adiciona linhas horizontais pretas nas alturas de 100 e 200 ms, sem labels
