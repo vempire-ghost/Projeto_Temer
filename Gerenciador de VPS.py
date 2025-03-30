@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.12"
+    return "Beta 93.13"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -236,7 +236,7 @@ class ButtonManager:
             for _ in range(10):  # Tenta por até 5 segundos
                 if hwnd := find_tray_icon():
                     global original_wndproc
-                    original_wndproc = win32gui.SetWindowLongPtr(
+                    original_wndproc = win32gui.SetWindowLong(
                         hwnd,
                         win32con.GWL_WNDPROC,
                         wndproc
