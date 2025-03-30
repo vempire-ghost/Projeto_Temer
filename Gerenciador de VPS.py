@@ -13,7 +13,6 @@ import zipfile
 import ctypes
 import socket
 import sys
-import webview
 import logging
 from logging.handlers import RotatingFileHandler
 import winreg
@@ -23,6 +22,7 @@ import configparser
 import re
 import select
 import pyte
+import webbrowser
 from datetime import datetime
 from ctypes import wintypes
 from pystray import Icon, MenuItem, Menu as TrayMenu
@@ -38,7 +38,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.9"
+    return "Beta 93.10"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -689,23 +689,28 @@ class ButtonManager:
             print(f"Arquivo não encontrado: {filepath}")
 
     def open_OMR_VPN(self, event=None):
-        window = webview.create_window('OMR VPN', 'http://192.168.101.1', width=1045, height=787)
-        webview.start(self.submit_login, window)
+        webbrowser.open('http://192.168.100.1', new=2)
+        # **Metodo antigo depreciado**
+        #window = webview.create_window('OMR VPN', 'http://192.168.101.1', width=1045, height=787)
+        #webview.start(self.submit_login, window)
 
     def open_OMR_JOGO(self, event=None):
-        window = webview.create_window('OMR JOGO', 'http://192.168.100.1', width=1045, height=787)
-        webview.start(self.submit_login, window)
+        webbrowser.open('http://192.168.101.1', new=2)
+        # **Metodo antigo depreciado**
+        #window = webview.create_window('OMR JOGO', 'http://192.168.100.1', width=1045, height=787)
+        #webview.start(self.submit_login, window)
 
-    def submit_login(self, window):
-        js_code = """
-        window.addEventListener('load', function() {
-            var form = document.querySelector('form'); // Seleciona o primeiro formulário na página
-            if (form) {
-                form.submit(); // Submete o formulário
-            }
-        });
-        """
-        window.evaluate_js(js_code)
+    # **Metodo antigo depreciado**
+    #def submit_login(self, window):
+        #js_code = """
+        #window.addEventListener('load', function() {
+            #var form = document.querySelector('form'); // Seleciona o primeiro formulário na página
+            #if (form) {
+                #form.submit(); // Submete o formulário
+            #}
+        #});
+        #"""
+        #window.evaluate_js(js_code)
 
     #def on_tab_change(self, event):
         # Obtemos a aba selecionada
