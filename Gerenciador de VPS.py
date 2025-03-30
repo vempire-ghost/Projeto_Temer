@@ -23,6 +23,9 @@ import re
 import select
 import pyte
 import webbrowser
+import win32api
+import win32con
+import win32gui
 from datetime import datetime
 from ctypes import wintypes
 from pystray import Icon, MenuItem, Menu as TrayMenu
@@ -38,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.10"
+    return "Beta 93.11"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -178,23 +181,26 @@ class ButtonManager:
         else:
             messagebox.showinfo("Info", "Por favor, configure todos os endereços de ping nas opções.")
 
-        # Criação de um evento para capturar quando a janela for minimizada
+        # Evento para capturar quando a janela for minimizada
         self.master.bind("<Unmap>", self.on_minimize)
 
-        # Carregar o ícone da bandeja (substitua pelo seu caminho da imagem)
-        self.icon_image = Image.open("omr-logo.png")  # Carrega a imagem "omr-logo.png"
-
-        # Criar o ícone da bandeja usando TrayMenu em vez de Menu
-        self.tray_icon = Icon("MeuApp", self.icon_image, menu=TrayMenu(
+        # Carregar o ícone
+        self.icon_image = Image.open("omr-logo.png")
+        
+        # Criar o menu da bandeja com sua sintaxe existente
+        menu = TrayMenu(
             MenuItem('Restaurar', self.restore_window),
             MenuItem('Sair', self.on_close)
-        ))
-
-        # Iniciar o ícone da bandeja em uma thread separada
+        )
+        
+        # Criar o ícone da bandeja
+        self.tray_icon = Icon("Gerenciador de VPS", self.icon_image, "Gerenciador de VPS", menu)
+        
+        # Iniciar o ícone em thread separada
         threading.Thread(target=self.tray_icon.run, daemon=True).start()
-
-        # Definir o comportamento ao clicar com o botão esquerdo no ícone da bandeja
-        self.tray_icon.on_left_click = self.restore_window  # Restaurar janela ao clicar no ícone
+        
+        # Configurar duplo clique
+        self.setup_double_click()
         
         # Configura o tratamento para fechar a janela
         self.master.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -208,6 +214,38 @@ class ButtonManager:
             os.makedirs('ssh_keys')
 
 # FUNÇÃO PARA MINIMIZAR E RESTAURAR O PROGRAMA NO SYSTEM TRAY
+    def setup_double_click(self):
+        """Configura o duplo clique usando pywin32"""
+        def find_tray_icon():
+            # Tenta encontrar a janela do ícone
+            def enum_windows(hwnd, extra):
+                if win32gui.GetWindowText(hwnd) == "Gerenciador de VPS":
+                    extra.append(hwnd)
+            
+            hwnds = []
+            win32gui.EnumWindows(enum_windows, hwnds)
+            return hwnds[0] if hwnds else None
+        
+        def wndproc(hwnd, msg, wparam, lparam):
+            if msg == win32con.WM_LBUTTONDBLCLK:
+                self.restore_window()
+            return win32gui.CallWindowProc(original_wndproc, hwnd, msg, wparam, lparam)
+        
+        # Thread para configurar o duplo clique após o ícone ser criado
+        def setup():
+            for _ in range(10):  # Tenta por até 5 segundos
+                if hwnd := find_tray_icon():
+                    global original_wndproc
+                    original_wndproc = win32gui.SetWindowLongPtr(
+                        hwnd,
+                        win32con.GWL_WNDPROC,
+                        wndproc
+                    )
+                    break
+                threading.Event().wait(0.5)
+        
+        threading.Thread(target=setup, daemon=True).start()
+
     def on_minimize(self, event):
         """Captura o evento de minimizar a janela."""
         if self.master.state() == "iconic":  # Verifica se a janela foi minimizada
@@ -221,7 +259,7 @@ class ButtonManager:
         """Restaura a janela principal."""
         self.master.deiconify()  # Restaura a janela principal
         self.master.lift()  # Traz a janela para o topo
-
+        self.master.focus_force()
             
 #FUNÇÃO RELACIONADAS A ARQUIVO .INI
     # Função para ler e criar o arquivo ini
