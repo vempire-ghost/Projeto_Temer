@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.13"
+    return "Beta 93.14"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -727,13 +727,13 @@ class ButtonManager:
             print(f"Arquivo não encontrado: {filepath}")
 
     def open_OMR_VPN(self, event=None):
-        webbrowser.open('http://192.168.100.1', new=2)
+        webbrowser.open('http://192.168.101.1', new=2)
         # **Metodo antigo depreciado**
         #window = webview.create_window('OMR VPN', 'http://192.168.101.1', width=1045, height=787)
         #webview.start(self.submit_login, window)
 
     def open_OMR_JOGO(self, event=None):
-        webbrowser.open('http://192.168.101.1', new=2)
+        webbrowser.open('http://192.168.100.1', new=2)
         # **Metodo antigo depreciado**
         #window = webview.create_window('OMR JOGO', 'http://192.168.100.1', width=1045, height=787)
         #webview.start(self.submit_login, window)
@@ -1894,6 +1894,15 @@ class ButtonManager:
         install_menu.add_command(label="Instalar bmon (OMR VPN)", command=self.install_bmon_vpn)
         install_menu.add_command(label="Instalar bmon (OMR JOGO)", command=self.install_bmon_jogo)
         install_menu.add_command(label="Instalar mtr (OMR VPN)", command=self.install_mtr_vpn)
+
+        # Adiciona o novo menu "Manutenção"
+        maintenance_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Manutenção", menu=maintenance_menu)
+        
+        # Adiciona a opção para acessar OMR VPN
+        maintenance_menu.add_command(label="Acessar OMR VPN", command=self.open_OMR_VPN)
+        maintenance_menu.add_command(label="Acessar OMR JOGO", command=self.open_OMR_JOGO)
+        maintenance_menu.add_command(label="Acessar Logs", command=self.abrir_janela_logs)
 
         # Cria o notebook (abas)
         notebook = ttk.Notebook(main_window)
