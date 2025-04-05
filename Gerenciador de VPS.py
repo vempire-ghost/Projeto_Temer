@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.14"
+    return "Beta 93.15"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -3448,14 +3448,20 @@ class ButtonManager:
                 client_socket.close()
                 return
 
+            # Verifica se é IPv6 e rejeita
+            if addr_type == 0x04:  # IPv6
+                logger_proxy.warning("Conexão IPv6 rejeitada - protocolo não suportado")
+                # Responde com erro "Address type not supported" (0x08)
+                client_socket.sendall(b'\x05\x08\x00\x01\x00\x00\x00\x00\x00\x00')
+                client_socket.close()
+                return
+
             # Obtém o endereço de destino
             if addr_type == 0x01:  # IPv4
                 addr = socket.inet_ntoa(client_socket.recv(4))
             elif addr_type == 0x03:  # Domínio
                 addr_len = client_socket.recv(1)[0]
                 addr = client_socket.recv(addr_len).decode()
-            elif addr_type == 0x04:  # IPv6
-                addr = socket.inet_ntop(socket.AF_INET6, client_socket.recv(16))
             else:
                 logger_proxy.warning("Tipo de endereço não suportado.")
                 client_socket.close()
