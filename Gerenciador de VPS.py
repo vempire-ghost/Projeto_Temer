@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.15"
+    return "Beta 93.16"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -1903,6 +1903,8 @@ class ButtonManager:
         maintenance_menu.add_command(label="Acessar OMR VPN", command=self.open_OMR_VPN)
         maintenance_menu.add_command(label="Acessar OMR JOGO", command=self.open_OMR_JOGO)
         maintenance_menu.add_command(label="Acessar Logs", command=self.abrir_janela_logs)
+        maintenance_menu.add_command(label="Minimizar Gerenciador de VPS", command=self.minimize_to_tray)
+        maintenance_menu.add_command(label="Restaurar Gerenciador de VPS", command=self.restore_window)
 
         # Cria o notebook (abas)
         notebook = ttk.Notebook(main_window)
