@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.16"
+    return "Beta 93.17"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -1491,163 +1491,165 @@ class ButtonManager:
         else:
             self.hosts = [[] for _ in range(3)]  # Inicializa com listas vazias para três testes
 
-        # Verifica se a conexão SSH está ativa
-        if hasattr(self, 'ssh_vps_jogo_via_vpn_client') and self.ssh_vps_jogo_client is not None:
-            # Variável de controle para a execução do Ping
-            self.executando_ping = [False, False, False]  # Para três hosts
-            self.thread_ping = [None, None, None]
+        # Variável de controle para a execução do Ping
+        self.executando_ping = [False, False, False]  # Para três hosts
+        self.thread_ping = [None, None, None]
 
-            # Função para criar uma seção Ping
-            def criar_secao_ping(linha):
-                # Frame para encapsular a linha do host e botões
-                frame_host = tk.Frame(tab, bg="lightgray", bd=2, relief="groove")  # Frame com fundo cinza claro, borda e relevo
-                frame_host.grid(row=0, column=linha * 3, sticky='n', pady=5)  # Adiciona um pouco de espaçamento
+        # Função para criar uma seção Ping
+        def criar_secao_ping(linha):
+            # Frame para encapsular a linha do host e botões
+            frame_host = tk.Frame(tab, bg="lightgray", bd=2, relief="groove")  # Frame com fundo cinza claro, borda e relevo
+            frame_host.grid(row=0, column=linha * 3, sticky='n', pady=5)  # Adiciona um pouco de espaçamento
 
-                # Combobox para seleção de host
-                combobox_var = tk.StringVar()
-                combobox_host = ttk.Combobox(frame_host, textvariable=combobox_var, width=37)
-                combobox_host.grid(row=0, column=0)
-                combobox_host['values'] = self.hosts[linha]  # Preenche com os últimos hosts
-                if self.hosts[linha]:
-                    combobox_host.set(self.hosts[linha][0])  # Define o último host usado como padrão
+            # Combobox para seleção de host
+            combobox_var = tk.StringVar()
+            combobox_host = ttk.Combobox(frame_host, textvariable=combobox_var, width=37)
+            combobox_host.grid(row=0, column=0)
+            combobox_host['values'] = self.hosts[linha]  # Preenche com os últimos hosts
+            if self.hosts[linha]:
+                combobox_host.set(self.hosts[linha][0])  # Define o último host usado como padrão
 
-                # Botões para iniciar e parar Ping
-                botao_executar = tk.Button(frame_host, text="Iniciar Ping", command=lambda: iniciar_ping(linha))
-                botao_executar.grid(row=0, column=1)
+            # Botões para iniciar e parar Ping
+            botao_executar = tk.Button(frame_host, text="Iniciar Ping", command=lambda: iniciar_ping(linha))
+            botao_executar.grid(row=0, column=1)
 
-                botao_parar = tk.Button(frame_host, text="Parar Ping", command=lambda: parar_ping(linha))
-                botao_parar.grid(row=0, column=2)
+            botao_parar = tk.Button(frame_host, text="Parar Ping", command=lambda: parar_ping(linha))
+            botao_parar.grid(row=0, column=2)
 
-                # Área de texto para exibir o resultado
-                area_texto = scrolledtext.ScrolledText(tab, width=77, height=28)
-                area_texto.grid(row=1, column=linha * 3, columnspan=3, pady=(10, 0))
+            # Área de texto para exibir o resultado
+            area_texto = scrolledtext.ScrolledText(tab, width=77, height=28)
+            area_texto.grid(row=1, column=linha * 3, columnspan=3, pady=(10, 0))
 
-                # Criação da figura para o gráfico
-                fig, ax = plt.subplots(figsize=(6, 4))
-                line, = ax.plot([], [], label='Latência (ms)', color='blue')
-                ax.set_title(f"Latência {linha + 1}")
-                ax.set_ylabel("Latência (ms)")
-                ax.set_xlabel("Tempo")
-                ax.set_ylim(0, 100)  # Define um limite para a latência
-                ax.legend(loc='upper right')
+            # Criação da figura para o gráfico
+            fig, ax = plt.subplots(figsize=(6, 4))
+            line, = ax.plot([], [], label='Latência (ms)', color='blue')
+            ax.set_title(f"Latência {linha + 1}")
+            ax.set_ylabel("Latência (ms)")
+            ax.set_xlabel("Tempo")
+            ax.set_ylim(0, 100)  # Define um limite para a latência
+            ax.legend(loc='upper right')
 
-                # Adiciona linhas horizontais
-                for y in [20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280]:
-                    ax.axhline(y=y, color='black', linestyle='--', linewidth=0.5)
+            # Adiciona linhas horizontais
+            for y in [20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280]:
+                ax.axhline(y=y, color='black', linestyle='--', linewidth=0.5)
 
-                # Área do gráfico
-                canvas = FigureCanvasTkAgg(fig, master=tab)
-                canvas.get_tk_widget().grid(row=2, column=linha * 3, columnspan=3, pady=(10, 0))
+            # Área do gráfico
+            canvas = FigureCanvasTkAgg(fig, master=tab)
+            canvas.get_tk_widget().grid(row=2, column=linha * 3, columnspan=3, pady=(10, 0))
 
-                # Listas para armazenar dados de latência e timestamps
-                latencias = []
-                timestamps = []
+            # Listas para armazenar dados de latência e timestamps
+            latencias = []
+            timestamps = []
 
-                # Função para atualizar o gráfico
-                def update_graph():
-                    now = datetime.now()
-                    time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
+            # Função para atualizar o gráfico
+            def update_graph():
+                now = datetime.now()
+                time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
 
-                    # Filtra timestamps e latências dentro da janela de tempo
-                    timestamps_filtered = [t for t in timestamps if t >= time_window_start]
-                    latencias_filtered = latencias[-len(timestamps_filtered):]  # Limita os dados correspondentes
+                # Filtra timestamps e latências dentro da janela de tempo
+                timestamps_filtered = [t for t in timestamps if t >= time_window_start]
+                latencias_filtered = latencias[-len(timestamps_filtered):]  # Limita os dados correspondentes
 
-                    # Atualiza os dados da linha do gráfico
-                    if timestamps_filtered and latencias_filtered:
-                        line.set_data(timestamps_filtered, latencias_filtered)
-                        ax.set_xlim([time_window_start, now])  # Ajusta os limites do eixo X
-                        ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))  # Formata o eixo X para horas
-                        fig.autofmt_xdate()  # Melhora a visualização das datas
+                # Atualiza os dados da linha do gráfico
+                if timestamps_filtered and latencias_filtered:
+                    line.set_data(timestamps_filtered, latencias_filtered)
+                    ax.set_xlim([time_window_start, now])  # Ajusta os limites do eixo X
+                    ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))  # Formata o eixo X para horas
+                    fig.autofmt_xdate()  # Melhora a visualização das datas
 
-                        # Define o limite superior do eixo Y dinamicamente com margem extra
-                        max_latency = max(latencias_filtered)
-                        if max_latency > 100:
-                            ax.set_ylim(0, min(max_latency * 1.2, 300))  # Expande o limite superior com uma margem de 20%
-                        else:
-                            ax.set_ylim(0, 120)  # Mantém limite em 120ms para permitir margem
+                    # Define o limite superior do eixo Y dinamicamente com margem extra
+                    max_latency = max(latencias_filtered)
+                    if max_latency > 100:
+                        ax.set_ylim(0, min(max_latency * 1.2, 300))  # Expande o limite superior com uma margem de 20%
                     else:
-                        line.set_data([], [])  # Limpa os dados se não houver dados filtrados
+                        ax.set_ylim(0, 120)  # Mantém limite em 120ms para permitir margem
+                else:
+                    line.set_data([], [])  # Limpa os dados se não houver dados filtrados
 
-                    canvas.draw()  # Atualiza o canvas
+                canvas.draw()  # Atualiza o canvas
 
-                # Função para iniciar o Ping
-                def iniciar_ping(index):
-                    if self.executando_ping[index]:
-                        return  # Não inicia outra thread se já estiver em execução
+            # Função para iniciar o Ping
+            def iniciar_ping(index):
+                if self.executando_ping[index]:
+                    return  # Não inicia outra thread se já estiver em execução
 
-                    host = combobox_var.get()
-                    if not host:
-                        logger_main.warning(f"Tentativa de iniciar ping sem host definido na linha {index}")
-                        return
+                # Verifica se a conexão SSH está ativa
+                if not (hasattr(self, 'ssh_vps_jogo_via_vpn_client') and self.ssh_vps_jogo_client is not None):
+                    logger_main.error("Tentativa de executar ping sem conexão SSH ativa")
+                    messagebox.showerror("Erro", "Não há conexão SSH ativa para executar o ping")
+                    return
 
-                    logger_main.info(f"Iniciando ping para o host: {host} na linha {index}")
-                    
-                    if host and host not in self.hosts[index]:
-                        self.hosts[index].insert(0, host)  # Adiciona o novo host ao início da lista
-                        self.hosts[index] = self.hosts[index][:10]  # Limita a lista aos últimos 10 hosts
-                        with open(self.hosts_file, 'w') as f:  # Salva os hosts
-                            json.dump(self.hosts, f)
+                host = combobox_var.get()
+                if not host:
+                    logger_main.warning(f"Tentativa de iniciar ping sem host definido na linha {index}")
+                    return
 
-                        # Atualiza a lista suspensa
-                        combobox_host['values'] = self.hosts[index]
+                logger_main.info(f"Iniciando ping para o host: {host} na linha {index}")
+                
+                if host and host not in self.hosts[index]:
+                    self.hosts[index].insert(0, host)  # Adiciona o novo host ao início da lista
+                    self.hosts[index] = self.hosts[index][:10]  # Limita a lista aos últimos 10 hosts
+                    with open(self.hosts_file, 'w') as f:  # Salva os hosts
+                        json.dump(self.hosts, f)
 
-                    command = f"ping -n -c 1 {host}"
-                    self.executando_ping[index] = True
+                    # Atualiza a lista suspensa
+                    combobox_host['values'] = self.hosts[index]
 
-                    def run_ping():
-                        try:
-                            while self.executando_ping[index]:
-                                # Executa o comando via SSH
-                                stdin, stdout, stderr = self.ssh_vps_jogo_via_vpn_client.exec_command(command)
-                                resultado = stdout.read().decode()  # Lê a saída do comando
-                                error = stderr.read().decode()
+                command = f"ping -n -c 1 {host}"
+                self.executando_ping[index] = True
 
-                                if error:
-                                    logger_main.error(f"Erro ao executar ping na linha {index}: {error.strip()}")
-                                    self.executando_ping[index] = False
-                                    return
+                def run_ping():
+                    try:
+                        while self.executando_ping[index]:
+                            # Executa o comando via SSH
+                            stdin, stdout, stderr = self.ssh_vps_jogo_via_vpn_client.exec_command(command)
+                            resultado = stdout.read().decode()  # Lê a saída do comando
+                            error = stderr.read().decode()
 
-                                # Atualiza a área de texto com o resultado
-                                area_texto.delete(1.0, tk.END)  # Limpa a área de texto
-                                area_texto.insert(tk.END, resultado)  # Insere o resultado
-                                area_texto.see(tk.END)  # Rola para o final
+                            if error:
+                                logger_main.error(f"Erro ao executar ping na linha {index}: {error.strip()}")
+                                self.executando_ping[index] = False
+                                return
 
-                                # Processa a saída do Ping
-                                match = re.search(r'time=(\d+\.?\d*) ms', resultado)
-                                if match:
-                                    latency = round(float(match.group(1)))  # Arredonda para o inteiro mais próximo
-                                    latencias.append(latency)
-                                    timestamps.append(datetime.now())  # Armazena o timestamp atual
-                                else:
-                                    logger_main.warning(f"Não foi possível extrair latência do resultado do ping na linha {index}")
+                            # Atualiza a área de texto com o resultado
+                            area_texto.delete(1.0, tk.END)  # Limpa a área de texto
+                            area_texto.insert(tk.END, resultado)  # Insere o resultado
+                            area_texto.see(tk.END)  # Rola para o final
 
-                                # Limita a exibição a um intervalo de 60 minutos
-                                while len(latencias) > 3600:  # Mantém apenas os últimos 3600 dados
-                                    latencias.pop(0)
-                                    timestamps.pop(0)
+                            # Processa a saída do Ping
+                            match = re.search(r'time=(\d+\.?\d*) ms', resultado)
+                            if match:
+                                latency = round(float(match.group(1)))  # Arredonda para o inteiro mais próximo
+                                latencias.append(latency)
+                                timestamps.append(datetime.now())  # Armazena o timestamp atual
+                            else:
+                                logger_main.warning(f"Não foi possível extrair latência do resultado do ping na linha {index}")
 
-                                update_graph()  # Chama a função para atualizar o gráfico
+                            # Limita a exibição a um intervalo de 60 minutos
+                            while len(latencias) > 3600:  # Mantém apenas os últimos 3600 dados
+                                latencias.pop(0)
+                                timestamps.pop(0)
 
-                                time.sleep(1)  # Aguarda 1 segundo antes de executar novamente
-                        except Exception as e:
-                            logger_main.error(f"Erro inesperado durante o ping na linha {index}: {str(e)}")
-                            self.executando_ping[index] = False
+                            update_graph()  # Chama a função para atualizar o gráfico
 
-                    self.thread_ping[index] = threading.Thread(target=run_ping)
-                    self.thread_ping[index].start()
+                            time.sleep(1)  # Aguarda 1 segundo antes de executar novamente
+                    except Exception as e:
+                        logger_main.error(f"Erro inesperado durante o ping na linha {index}: {str(e)}")
+                        self.executando_ping[index] = False
 
-                def parar_ping(index):
-                    if self.executando_ping[index]:
-                        logger_main.info(f"Parando ping na linha {index}")
-                        self.executando_ping[index] = False  # Para a execução do Ping
-                    else:
-                        logger_main.warning(f"Tentativa de parar ping que não estava em execução na linha {index}")
+                self.thread_ping[index] = threading.Thread(target=run_ping)
+                self.thread_ping[index].start()
 
-            # Criação de três seções de Ping
-            for i in range(3):
-                criar_secao_ping(i)
-        else:
-            logger_main.error("Tentativa de executar ping sem conexão SSH ativa")
+            def parar_ping(index):
+                if self.executando_ping[index]:
+                    logger_main.info(f"Parando ping na linha {index}")
+                    self.executando_ping[index] = False  # Para a execução do Ping
+                else:
+                    logger_main.warning(f"Tentativa de parar ping que não estava em execução na linha {index}")
+
+        # Criação de três seções de Ping
+        for i in range(3):
+            criar_secao_ping(i)
 
         # Função para fechar a janela corretamente
         def on_closing():
@@ -1680,176 +1682,178 @@ class ButtonManager:
             logger_main.info("Arquivo de hosts não encontrado - inicializando com listas vazias")
             self.hosts = [[] for _ in range(3)]  # Inicializa com listas vazias para três testes
 
-        # Verifica se a conexão SSH está ativa
-        if hasattr(self, 'ssh_vps_jogo_via_vpn_client') and self.ssh_vps_jogo_client is not None:
-            # Variável de controle para a execução do MTR
-            self.executando_mtr = [False, False, False]  # Para três hosts
-            self.thread_mtr = [None, None, None]
+        # Variável de controle para a execução do MTR
+        self.executando_mtr = [False, False, False]  # Para três hosts
+        self.thread_mtr = [None, None, None]
 
-            # Função para criar uma seção MTR
-            def criar_secao_mtr(linha):
-                # Frame para encapsular a linha do host e botões
-                frame_host = tk.Frame(tab, bg="lightgray", bd=2, relief="groove")  # Frame com fundo cinza claro, borda e relevo
-                frame_host.grid(row=0, column=linha * 3, sticky='n', pady=5)  # Adiciona um pouco de espaçamento
+        # Função para criar uma seção MTR
+        def criar_secao_mtr(linha):
+            # Frame para encapsular a linha do host e botões
+            frame_host = tk.Frame(tab, bg="lightgray", bd=2, relief="groove")  # Frame com fundo cinza claro, borda e relevo
+            frame_host.grid(row=0, column=linha * 3, sticky='n', pady=5)  # Adiciona um pouco de espaçamento
 
-                # Combobox para seleção de host
-                combobox_var = tk.StringVar()
-                combobox_host = ttk.Combobox(frame_host, textvariable=combobox_var, width=37)
-                combobox_host.grid(row=0, column=0)
-                combobox_host['values'] = self.hosts[linha]  # Preenche com os últimos hosts
-                if self.hosts[linha]:
-                    combobox_host.set(self.hosts[linha][0])  # Define o último host usado como padrão
+            # Combobox para seleção de host
+            combobox_var = tk.StringVar()
+            combobox_host = ttk.Combobox(frame_host, textvariable=combobox_var, width=37)
+            combobox_host.grid(row=0, column=0)
+            combobox_host['values'] = self.hosts[linha]  # Preenche com os últimos hosts
+            if self.hosts[linha]:
+                combobox_host.set(self.hosts[linha][0])  # Define o último host usado como padrão
 
-                # Botões para iniciar e parar MTR
-                botao_executar = tk.Button(frame_host, text="Iniciar MTR", command=lambda: iniciar_mtr(linha))
-                botao_executar.grid(row=0, column=1)
+            # Botões para iniciar e parar MTR
+            botao_executar = tk.Button(frame_host, text="Iniciar MTR", command=lambda: iniciar_mtr(linha))
+            botao_executar.grid(row=0, column=1)
 
-                botao_parar = tk.Button(frame_host, text="Parar MTR", command=lambda: parar_mtr(linha))
-                botao_parar.grid(row=0, column=2)
+            botao_parar = tk.Button(frame_host, text="Parar MTR", command=lambda: parar_mtr(linha))
+            botao_parar.grid(row=0, column=2)
 
-                # Área de texto para exibir o resultado
-                area_texto = scrolledtext.ScrolledText(tab, width=77, height=28)
-                area_texto.grid(row=1, column=linha * 3, columnspan=3, pady=(10, 0))
+            # Área de texto para exibir o resultado
+            area_texto = scrolledtext.ScrolledText(tab, width=77, height=28)
+            area_texto.grid(row=1, column=linha * 3, columnspan=3, pady=(10, 0))
 
-                # Criação da figura para o gráfico
-                fig, ax = plt.subplots(figsize=(6, 4))
-                line, = ax.plot([], [], label='Latência (ms)', color='blue')
-                ax.set_title(f"Latência {linha + 1}")
-                ax.set_ylabel("Latência (ms)")
-                ax.set_xlabel("Tempo")
-                ax.set_ylim(0, 100)  # Define um limite para a latência
-                ax.legend(loc='upper right')
+            # Criação da figura para o gráfico
+            fig, ax = plt.subplots(figsize=(6, 4))
+            line, = ax.plot([], [], label='Latência (ms)', color='blue')
+            ax.set_title(f"Latência {linha + 1}")
+            ax.set_ylabel("Latência (ms)")
+            ax.set_xlabel("Tempo")
+            ax.set_ylim(0, 100)  # Define um limite para a latência
+            ax.legend(loc='upper right')
 
-                # Adiciona linhas horizontais
-                for y in [20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280]:
-                    ax.axhline(y=y, color='black', linestyle='--', linewidth=0.5)
+            # Adiciona linhas horizontais
+            for y in [20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280]:
+                ax.axhline(y=y, color='black', linestyle='--', linewidth=0.5)
 
-                # Área do gráfico
-                canvas = FigureCanvasTkAgg(fig, master=tab)
-                canvas.get_tk_widget().grid(row=2, column=linha * 3, columnspan=3, pady=(10, 0))
+            # Área do gráfico
+            canvas = FigureCanvasTkAgg(fig, master=tab)
+            canvas.get_tk_widget().grid(row=2, column=linha * 3, columnspan=3, pady=(10, 0))
 
-                # Listas para armazenar dados de latência e timestamps
-                latencias = []
-                timestamps = []
+            # Listas para armazenar dados de latência e timestamps
+            latencias = []
+            timestamps = []
 
-                # Função para atualizar o gráfico
-                def update_graph():
-                    now = datetime.now()
-                    time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
+            # Função para atualizar o gráfico
+            def update_graph():
+                now = datetime.now()
+                time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
 
-                    # Filtra timestamps e latências dentro da janela de tempo
-                    timestamps_filtered = [t for t in timestamps if t >= time_window_start]
-                    latencias_filtered = latencias[-len(timestamps_filtered):]  # Limita os dados correspondentes
+                # Filtra timestamps e latências dentro da janela de tempo
+                timestamps_filtered = [t for t in timestamps if t >= time_window_start]
+                latencias_filtered = latencias[-len(timestamps_filtered):]  # Limita os dados correspondentes
 
-                    # Atualiza os dados da linha do gráfico
-                    if timestamps_filtered and latencias_filtered:
-                        line.set_data(timestamps_filtered, latencias_filtered)
-                        ax.set_xlim([time_window_start, now])  # Ajusta os limites do eixo X
-                        ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))  # Formata o eixo X para horas
-                        fig.autofmt_xdate()  # Melhora a visualização das datas
+                # Atualiza os dados da linha do gráfico
+                if timestamps_filtered and latencias_filtered:
+                    line.set_data(timestamps_filtered, latencias_filtered)
+                    ax.set_xlim([time_window_start, now])  # Ajusta os limites do eixo X
+                    ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))  # Formata o eixo X para horas
+                    fig.autofmt_xdate()  # Melhora a visualização das datas
 
-                        # Define o limite superior do eixo Y dinamicamente com margem extra
-                        max_latency = max(latencias_filtered)
-                        if max_latency > 100:
-                            ax.set_ylim(0, min(max_latency * 1.2, 300))  # Expande o limite superior com uma margem de 20%
-                        else:
-                            ax.set_ylim(0, 120)  # Mantém limite em 120ms para permitir margem
+                    # Define o limite superior do eixo Y dinamicamente com margem extra
+                    max_latency = max(latencias_filtered)
+                    if max_latency > 100:
+                        ax.set_ylim(0, min(max_latency * 1.2, 300))  # Expande o limite superior com uma margem de 20%
                     else:
-                        line.set_data([], [])  # Limpa os dados se não houver dados filtrados
+                        ax.set_ylim(0, 120)  # Mantém limite em 120ms para permitir margem
+                else:
+                    line.set_data([], [])  # Limpa os dados se não houver dados filtrados
 
-                    canvas.draw()  # Atualiza o canvas
+                canvas.draw()  # Atualiza o canvas
 
-                # Função para iniciar o MTR
-                def iniciar_mtr(index):
-                    if self.executando_mtr[index]:
-                        logger_main.warning(f"Tentativa de iniciar MTR já em execução na linha {index}")
-                        return  # Não inicia outra thread se já estiver em execução
+            # Função para iniciar o MTR
+            def iniciar_mtr(index):
+                if self.executando_mtr[index]:
+                    logger_main.warning(f"Tentativa de iniciar MTR já em execução na linha {index}")
+                    return  # Não inicia outra thread se já estiver em execução
 
-                    host = combobox_var.get()
-                    if not host:
-                        logger_main.warning(f"Tentativa de iniciar MTR sem host definido na linha {index}")
-                        return
+                # Verifica se a conexão SSH está ativa
+                if not (hasattr(self, 'ssh_vps_jogo_via_vpn_client') and self.ssh_vps_jogo_client is not None):
+                    logger_main.error("Tentativa de executar MTR sem conexão SSH ativa")
+                    messagebox.showerror("Erro", "Não há conexão SSH ativa para executar o MTR")
+                    return
 
-                    logger_main.info(f"Iniciando MTR para o host: {host} na linha {index}")
-                    
-                    if host and host not in self.hosts[index]:
-                        self.hosts[index].insert(0, host)  # Adiciona o novo host ao início da lista
-                        self.hosts[index] = self.hosts[index][:10]  # Limita a lista aos últimos 10 hosts
-                        with open(self.hosts_file, 'w') as f:  # Salva os hosts
-                            json.dump(self.hosts, f)
-                            logger_main.info(f"Host {host} adicionado à lista de hosts na linha {index}")
+                host = combobox_var.get()
+                if not host:
+                    logger_main.warning(f"Tentativa de iniciar MTR sem host definido na linha {index}")
+                    return
 
-                        # Atualiza a lista suspensa
-                        combobox_host['values'] = self.hosts[index]
+                logger_main.info(f"Iniciando MTR para o host: {host} na linha {index}")
+                
+                if host and host not in self.hosts[index]:
+                    self.hosts[index].insert(0, host)  # Adiciona o novo host ao início da lista
+                    self.hosts[index] = self.hosts[index][:10]  # Limita a lista aos últimos 10 hosts
+                    with open(self.hosts_file, 'w') as f:  # Salva os hosts
+                        json.dump(self.hosts, f)
+                        logger_main.info(f"Host {host} adicionado à lista de hosts na linha {index}")
 
-                    command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 {host}"
-                    self.executando_mtr[index] = True
+                    # Atualiza a lista suspensa
+                    combobox_host['values'] = self.hosts[index]
 
-                    def run_mtr():
-                        try:
-                            while self.executando_mtr[index]:
-                                # Executa o comando via SSH
-                                stdin, stdout, stderr = self.ssh_vps_jogo_via_vpn_client.exec_command(command)
-                                resultado = stdout.read().decode()  # Lê a saída do comando
-                                error = stderr.read().decode()
+                command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 {host}"
+                self.executando_mtr[index] = True
 
-                                if error:
-                                    logger_main.error(f"Erro ao executar MTR na linha {index}: {error.strip()}")
-                                    self.executando_mtr[index] = False
-                                    return
+                def run_mtr():
+                    try:
+                        while self.executando_mtr[index]:
+                            # Executa o comando via SSH
+                            stdin, stdout, stderr = self.ssh_vps_jogo_via_vpn_client.exec_command(command)
+                            resultado = stdout.read().decode()  # Lê a saída do comando
+                            error = stderr.read().decode()
 
-                                # Atualiza a área de texto com o resultado
-                                area_texto.delete(1.0, tk.END)  # Limpa a área de texto
-                                area_texto.insert(tk.END, resultado)  # Insere o resultado
-                                area_texto.see(tk.END)  # Rola para o final
+                            if error:
+                                logger_main.error(f"Erro ao executar MTR na linha {index}: {error.strip()}")
+                                self.executando_mtr[index] = False
+                                return
 
-                                # Processa a saída do MTR
-                                last_lines = resultado.strip().splitlines()
-                                valid_lines = [line for line in last_lines if "?" not in line]  # Filtra linhas válidas
+                            # Atualiza a área de texto com o resultado
+                            area_texto.delete(1.0, tk.END)  # Limpa a área de texto
+                            area_texto.insert(tk.END, resultado)  # Insere o resultado
+                            area_texto.see(tk.END)  # Rola para o final
 
-                                if valid_lines:
-                                    last_line = valid_lines[-1].split()
-                                    avg_index = 6  # O índice da latência média
-                                    if len(last_line) > avg_index:
-                                        try:
-                                            latency = int(float(last_line[avg_index]))
-                                            latencias.append(latency)
-                                            timestamps.append(datetime.now())  # Armazena o timestamp atual
-                                        except ValueError as e:
-                                            logger_main.warning(f"Não foi possível converter latência do MTR na linha {index}: {str(e)}")
-                                    else:
-                                        logger_main.warning(f"Formato inesperado na saída do MTR na linha {index}")
+                            # Processa a saída do MTR
+                            last_lines = resultado.strip().splitlines()
+                            valid_lines = [line for line in last_lines if "?" not in line]  # Filtra linhas válidas
+
+                            if valid_lines:
+                                last_line = valid_lines[-1].split()
+                                avg_index = 6  # O índice da latência média
+                                if len(last_line) > avg_index:
+                                    try:
+                                        latency = int(float(last_line[avg_index]))
+                                        latencias.append(latency)
+                                        timestamps.append(datetime.now())  # Armazena o timestamp atual
+                                    except ValueError as e:
+                                        logger_main.warning(f"Não foi possível converter latência do MTR na linha {index}: {str(e)}")
                                 else:
-                                    logger_main.warning(f"Nenhuma linha válida encontrada na saída do MTR na linha {index}")
+                                    logger_main.warning(f"Formato inesperado na saída do MTR na linha {index}")
+                            else:
+                                logger_main.warning(f"Nenhuma linha válida encontrada na saída do MTR na linha {index}")
 
-                                # Limita a exibição a um intervalo de 60 minutos
-                                while len(latencias) > 3600:  # Mantém apenas os últimos 3600 dados
-                                    latencias.pop(0)
-                                    timestamps.pop(0)
+                            # Limita a exibição a um intervalo de 60 minutos
+                            while len(latencias) > 3600:  # Mantém apenas os últimos 3600 dados
+                                latencias.pop(0)
+                                timestamps.pop(0)
 
-                                update_graph()  # Chama a função para atualizar o gráfico
+                            update_graph()  # Chama a função para atualizar o gráfico
 
-                                time.sleep(1)  # Aguarda 1 segundo antes de executar novamente
-                        except Exception as e:
-                            logger_main.error(f"Erro inesperado durante o MTR na linha {index}: {str(e)}")
-                            self.executando_mtr[index] = False
+                            time.sleep(1)  # Aguarda 1 segundo antes de executar novamente
+                    except Exception as e:
+                        logger_main.error(f"Erro inesperado durante o MTR na linha {index}: {str(e)}")
+                        self.executando_mtr[index] = False
 
-                    self.thread_mtr[index] = threading.Thread(target=run_mtr)
-                    self.thread_mtr[index].start()
+                self.thread_mtr[index] = threading.Thread(target=run_mtr)
+                self.thread_mtr[index].start()
 
-                def parar_mtr(index):
-                    if self.executando_mtr[index]:
-                        logger_main.info(f"Parando MTR na linha {index}")
-                        self.executando_mtr[index] = False  # Para a execução do MTR
-                    else:
-                        logger_main.warning(f"Tentativa de parar MTR que não estava em execução na linha {index}")
+            def parar_mtr(index):
+                if self.executando_mtr[index]:
+                    logger_main.info(f"Parando MTR na linha {index}")
+                    self.executando_mtr[index] = False  # Para a execução do MTR
+                else:
+                    logger_main.warning(f"Tentativa de parar MTR que não estava em execução na linha {index}")
 
-            # Criação de três seções de MTR
-            for i in range(3):
-                logger_main.debug(f"Criando seção MTR para linha {i}")
-                criar_secao_mtr(i)
-        else:
-            logger_main.error("Tentativa de executar MTR sem conexão SSH ativa")
+        # Criação de três seções de MTR
+        for i in range(3):
+            logger_main.debug(f"Criando seção MTR para linha {i}")
+            criar_secao_mtr(i)
 
         # Função para fechar a janela corretamente
         def on_closing():
@@ -2145,15 +2149,17 @@ class ButtonManager:
 
         # Função para fechar a janela corretamente
         def on_closing():
-            stop_event.set()  # Aciona o evento de parada para as threads
+            try:
+                stop_event.set()  # Aciona o evento de parada para as threads
 
-            # Cancela todos os callbacks pendentes
-            for callback_id in callbacks:
-                self.master.after_cancel(callback_id)
+                # Cancela todos os callbacks pendentes
+                for callback_id in callbacks:
+                    self.master.after_cancel(callback_id)
+            finally:
+                # Garante que a janela principal será restaurada mesmo se ocorrer erro
+                self.restore_window()
+                main_window.destroy()
 
-            main_window.destroy()
-
-        # Define a função para ser chamada quando a janela for fechada
         main_window.protocol("WM_DELETE_WINDOW", on_closing)
 
     def add_zoom_pan(self, canvas, ax):
