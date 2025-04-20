@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.17"
+    return "Beta 93.18"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -520,21 +520,21 @@ class ButtonManager:
         self.ssh_vps_vpn_bind_client.close()
         self.ssh_vps_vpn_bind_client = None
         self.connection_established_ssh_vps_vpn_bind.clear()
-        self.master.after(1000, lambda: threading.Thread(target=self.establish_ssh_vps_vpn_bind_connection).start())
+        #self.master.after(1000, lambda: threading.Thread(target=self.establish_ssh_vps_vpn_bind_connection).start())
 
     # Reconecta VPS Jogo Bind
     def reconectar_vps_jogo_bind(self):
         self.ssh_vps_jogo_bind_client.close()
         self.ssh_vps_jogo_bind_client = None
         self.connection_established_ssh_vps_jogo_bind.clear()
-        self.master.after(1000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_bind_connection).start())
+        #self.master.after(1000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_bind_connection).start())
 
     # Reconecta VPS Jogo via VPN
     def reconectar_vps_jogo_via_vpn(self):
         self.ssh_vps_jogo_via_vpn_client.close()
         self.ssh_vps_jogo_via_vpn_client = None
         self.connection_established_ssh_vps_jogo_via_vpn.clear()
-        self.master.after(1000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_via_vpn_connection).start())
+        #self.master.after(1000, lambda: threading.Thread(target=self.establish_ssh_vps_jogo_via_vpn_connection).start())
 
     def abrir_arquivo_ajuda (self):
         caminho_arquivo_ajuda = os.path.abspath("Ajuda.chm")
@@ -3284,6 +3284,10 @@ class ButtonManager:
                         elif connection_type == 'vps_vpn_bind':
                             self.ssh_vps_vpn_bind_client.close()
                             self.ssh_vps_vpn_bind_client = None
+                            #self.stop_event_proxy.set()
+                            #time.sleep(1)
+                            #logger_proxy.error(f"Aguardando {connection_type}.")
+                            #self.stop_event_proxy.clear()
                             self.connection_established_ssh_vps_vpn_bind.clear()
                         elif connection_type == 'vps_jogo_bind':
                             self.ssh_vps_jogo_bind_client.close()
@@ -3392,7 +3396,7 @@ class ButtonManager:
             while not self.stop_event_proxy.is_set():
                 # Verifique se a conexão SSH ainda está ativa
                 if not transport.is_active():
-                    logger_proxy.error("Conexão SSH caiu, encerrando proxy SOCKS.")
+                    logger_proxy.error(f"Conexão SSH {connection_type} caiu, encerrando proxy {transport} SOCKS.")
                     break
 
                 try:
@@ -3415,7 +3419,7 @@ class ButtonManager:
         finally:
             # Feche o socket para liberar a porta
             server.close()
-            logger_proxy.info(f"Proxy SOCKS na porta {port_local} foi fechado.")
+            logger_proxy.info(f"Proxy {connection_type} SOCKS na porta {port_local} foi fechado transport: {transport}.")
         
     def handle_socks_connection(self, client_socket, transport):
         """Lida com uma conexão SOCKS usando o transporte SSH específico."""
@@ -3522,18 +3526,21 @@ class ButtonManager:
             self.ssh_vpn_client.close()
             self.ping_provedor.clear()
             self.stop_ping_provedor.set()
+            #self.stop_event_proxy.set()
             logger_test_command.info("Conexão SSH (vpn) fechada.")
             self.ssh_vpn_client = None
             self.connection_established_ssh_omr_vpn.clear()
 
         if hasattr(self, 'ssh_jogo_client') and self.ssh_jogo_client is not None:
             self.ssh_jogo_client.close()
+            #self.stop_event_proxy.set()
             logger_test_command.info("Conexão SSH (jogo) fechada.")
             self.ssh_jogo_client = None
             self.connection_established_ssh_omr_jogo.clear()
 
         if hasattr(self, 'ssh_vps_vpn_client') and self.ssh_vps_vpn_client is not None:
             self.ssh_vps_vpn_client.close()
+            #self.stop_event_proxy.set()
             logger_test_command.info("Conexão SSH (vps_vpn) fechada.")
             self.ssh_vps_vpn_client = None
             self.connection_established_ssh_vps_vpn.clear()
@@ -3542,18 +3549,21 @@ class ButtonManager:
             self.ssh_vps_jogo_client.close()
             self.stop_ping_provedor.set()
             self.ping_provedor.clear()
+            #self.stop_event_proxy.set()
             logger_test_command.info("Conexão SSH (vps_jogo) fechada.")
             self.ssh_vps_jogo_client = None
             self.connection_established_ssh_vps_jogo.clear()
             
         if hasattr(self, 'ssh_vps_vpn_bind_client') and self.ssh_vps_vpn_bind_client is not None:
             self.ssh_vps_vpn_bind_client.close()
+            #self.stop_event_proxy.set()
             logger_test_command.info("Conexão SSH (vps_vpn_bind) fechada.")
             self.ssh_vps_vpn_bind_client = None
             self.connection_established_ssh_vps_vpn_bind.clear()
 
         if hasattr(self, 'ssh_vps_jogo_bind_client') and self.ssh_vps_jogo_bind_client is not None:
             self.ssh_vps_jogo_bind_client.close()
+            #self.stop_event_proxy.set()
             logger_test_command.info("Conexão SSH (vps_jogo_bind) fechada.")
             self.ssh_vps_jogo_bind_client = None
             self.connection_established_ssh_vps_jogo_bind.clear()
