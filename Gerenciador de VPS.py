@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.20"
+    return "Beta 93.21"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -1604,6 +1604,12 @@ class ButtonManager:
                             # Verificação simples se a conexão SSH existe
                             if not hasattr(self, 'ssh_vps_jogo_via_vpn_client') or self.ssh_vps_jogo_via_vpn_client is None:
                                 logger_main.warning(f"Conexão SSH não disponível na linha {index}, aguardando...")
+                                # Adiciona um marcador de falha de conexão
+                                latencias.append(float('nan'))  # Valor especial para não plotar linha
+                                timestamps.append(datetime.now())
+                                # Adiciona um triângulo preto para indicar falha de conexão
+                                ax.plot(timestamps[-1], 0, 'k^', markersize=10)  # Triângulo preto na base do gráfico
+                                update_graph()
                                 time.sleep(5)
                                 continue
 
@@ -1614,6 +1620,12 @@ class ButtonManager:
 
                             if error:
                                 logger_main.error(f"Erro ao executar ping na linha {index}: {error.strip()}")
+                                # Adiciona um marcador de erro
+                                latencias.append(float('nan'))  # Valor especial para não plotar linha
+                                timestamps.append(datetime.now())
+                                # Adiciona um triângulo preto para indicar erro
+                                ax.plot(timestamps[-1], 0, 'k^', markersize=10)
+                                update_graph()
                                 time.sleep(1)
                                 continue
 
@@ -1642,6 +1654,12 @@ class ButtonManager:
 
                         except Exception as e:
                             logger_main.error(f"Erro temporário na linha {index}: {str(e)}")
+                            # Adiciona um marcador de exceção
+                            latencias.append(float('nan'))  # Valor especial para não plotar linha
+                            timestamps.append(datetime.now())
+                            # Adiciona um triângulo preto para indicar falha
+                            ax.plot(timestamps[-1], 0, 'k^', markersize=10)
+                            update_graph()
                             time.sleep(5)  # Pausa maior para erros graves
                             continue
 
@@ -1945,6 +1963,12 @@ class ButtonManager:
         scroll_canvas.pack(side="top", fill="both", expand=True)
         scrollbar.pack(side="bottom", fill="x")
 
+        # Habilita o scroll com roda do mouse
+        def on_mousewheel(event):
+            scroll_canvas.xview_scroll(int(-1*(event.delta/120)), "units")
+        
+        scroll_canvas.bind_all("<MouseWheel>", on_mousewheel)
+
         # Aba 2: MTR VPS JOGO
         empty_tab = tk.Frame(notebook, bg='lightgray')
         notebook.add(empty_tab, text='MTR no VPS JOGO')
@@ -2080,7 +2104,7 @@ class ButtonManager:
             marker_line = ax.plot([], [], 'k^', markersize=8, label='Quedas de Conexão')[0]
 
             ax.set_title(f"Latência e Quedas de Conexão para {interface_names[interface]}")
-            ax.set_ylabel("Latência (ms) / Perda de Pacotes (%)")
+            ax.set_ylabel("Latência (ms) / Quedas de Conexão")
             ax.set_ylim(0, 300)
 
             # Atualiza a legenda para mostrar apenas a latência e os marcadores com contador
