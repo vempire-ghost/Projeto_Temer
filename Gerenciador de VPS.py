@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.19"
+    return "Beta 93.20"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -1599,43 +1599,51 @@ class ButtonManager:
                 self.executando_ping[index] = True
 
                 def run_ping():
-                    try:
-                        while self.executando_ping[index]:
-                            # Executa o comando via SSH
+                    while self.executando_ping[index]:
+                        try:
+                            # Verificação simples se a conexão SSH existe
+                            if not hasattr(self, 'ssh_vps_jogo_via_vpn_client') or self.ssh_vps_jogo_via_vpn_client is None:
+                                logger_main.warning(f"Conexão SSH não disponível na linha {index}, aguardando...")
+                                time.sleep(5)
+                                continue
+
+                            # Executa o ping normalmente
                             stdin, stdout, stderr = self.ssh_vps_jogo_via_vpn_client.exec_command(command)
-                            resultado = stdout.read().decode()  # Lê a saída do comando
+                            resultado = stdout.read().decode()
                             error = stderr.read().decode()
 
                             if error:
                                 logger_main.error(f"Erro ao executar ping na linha {index}: {error.strip()}")
-                                self.executando_ping[index] = False
-                                return
+                                time.sleep(1)
+                                continue
 
-                            # Atualiza a área de texto com o resultado
-                            area_texto.delete(1.0, tk.END)  # Limpa a área de texto
-                            area_texto.insert(tk.END, resultado)  # Insere o resultado
-                            area_texto.see(tk.END)  # Rola para o final
+                            # Processamento normal do resultado
+                            area_texto.delete(1.0, tk.END)
+                            area_texto.insert(tk.END, resultado)
+                            area_texto.see(tk.END)
 
-                            # Processa a saída do Ping
                             match = re.search(r'time=(\d+\.?\d*) ms', resultado)
                             if match:
-                                latency = round(float(match.group(1)))  # Arredonda para o inteiro mais próximo
+                                latency = round(float(match.group(1)))
                                 latencias.append(latency)
-                                timestamps.append(datetime.now())  # Armazena o timestamp atual
+                                timestamps.append(datetime.now())
                             else:
-                                logger_main.warning(f"Não foi possível extrair latência do resultado do ping na linha {index}")
+                                logger_main.warning(f"Ping sem resposta na linha {index}")
+                                latencias.append(999)  # Valor para falha
+                                timestamps.append(datetime.now())
 
-                            # Limita a exibição a um intervalo de 60 minutos
-                            while len(latencias) > 3600:  # Mantém apenas os últimos 3600 dados
+                            # Limitar dados e atualizar gráfico
+                            while len(latencias) > 3600:
                                 latencias.pop(0)
                                 timestamps.pop(0)
+                                
+                            update_graph()
+                            time.sleep(1)
 
-                            update_graph()  # Chama a função para atualizar o gráfico
-
-                            time.sleep(1)  # Aguarda 1 segundo antes de executar novamente
-                    except Exception as e:
-                        logger_main.error(f"Erro inesperado durante o ping na linha {index}: {str(e)}")
-                        self.executando_ping[index] = False
+                        except Exception as e:
+                            logger_main.error(f"Erro temporário na linha {index}: {str(e)}")
+                            time.sleep(5)  # Pausa maior para erros graves
+                            continue
 
                 self.thread_ping[index] = threading.Thread(target=run_ping)
                 self.thread_ping[index].start()
