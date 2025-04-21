@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.18"
+    return "Beta 93.19"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -1877,7 +1877,8 @@ class ButtonManager:
         interface_names = {
             'eth2': 'Unifique',
             'eth4': 'Claro',
-            'eth5': 'Coopera'
+            'eth5': 'Coopera',
+            'tun0': 'OMR VPN'  # Adicionado o OMR VPN
         }
         interfaces = list(interface_names.keys())
 
@@ -1917,6 +1918,24 @@ class ButtonManager:
         # Aba 1: Interface MTR
         interface_tab = tk.Frame(notebook, bg='white')
         notebook.add(interface_tab, text='MTR dos Provedores')
+
+        # Adiciona um canvas com barra de scroll horizontal
+        scroll_canvas = tk.Canvas(interface_tab, bg='white')  # Nome alterado para scroll_canvas
+        scrollbar = ttk.Scrollbar(interface_tab, orient="horizontal", command=scroll_canvas.xview)
+        scrollable_frame = tk.Frame(scroll_canvas, bg='white')
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: scroll_canvas.configure(
+                scrollregion=scroll_canvas.bbox("all")
+            )
+        )
+
+        scroll_canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        scroll_canvas.configure(xscrollcommand=scrollbar.set)
+
+        scroll_canvas.pack(side="top", fill="both", expand=True)
+        scrollbar.pack(side="bottom", fill="x")
 
         # Aba 2: MTR VPS JOGO
         empty_tab = tk.Frame(notebook, bg='lightgray')
@@ -1958,7 +1977,8 @@ class ButtonManager:
             special_ips = {
                 'eth2': ['192.168.10.254', '192.168.2.1'],  # Unifique
                 'eth4': ['192.168.1.1', '192.168.2.1'],     # Claro
-                'eth5': ['192.168.1.1', '192.168.10.254']   # Coopera
+                'eth5': ['192.168.1.1', '192.168.10.254'],  # Coopera
+                'tun0': []  # OMR VPN não tem IPs especiais para marcar
             }
             
             try:
@@ -2030,8 +2050,8 @@ class ButtonManager:
             ax.figure.canvas.draw()
 
         for idx, interface in enumerate(interfaces):
-            # Cria um quadro para cada interface dentro da aba
-            frame = tk.Frame(interface_tab, bg='white')  # Aplica fundo branco ao quadro
+            # Cria um quadro para cada interface dentro do frame rolável
+            frame = tk.Frame(scrollable_frame, bg='white')  # Aplica fundo branco ao quadro
             frame.grid(row=0, column=idx, padx=10, pady=0, sticky="n")  # Adicionando padding para melhor layout
 
             # Área de texto rolável para exibir a saída do MTR
@@ -2144,7 +2164,7 @@ class ButtonManager:
             auto_realign_button.config(text="Desativar Realinhamento" if self.auto_realign else "Ativar Realinhamento")
 
         # Botão para alternar o realinhamento automático
-        auto_realign_button = tk.Button(interface_tab, text="Desativar Realinhamento", command=toggle_auto_realign)
+        auto_realign_button = tk.Button(scrollable_frame, text="Desativar Realinhamento", command=toggle_auto_realign)
         auto_realign_button.grid(row=1, column=0, columnspan=len(interfaces), pady=10)
 
         # Função para fechar a janela corretamente
