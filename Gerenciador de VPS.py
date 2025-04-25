@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.21"
+    return "Beta 93.22"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -1894,6 +1894,12 @@ class ButtonManager:
 
 # METODO PARA MTR E GRAFICO DE CONEXÕES QUE CRIA A JANELA PRINCIPAL!
     def execute_mtr_and_plot(self):
+        # Verifica se a janela já existe
+        if hasattr(self, 'mtr_window') and self.mtr_window.winfo_exists():
+            # Janela já existe, traz para frente
+            self.mtr_window.lift()
+            return
+        
         self.auto_realign = True  # Flag para controlar o realinhamento automático
         """Executa o comando MTR via SSH para múltiplas interfaces em uma única janela com quadros separados."""
 
@@ -1909,13 +1915,13 @@ class ButtonManager:
         interfaces = list(interface_names.keys())
 
         # Cria a janela principal com fundo branco
-        main_window = tk.Toplevel(self.master)
-        main_window.title("Saídas do MTR e Gráficos de Latência")
-        main_window.configure(bg='white')  # Define o fundo branco
+        self.mtr_window = tk.Toplevel(self.master)  # Armazena a referência como atributo da classe
+        self.mtr_window.title("Saídas do MTR e Gráficos de Latência")
+        self.mtr_window.configure(bg='white')  # Define o fundo branco
 
         # Cria a barra de menus e adiciona o menu de Instalações
-        menubar = tk.Menu(main_window)
-        main_window.config(menu=menubar)
+        menubar = tk.Menu(self.mtr_window)  # Alterado para self.mtr_window
+        self.mtr_window.config(menu=menubar)  # Alterado para self.mtr_window
 
         # Cria o submenu "Instalações" para instalação do bmon e mtr
         install_menu = tk.Menu(menubar, tearoff=0)
@@ -1938,7 +1944,7 @@ class ButtonManager:
         maintenance_menu.add_command(label="Restaurar Gerenciador de VPS", command=self.restore_window)
 
         # Cria o notebook (abas)
-        notebook = ttk.Notebook(main_window)
+        notebook = ttk.Notebook(self.mtr_window)  # Alterado para self.mtr_window
         notebook.pack(fill='both', expand=True)
 
         # Aba 1: Interface MTR
@@ -2210,9 +2216,11 @@ class ButtonManager:
             finally:
                 # Garante que a janela principal será restaurada mesmo se ocorrer erro
                 self.restore_window()
-                main_window.destroy()
+                if hasattr(self, 'mtr_window'):
+                    self.mtr_window.destroy()
+                    del self.mtr_window  # Remove a referência à janela
 
-        main_window.protocol("WM_DELETE_WINDOW", on_closing)
+        self.mtr_window.protocol("WM_DELETE_WINDOW", on_closing)
 
     def add_zoom_pan(self, canvas, ax):
         """Adiciona funcionalidade de zoom e pan ao gráfico."""
