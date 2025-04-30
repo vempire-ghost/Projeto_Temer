@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.22"
+    return "Beta 93.23"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -1691,7 +1691,7 @@ class ButtonManager:
 # METODO PARA MTR NO VPS
     def executar_mtr(self, tab):
         main_window = tab.winfo_toplevel()
-        """Executa o MTR e exibe os resultados na aba especificada."""
+        """Executa o MTR ou Nmap traceroute e exibe os resultados na aba especificada."""
         # Carrega os endereços dos hosts do arquivo, se existir
         if os.path.exists(self.hosts_file):
             with open(self.hosts_file, 'r') as f:
@@ -1708,42 +1708,64 @@ class ButtonManager:
             logger_main.info("Arquivo de hosts não encontrado - inicializando com listas vazias")
             self.hosts = [[] for _ in range(3)]  # Inicializa com listas vazias para três testes
 
-        # Variável de controle para a execução do MTR
+        # Variáveis de controle
         self.executando_mtr = [False, False, False]  # Para três hosts
         self.thread_mtr = [None, None, None]
+        self.metodos = ["mtr", "nmap"]  # Métodos disponíveis
 
-        # Função para criar uma seção MTR
-        def criar_secao_mtr(linha):
+        # Função para criar uma seção de teste
+        def criar_secao_teste(linha):
             # Frame para encapsular a linha do host e botões
-            frame_host = tk.Frame(tab, bg="lightgray", bd=2, relief="groove")  # Frame com fundo cinza claro, borda e relevo
-            frame_host.grid(row=0, column=linha * 3, sticky='n', pady=5)  # Adiciona um pouco de espaçamento
+            frame_host = tk.Frame(tab, bg="lightgray", bd=2, relief="groove")
+            frame_host.grid(row=0, column=linha * 4, sticky='n', pady=5, columnspan=4)
+
+            # Combobox para seleção de método
+            metodo_var = tk.StringVar(value="mtr")
+            combobox_metodo = ttk.Combobox(frame_host, textvariable=metodo_var, width=8, values=self.metodos)
+            combobox_metodo.grid(row=0, column=0, padx=2)
+
+            # Label e entrada para porta (visível apenas quando nmap for selecionado)
+            porta_label = tk.Label(frame_host, text="Porta:")
+            porta_entry = tk.Entry(frame_host, width=6)
+            porta_entry.insert(0, "6112")  # Valor padrão
+
+            def toggle_porta(*args):
+                if metodo_var.get() == "nmap":
+                    porta_label.grid(row=0, column=1, padx=2)
+                    porta_entry.grid(row=0, column=2, padx=2)
+                else:
+                    porta_label.grid_forget()
+                    porta_entry.grid_forget()
+
+            metodo_var.trace("w", toggle_porta)
+            toggle_porta()  # Chama inicialmente para configurar o estado correto
 
             # Combobox para seleção de host
             combobox_var = tk.StringVar()
-            combobox_host = ttk.Combobox(frame_host, textvariable=combobox_var, width=37)
-            combobox_host.grid(row=0, column=0)
-            combobox_host['values'] = self.hosts[linha]  # Preenche com os últimos hosts
+            combobox_host = ttk.Combobox(frame_host, textvariable=combobox_var, width=25)
+            combobox_host.grid(row=0, column=3, padx=2)
+            combobox_host['values'] = self.hosts[linha]
             if self.hosts[linha]:
-                combobox_host.set(self.hosts[linha][0])  # Define o último host usado como padrão
+                combobox_host.set(self.hosts[linha][0])
 
-            # Botões para iniciar e parar MTR
-            botao_executar = tk.Button(frame_host, text="Iniciar MTR", command=lambda: iniciar_mtr(linha))
-            botao_executar.grid(row=0, column=1)
+            # Botões para iniciar e parar
+            botao_executar = tk.Button(frame_host, text="Iniciar", command=lambda: iniciar_teste(linha))
+            botao_executar.grid(row=0, column=4, padx=2)
 
-            botao_parar = tk.Button(frame_host, text="Parar MTR", command=lambda: parar_mtr(linha))
-            botao_parar.grid(row=0, column=2)
+            botao_parar = tk.Button(frame_host, text="Parar", command=lambda: parar_teste(linha))
+            botao_parar.grid(row=0, column=5, padx=2)
 
             # Área de texto para exibir o resultado
             area_texto = scrolledtext.ScrolledText(tab, width=77, height=28)
-            area_texto.grid(row=1, column=linha * 3, columnspan=3, pady=(10, 0))
+            area_texto.grid(row=1, column=linha * 4, columnspan=4, pady=(10, 0))
 
-            # Criação da figura para o gráfico
+            # Configuração do gráfico
             fig, ax = plt.subplots(figsize=(6, 4))
             line, = ax.plot([], [], label='Latência (ms)', color='blue')
             ax.set_title(f"Latência {linha + 1}")
             ax.set_ylabel("Latência (ms)")
             ax.set_xlabel("Tempo")
-            ax.set_ylim(0, 100)  # Define um limite para a latência
+            ax.set_ylim(0, 100)
             ax.legend(loc='upper right')
 
             # Adiciona linhas horizontais
@@ -1752,144 +1774,206 @@ class ButtonManager:
 
             # Área do gráfico
             canvas = FigureCanvasTkAgg(fig, master=tab)
-            canvas.get_tk_widget().grid(row=2, column=linha * 3, columnspan=3, pady=(10, 0))
+            canvas.get_tk_widget().grid(row=2, column=linha * 4, columnspan=4, pady=(10, 0))
 
-            # Listas para armazenar dados de latência e timestamps
+            # Listas para armazenar dados
             latencias = []
             timestamps = []
 
             # Função para atualizar o gráfico
             def update_graph():
                 now = datetime.now()
-                time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
-
-                # Filtra timestamps e latências dentro da janela de tempo
-                timestamps_filtered = [t for t in timestamps if t >= time_window_start]
-                latencias_filtered = latencias[-len(timestamps_filtered):]  # Limita os dados correspondentes
-
-                # Atualiza os dados da linha do gráfico
-                if timestamps_filtered and latencias_filtered:
-                    line.set_data(timestamps_filtered, latencias_filtered)
-                    ax.set_xlim([time_window_start, now])  # Ajusta os limites do eixo X
-                    ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))  # Formata o eixo X para horas
-                    fig.autofmt_xdate()  # Melhora a visualização das datas
-
-                    # Define o limite superior do eixo Y dinamicamente com margem extra
-                    max_latency = max(latencias_filtered)
-                    if max_latency > 100:
-                        ax.set_ylim(0, min(max_latency * 1.2, 300))  # Expande o limite superior com uma margem de 20%
-                    else:
-                        ax.set_ylim(0, 120)  # Mantém limite em 120ms para permitir margem
-                else:
-                    line.set_data([], [])  # Limpa os dados se não houver dados filtrados
-
-                canvas.draw()  # Atualiza o canvas
-
-            # Função para iniciar o MTR
-            def iniciar_mtr(index):
-                if self.executando_mtr[index]:
-                    logger_main.warning(f"Tentativa de iniciar MTR já em execução na linha {index}")
-                    return  # Não inicia outra thread se já estiver em execução
-
-                # Verifica se a conexão SSH está ativa
-                if not (hasattr(self, 'ssh_vps_jogo_via_vpn_client') and self.ssh_vps_jogo_client is not None):
-                    logger_main.error("Tentativa de executar MTR sem conexão SSH ativa")
-                    messagebox.showerror("Erro", "Não há conexão SSH ativa para executar o MTR")
-                    return
-
-                host = combobox_var.get()
-                if not host:
-                    logger_main.warning(f"Tentativa de iniciar MTR sem host definido na linha {index}")
-                    return
-
-                logger_main.info(f"Iniciando MTR para o host: {host} na linha {index}")
+                time_window_start = now - timedelta(minutes=60)
                 
-                if host and host not in self.hosts[index]:
-                    self.hosts[index].insert(0, host)  # Adiciona o novo host ao início da lista
-                    self.hosts[index] = self.hosts[index][:10]  # Limita a lista aos últimos 10 hosts
-                    with open(self.hosts_file, 'w') as f:  # Salva os hosts
-                        json.dump(self.hosts, f)
-                        logger_main.info(f"Host {host} adicionado à lista de hosts na linha {index}")
+                # Converter timestamps para formato numérico que o matplotlib entende
+                timestamps_num = [mdates.date2num(t) for t in timestamps if t >= time_window_start]
+                latencias_filtered = latencias[-len(timestamps_num):]
+                
+                if timestamps_num and latencias_filtered:
+                    line.set_data(timestamps_num, latencias_filtered)
+                    ax.set_xlim([mdates.date2num(time_window_start), mdates.date2num(now)])
+                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+                    fig.autofmt_xdate()
+                    
+                    # Ajuste dinâmico do eixo Y
+                    max_latency = max(latencias_filtered) if latencias_filtered else 100
+                    upper_limit = max(120, max_latency * 1.2)
+                    ax.set_ylim(0, min(upper_limit, 300))
+                    
+                    canvas.draw()
+                else:
+                    line.set_data([], [])
+                    canvas.draw()
 
-                    # Atualiza a lista suspensa
+            # Função para extrair latência do resultado
+            def extrair_latencia(resultado, metodo):
+                try:
+                    logger_main.debug(f"Extraindo latência do método: {metodo}")
+                    
+                    if metodo == "mtr":
+                        # Processamento para MTR
+                        last_lines = resultado.strip().splitlines()
+                        logger_main.debug(f"Linhas completas do MTR:\n{last_lines}")
+                        
+                        for line in reversed(last_lines):  # Começa do final para pegar o último relatório
+                            if "|--" in line and "%" in line:  # Linha com dados
+                                parts = line.split()
+                                logger_main.debug(f"Linha de dados do MTR: {parts}")
+                                
+                                # Verifica se tem pelo menos 8 colunas (o índice 7 é a média)
+                                if len(parts) >= 8:
+                                    try:
+                                        latency = float(parts[7])  # Índice da coluna da latência média
+                                        logger_main.info(f"Latência MTR extraída: {latency}ms")
+                                        return latency
+                                    except (IndexError, ValueError) as e:
+                                        logger_main.warning(f"Erro ao extrair latência da linha: {line} - {str(e)}")
+                                        continue
+                    
+                    elif metodo == "nmap":
+                        # Processamento para Nmap
+                        logger_main.debug("Processando saída do Nmap - Modo otimizado")
+                        
+                        # Procura pela seção TRACEROUTE
+                        traceroute_section = False
+                        last_valid_latency = None
+                        
+                        for line in resultado.splitlines():
+                            line = line.strip()
+                            
+                            if "TRACEROUTE" in line:
+                                traceroute_section = True
+                                continue
+                                
+                            if traceroute_section and "Nmap done" in line:
+                                break
+                                
+                            if traceroute_section and "ms" in line:
+                                # Padronização: substitui múltiplos espaços por um único
+                                line = ' '.join(line.split())
+                                
+                                # Extrai o valor de latência (padrão: "NUMBERms" ou "NUMBER ms")
+                                latency_match = re.search(r'(\d+\.\d+)\s?ms', line)
+                                if latency_match:
+                                    try:
+                                        latency = float(latency_match.group(1))
+                                        logger_main.debug(f"Latência Nmap extraída: {latency}ms")
+                                        last_valid_latency = latency
+                                    except ValueError:
+                                        continue
+                        
+                        if last_valid_latency is not None:
+                            logger_main.info(f"Latência Nmap final: {last_valid_latency}ms")
+                            return last_valid_latency
+                        
+                except Exception as e:
+                    logger_main.error(f"Erro inesperado ao extrair latência: {str(e)}", exc_info=True)
+                
+                logger_main.warning("Não foi possível extrair latência do resultado")
+                return None
+
+            # Função para iniciar o teste
+            def iniciar_teste(index):
+                if self.executando_mtr[index]:
+                    logger_main.warning(f"Tentativa de iniciar teste já em execução na linha {index}")
+                    return
+
+                # Verifica conexão SSH
+                if not (hasattr(self, 'ssh_vps_jogo_via_vpn_client') and self.ssh_vps_jogo_client is not None):
+                    logger_main.error("Tentativa de executar teste sem conexão SSH ativa")
+                    messagebox.showerror("Erro", "Não há conexão SSH ativa para executar o teste")
+                    return
+
+                metodo = metodo_var.get()
+                host = combobox_var.get()
+                porta = porta_entry.get() if metodo == "nmap" else ""
+
+                if not host:
+                    logger_main.warning(f"Tentativa de iniciar teste sem host definido na linha {index}")
+                    return
+                logger_main.info(f"Iniciando MTR para o host: {host} na linha {index}")
+
+                # Armazena o host (com porta se for nmap)
+                host_entry = f"{host}:{porta}" if metodo == "nmap" and porta else host
+                if host_entry not in self.hosts[index]:
+                    self.hosts[index].insert(0, host_entry)
+                    self.hosts[index] = self.hosts[index][:10]
+                    with open(self.hosts_file, 'w') as f:
+                        json.dump(self.hosts, f)
+                        logger_main.info(f"Host {host_entry} adicionado à lista de hosts na linha {index}")
                     combobox_host['values'] = self.hosts[index]
 
-                command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 {host}"
+                # Define o comando apropriado
+                if metodo == "mtr":
+                    command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 {host}"
+                else:  # nmap
+                    command = f"sudo nmap -sS -p {porta} -Pn --traceroute {host}"
+
                 self.executando_mtr[index] = True
 
-                def run_mtr():
+                def run_test():
                     try:
                         while self.executando_mtr[index]:
                             # Executa o comando via SSH
                             stdin, stdout, stderr = self.ssh_vps_jogo_via_vpn_client.exec_command(command)
-                            resultado = stdout.read().decode()  # Lê a saída do comando
+                            resultado = stdout.read().decode()
                             error = stderr.read().decode()
 
-                            if error:
-                                logger_main.error(f"Erro ao executar MTR na linha {index}: {error.strip()}")
+                            if error and "WARNING" not in error:  # Ignora warnings comuns do Nmap
+                                logger_main.error(f"Erro ao executar {metodo} na linha {index}: {error.strip()}")
                                 self.executando_mtr[index] = False
                                 return
 
-                            # Atualiza a área de texto com o resultado
-                            area_texto.delete(1.0, tk.END)  # Limpa a área de texto
-                            area_texto.insert(tk.END, resultado)  # Insere o resultado
-                            area_texto.see(tk.END)  # Rola para o final
+                            # Atualiza a área de texto
+                            area_texto.delete(1.0, tk.END)
+                            area_texto.insert(tk.END, resultado)
+                            area_texto.see(tk.END)
 
-                            # Processa a saída do MTR
-                            last_lines = resultado.strip().splitlines()
-                            valid_lines = [line for line in last_lines if "?" not in line]  # Filtra linhas válidas
-
-                            if valid_lines:
-                                last_line = valid_lines[-1].split()
-                                avg_index = 6  # O índice da latência média
-                                if len(last_line) > avg_index:
-                                    try:
-                                        latency = int(float(last_line[avg_index]))
-                                        latencias.append(latency)
-                                        timestamps.append(datetime.now())  # Armazena o timestamp atual
-                                    except ValueError as e:
-                                        logger_main.warning(f"Não foi possível converter latência do MTR na linha {index}: {str(e)}")
-                                else:
-                                    logger_main.warning(f"Formato inesperado na saída do MTR na linha {index}")
-                            else:
-                                logger_main.warning(f"Nenhuma linha válida encontrada na saída do MTR na linha {index}")
-
-                            # Limita a exibição a um intervalo de 60 minutos
-                            while len(latencias) > 3600:  # Mantém apenas os últimos 3600 dados
+                            # Processa a latência
+                            latency = extrair_latencia(resultado, metodo)
+                            logger_main.debug(f"Latência obtida: {latency}")
+                            
+                            if latency is not None:
+                                latencias.append(latency)
+                                timestamps.append(datetime.now())
+                                logger_main.debug(f"Dados atuais - Latências: {latencias[-5:]}, Timestamps: {timestamps[-5:]}")
+                            
+                            # Limita os dados
+                            while len(latencias) > 3600:
                                 latencias.pop(0)
                                 timestamps.pop(0)
+                            
+                            update_graph()
 
-                            update_graph()  # Chama a função para atualizar o gráfico
-
-                            time.sleep(1)  # Aguarda 1 segundo antes de executar novamente
+                            # Espera antes de executar novamente
+                            time.sleep(1 if metodo == "mtr" else 5)  # Nmap pode levar mais tempo
                     except Exception as e:
-                        logger_main.error(f"Erro inesperado durante o MTR na linha {index}: {str(e)}")
+                        logger_main.error(f"Erro inesperado durante o teste na linha {index}: {str(e)}")
                         self.executando_mtr[index] = False
 
-                self.thread_mtr[index] = threading.Thread(target=run_mtr)
+                self.thread_mtr[index] = threading.Thread(target=run_test)
                 self.thread_mtr[index].start()
 
-            def parar_mtr(index):
+            def parar_teste(index):
                 if self.executando_mtr[index]:
-                    logger_main.info(f"Parando MTR na linha {index}")
-                    self.executando_mtr[index] = False  # Para a execução do MTR
+                    logger_main.info(f"Parando teste na linha {index}")
+                    self.executando_mtr[index] = False
                 else:
-                    logger_main.warning(f"Tentativa de parar MTR que não estava em execução na linha {index}")
+                    logger_main.warning(f"Tentativa de parar teste que não estava em execução na linha {index}")
 
-        # Criação de três seções de MTR
+        # Criação de três seções de teste
         for i in range(3):
-            logger_main.debug(f"Criando seção MTR para linha {i}")
-            criar_secao_mtr(i)
+            logger_main.debug(f"Criando seção de teste para linha {i}")
+            criar_secao_teste(i)
 
         # Função para fechar a janela corretamente
         def on_closing():
-            logger_main.info("Fechando janela de MTR - parando todos os processos")
-            for i in range(3):  # Para cada host, parar a execução do MTR
+            logger_main.info("Fechando janela de testes - parando todos os processos")
+            for i in range(3):
                 if self.executando_mtr[i]:
-                    logger_main.info(f"Parando MTR na linha {i} devido ao fechamento da janela")
-                    self.executando_mtr[i] = False  # Para a execução do MTR
+                    logger_main.info(f"Parando teste na linha {i} devido ao fechamento da janela")
+                    self.executando_mtr[i] = False
 
-        # Define a função para ser chamada quando a janela for fechada
         main_window.protocol("WM_DELETE_WINDOW", on_closing)
 
 # METODO PARA MTR E GRAFICO DE CONEXÕES QUE CRIA A JANELA PRINCIPAL!
