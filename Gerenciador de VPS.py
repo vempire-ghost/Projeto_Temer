@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.25"
+    return "Beta 93.26"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -1695,7 +1695,7 @@ class ButtonManager:
 # METODO PARA MTR NO VPS
     def executar_mtr(self, tab):
         main_window = tab.winfo_toplevel()
-        """Executa o MTR ou Nmap traceroute e exibe os resultados na aba especificada."""
+        """Executa o MTR, Nmap traceroute ou Ping e exibe os resultados na aba especificada."""
         # Carrega os endereços dos hosts do arquivo, se existir
         if os.path.exists(self.hosts_file):
             with open(self.hosts_file, 'r') as f:
@@ -1735,7 +1735,7 @@ class ButtonManager:
         # Variáveis de controle
         self.executando_mtr = [False, False, False]  # Para três hosts
         self.thread_mtr = [None, None, None]
-        self.metodos = ["mtr", "nmap"]  # Métodos disponíveis
+        self.metodos = ["mtr", "nmap", "ping"]  # Métodos disponíveis (adicionado ping)
 
         # Função para criar uma seção de teste
         def criar_secao_teste(linha):
@@ -1892,7 +1892,20 @@ class ButtonManager:
                         if last_valid_latency is not None:
                             #logger_main.info(f"Latência Nmap final: {last_valid_latency}ms")
                             return last_valid_latency
-                        
+                    
+                    elif metodo == "ping":
+                        # Processamento para Ping
+                        match = re.search(r'time=(\d+\.?\d*) ms', resultado)
+                        if match:
+                            try:
+                                return float(match.group(1))
+                            except ValueError:
+                                logger_main.warning("Valor de latência do ping inválido")
+                        else:
+                            # Ping sem resposta
+                            logger_main.warning("Ping sem resposta")
+                            return 999  # Valor alto para indicar falha
+                    
                 except Exception as e:
                     logger_main.error(f"Erro inesperado ao extrair latência: {str(e)}", exc_info=True)
                 
@@ -1918,7 +1931,7 @@ class ButtonManager:
                 if not host:
                     logger_main.warning(f"Tentativa de iniciar teste sem host definido na linha {index}")
                     return
-                logger_main.info(f"Iniciando MTR para o host: {host} na linha {index}")
+                logger_main.info(f"Iniciando {metodo.upper()} para o host: {host} na linha {index}")
 
                 # Armazena o host (com porta se for nmap) sem duplicatas
                 host_entry = f"{host}:{porta}" if metodo == "nmap" and porta else host
@@ -1929,22 +1942,16 @@ class ButtonManager:
                 combobox_host['values'] = cleaned_hosts
                 combobox_host.set(cleaned_hosts[0])
 
-                # Armazena o host (com porta se for nmap)
-                host_entry = f"{host}:{porta}" if metodo == "nmap" and porta else host
-                existing_ips = [h.split(':')[0] for h in self.hosts[index]]
-                if host.split(':')[0] not in existing_ips:
-                    self.hosts[index].insert(0, host_entry)
-                    self.hosts[index] = self.hosts[index][:10]
-                    with open(self.hosts_file, 'w') as f:
-                        json.dump(self.hosts, f)
-                        logger_main.info(f"Host {host_entry} adicionado à lista de hosts na linha {index}")
-                    combobox_host['values'] = self.hosts[index]
-
                 # Define o comando apropriado
                 if metodo == "mtr":
                     command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 {host}"
-                else:  # nmap
+                    intervalo = 1
+                elif metodo == "nmap":
                     command = f"sudo nmap -sS -p {porta} -Pn --traceroute {host}"
+                    intervalo = 5  # Nmap pode levar mais tempo
+                else:  # ping
+                    command = f"ping -n -c 1 {host}"
+                    intervalo = 1
 
                 self.executando_mtr[index] = True
 
@@ -1983,7 +1990,7 @@ class ButtonManager:
                             update_graph()
 
                             # Espera antes de executar novamente
-                            time.sleep(1 if metodo == "mtr" else 5)  # Nmap pode levar mais tempo
+                            time.sleep(intervalo)
                     except Exception as e:
                         logger_main.error(f"Erro inesperado durante o teste na linha {index}: {str(e)}")
                         self.executando_mtr[index] = False
