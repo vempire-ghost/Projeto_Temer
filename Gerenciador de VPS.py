@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.23"
+    return "Beta 93.24"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -1507,7 +1507,11 @@ class ButtonManager:
             combobox_host.grid(row=0, column=0)
             combobox_host['values'] = self.hosts[linha]  # Preenche com os últimos hosts
             if self.hosts[linha]:
-                combobox_host.set(self.hosts[linha][0])  # Define o último host usado como padrão
+                cleaned_hosts = [host.split(':')[0] for host in self.hosts[linha]]
+                combobox_host['values'] = cleaned_hosts
+                combobox_host.set(cleaned_hosts[0])
+            else:
+                combobox_host['values'] = []
 
             # Botões para iniciar e parar Ping
             botao_executar = tk.Button(frame_host, text="Iniciar Ping", command=lambda: iniciar_ping(linha))
@@ -1744,9 +1748,12 @@ class ButtonManager:
             combobox_var = tk.StringVar()
             combobox_host = ttk.Combobox(frame_host, textvariable=combobox_var, width=25)
             combobox_host.grid(row=0, column=3, padx=2)
-            combobox_host['values'] = self.hosts[linha]
             if self.hosts[linha]:
-                combobox_host.set(self.hosts[linha][0])
+                cleaned_hosts = [host.split(':')[0] for host in self.hosts[linha]]
+                combobox_host['values'] = cleaned_hosts
+                combobox_host.set(cleaned_hosts[0])
+            else:
+                combobox_host['values'] = []
 
             # Botões para iniciar e parar
             botao_executar = tk.Button(frame_host, text="Iniciar", command=lambda: iniciar_teste(linha))
@@ -1824,7 +1831,7 @@ class ButtonManager:
                                 if len(parts) >= 8:
                                     try:
                                         latency = float(parts[7])  # Índice da coluna da latência média
-                                        logger_main.info(f"Latência MTR extraída: {latency}ms")
+                                        #logger_main.info(f"Latência MTR extraída: {latency}ms")
                                         return latency
                                     except (IndexError, ValueError) as e:
                                         logger_main.warning(f"Erro ao extrair latência da linha: {line} - {str(e)}")
@@ -1857,13 +1864,13 @@ class ButtonManager:
                                 if latency_match:
                                     try:
                                         latency = float(latency_match.group(1))
-                                        logger_main.debug(f"Latência Nmap extraída: {latency}ms")
+                                        #logger_main.debug(f"Latência Nmap extraída: {latency}ms")
                                         last_valid_latency = latency
                                     except ValueError:
                                         continue
                         
                         if last_valid_latency is not None:
-                            logger_main.info(f"Latência Nmap final: {last_valid_latency}ms")
+                            #logger_main.info(f"Latência Nmap final: {last_valid_latency}ms")
                             return last_valid_latency
                         
                 except Exception as e:
@@ -1895,7 +1902,8 @@ class ButtonManager:
 
                 # Armazena o host (com porta se for nmap)
                 host_entry = f"{host}:{porta}" if metodo == "nmap" and porta else host
-                if host_entry not in self.hosts[index]:
+                existing_ips = [h.split(':')[0] for h in self.hosts[index]]
+                if host.split(':')[0] not in existing_ips:
                     self.hosts[index].insert(0, host_entry)
                     self.hosts[index] = self.hosts[index][:10]
                     with open(self.hosts_file, 'w') as f:
@@ -1956,10 +1964,11 @@ class ButtonManager:
 
             def parar_teste(index):
                 if self.executando_mtr[index]:
-                    logger_main.info(f"Parando teste na linha {index}")
+                    host = combobox_var.get()  # Obtém o host atual da combobox
+                    logger_main.info(f"Parando teste para o host: {host}")
                     self.executando_mtr[index] = False
                 else:
-                    logger_main.warning(f"Tentativa de parar teste que não estava em execução na linha {index}")
+                    logger_main.warning(f"Tentativa de parar teste que não estava em execução para o host: {combobox_var.get()}")
 
         # Criação de três seções de teste
         for i in range(3):
