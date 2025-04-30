@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.24"
+    return "Beta 93.25"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -1712,6 +1712,26 @@ class ButtonManager:
             logger_main.info("Arquivo de hosts não encontrado - inicializando com listas vazias")
             self.hosts = [[] for _ in range(3)]  # Inicializa com listas vazias para três testes
 
+        # Função para adicionar host à lista garantindo que não haja duplicatas
+        def adicionar_host_sem_duplicata(index, novo_host):
+            # Extrai o IP (remove a porta se existir)
+            ip_base = novo_host.split(':')[0]
+            
+            # Remove todas as ocorrências do mesmo IP (com ou sem porta)
+            self.hosts[index] = [host for host in self.hosts[index] if host.split(':')[0] != ip_base]
+            
+            # Adiciona o novo host no início da lista
+            self.hosts[index].insert(0, novo_host)
+            
+            # Limita o tamanho da lista
+            self.hosts[index] = self.hosts[index][:10]
+            
+            # Salva no arquivo
+            with open(self.hosts_file, 'w') as f:
+                json.dump(self.hosts, f)
+            
+            logger_main.info(f"Host {novo_host} adicionado à lista de hosts na linha {index} sem duplicatas")
+
         # Variáveis de controle
         self.executando_mtr = [False, False, False]  # Para três hosts
         self.thread_mtr = [None, None, None]
@@ -1899,6 +1919,15 @@ class ButtonManager:
                     logger_main.warning(f"Tentativa de iniciar teste sem host definido na linha {index}")
                     return
                 logger_main.info(f"Iniciando MTR para o host: {host} na linha {index}")
+
+                # Armazena o host (com porta se for nmap) sem duplicatas
+                host_entry = f"{host}:{porta}" if metodo == "nmap" and porta else host
+                adicionar_host_sem_duplicata(index, host_entry)
+                
+                # Atualiza a combobox com os novos valores
+                cleaned_hosts = [h.split(':')[0] for h in self.hosts[index]]
+                combobox_host['values'] = cleaned_hosts
+                combobox_host.set(cleaned_hosts[0])
 
                 # Armazena o host (com porta se for nmap)
                 host_entry = f"{host}:{porta}" if metodo == "nmap" and porta else host
