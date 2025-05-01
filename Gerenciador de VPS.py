@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.27"
+    return "Beta 94"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -1473,7 +1473,7 @@ class ButtonManager:
             text_area.see(tk.END)
             text_area.config(state='disabled')
 
-# METODO PARA PING NO VPS
+# METODO PARA PING NO VPS **METODO DEPRECIADO**
     def executar_ping(self, tab):
         main_window = tab.winfo_toplevel()
         """Executa o Ping e exibe os resultados na aba especificada."""
@@ -1692,7 +1692,7 @@ class ButtonManager:
         # Define a função para ser chamada quando a janela for fechada
         main_window.protocol("WM_DELETE_WINDOW", on_closing)
 
-# METODO PARA MTR NO VPS
+# METODO PARA MTR, PING E NMAP NO VPS
     def executar_mtr(self, tab):
         main_window = tab.winfo_toplevel()
         """Executa o MTR, Nmap traceroute ou Ping e exibe os resultados na aba especificada."""
@@ -1855,6 +1855,7 @@ class ButtonManager:
             # Listas para armazenar dados
             latencias = []
             timestamps = []
+            connection_drops = []  # Armazena os momentos em que a conexão caiu
 
             # Função para atualizar o gráfico
             def update_graph():
@@ -1875,6 +1876,16 @@ class ButtonManager:
                     max_latency = max(latencias_filtered) if latencias_filtered else 100
                     upper_limit = max(120, max_latency * 1.2)
                     ax.set_ylim(0, min(upper_limit, 300))
+                    
+                    # Limpa marcadores antigos
+                    for marker in ax.collections:
+                        marker.remove()
+                    
+                    # Adiciona marcadores para quedas de conexão
+                    if connection_drops:
+                        drop_times = [mdates.date2num(t) for t in connection_drops if t >= time_window_start]
+                        if drop_times:
+                            ax.scatter(drop_times, [0]*len(drop_times), marker='^', color='black', s=100, label='Queda de conexão')
                     
                     canvas.draw()
                 else:
@@ -1961,16 +1972,39 @@ class ButtonManager:
                 logger_main.warning("Não foi possível extrair latência do resultado")
                 return None
 
+            # Função para verificar e aguardar reconexão SSH
+            def verificar_reconexao_ssh():
+                max_retries = 600  # Número máximo de tentativas (1 minuto com intervalos de 1 segundo)
+                retry_count = 0
+                
+                while retry_count < max_retries:
+                    try:
+                        # Verificação simplificada - apenas checa se o objeto SSH existe
+                        if hasattr(self, 'ssh_vps_jogo_via_vpn_client') and self.ssh_vps_jogo_via_vpn_client:
+                            # Tenta uma operação simples para verificar se a conexão está ativa
+                            try:
+                                self.ssh_vps_jogo_via_vpn_client.exec_command('echo "Testando conexão"', timeout=5)
+                                logger_main.info("Conexão SSH reestabelecida e verificada")
+                                return True
+                            except:
+                                # Se a operação falhar, considera que a conexão não está boa
+                                pass
+                        
+                        logger_main.warning(f"Tentando reconectar SSH (tentativa {retry_count + 1}/{max_retries})")
+                        time.sleep(5)
+                        retry_count += 1
+                    except Exception as e:
+                        logger_main.error(f"Erro ao verificar conexão SSH: {str(e)}")
+                        time.sleep(5)
+                        retry_count += 1
+                
+                logger_main.error("Não foi possível reestabelecer a conexão SSH após várias tentativas")
+                return False
+
             # Função para iniciar o teste
             def iniciar_teste(index):
                 if self.executando_mtr[index]:
                     logger_main.warning(f"Tentativa de iniciar teste já em execução na linha {index}")
-                    return
-
-                # Verifica conexão SSH
-                if not (hasattr(self, 'ssh_vps_jogo_via_vpn_client') and self.ssh_vps_jogo_client is not None):
-                    logger_main.error("Tentativa de executar teste sem conexão SSH ativa")
-                    messagebox.showerror("Erro", "Não há conexão SSH ativa para executar o teste")
                     return
 
                 metodo = metodo_var.get()
@@ -2015,8 +2049,22 @@ class ButtonManager:
                 self.executando_mtr[index] = True
 
                 def run_test():
-                    try:
-                        while self.executando_mtr[index]:
+                    while self.executando_mtr[index]:
+                        try:
+                            # Verifica conexão SSH antes de executar
+                            if not (hasattr(self, 'ssh_vps_jogo_via_vpn_client') and self.ssh_vps_jogo_via_vpn_client):                         
+                                logger_main.warning("Conexão SSH perdida - aguardando reconexão")
+                                connection_drops.append(datetime.now())  # Marca o momento da queda
+                                update_graph()  # Atualiza o gráfico para mostrar a queda
+                                
+                                if not verificar_reconexao_ssh():
+                                    logger_main.error("Não foi possível reconectar - parando teste")
+                                    self.executando_mtr[index] = False
+                                    return
+                                
+                                # Continua após reconexão bem-sucedida
+                                logger_main.info("Conexão SSH reestabelecida - continuando testes")
+
                             # Executa o comando via SSH
                             stdin, stdout, stderr = self.ssh_vps_jogo_via_vpn_client.exec_command(command)
                             resultado = stdout.read().decode()
@@ -2050,9 +2098,16 @@ class ButtonManager:
 
                             # Espera antes de executar novamente
                             time.sleep(intervalo)
-                    except Exception as e:
-                        logger_main.error(f"Erro inesperado durante o teste na linha {index}: {str(e)}")
-                        self.executando_mtr[index] = False
+                        
+                        except Exception as e:
+                            logger_main.error(f"Erro inesperado durante o teste na linha {index}: {str(e)}")
+                            connection_drops.append(datetime.now())  # Marca o momento da queda
+                            update_graph()  # Atualiza o gráfico para mostrar a queda
+                            
+                            if not verificar_reconexao_ssh():
+                                logger_main.error("Não foi possível reconectar após erro - parando teste")
+                                self.executando_mtr[index] = False
+                                return
 
                 self.thread_mtr[index] = threading.Thread(target=run_test)
                 self.thread_mtr[index].start()
@@ -2165,13 +2220,13 @@ class ButtonManager:
 
         # Aba 2: MTR VPS JOGO
         empty_tab = tk.Frame(notebook, bg='lightgray')
-        notebook.add(empty_tab, text='MTR no VPS JOGO')
+        notebook.add(empty_tab, text='MTR, PING e NMAP no VPS JOGO')
         self.executar_mtr(empty_tab)
 
         # Aba 3: PING VPS JOGO
-        empty_tab = tk.Frame(notebook, bg='lightgray')
-        notebook.add(empty_tab, text='PING no VPS JOGO')
-        self.executar_ping(empty_tab)
+        #empty_tab = tk.Frame(notebook, bg='lightgray')
+        #notebook.add(empty_tab, text='PING no VPS JOGO')
+        #self.executar_ping(empty_tab)
 
         # Aba 4: Monitoramento OMR
         monitor_tab = tk.Frame(notebook, bg='white')
