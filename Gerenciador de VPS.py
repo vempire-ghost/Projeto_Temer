@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 94"
+    return "Beta 94.1"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -2126,14 +2126,15 @@ class ButtonManager:
             criar_secao_teste(i)
 
         # Função para fechar a janela corretamente
-        def on_closing():
+        def aba_on_closing():
             logger_main.info("Fechando janela de testes - parando todos os processos")
             for i in range(3):
                 if self.executando_mtr[i]:
                     logger_main.info(f"Parando teste na linha {i} devido ao fechamento da janela")
                     self.executando_mtr[i] = False
 
-        main_window.protocol("WM_DELETE_WINDOW", on_closing)
+        # Registre o handler na lista principal
+        self.aba_close_handlers.append(aba_on_closing)
 
 # METODO PARA MTR E GRAFICO DE CONEXÕES QUE CRIA A JANELA PRINCIPAL!
     def execute_mtr_and_plot(self):
@@ -2187,6 +2188,7 @@ class ButtonManager:
         maintenance_menu.add_command(label="Restaurar Gerenciador de VPS", command=self.restore_window)
 
         # Cria o notebook (abas)
+        self.aba_close_handlers = []  # Lista para armazenar os handlers de fechamento
         notebook = ttk.Notebook(self.mtr_window)  # Alterado para self.mtr_window
         notebook.pack(fill='both', expand=True)
 
@@ -2452,16 +2454,22 @@ class ButtonManager:
         def on_closing():
             try:
                 stop_event.set()  # Aciona o evento de parada para as threads
-
+                
+                # Chama todos os handlers registrados
+                for handler in self.aba_close_handlers:
+                    try:
+                        handler()  # Executa cada handler de fechamento
+                    except Exception as e:
+                        print(f"Erro ao executar handler de fechamento: {e}")
+                
                 # Cancela todos os callbacks pendentes
                 for callback_id in callbacks:
                     self.master.after_cancel(callback_id)
             finally:
-                # Garante que a janela principal será restaurada mesmo se ocorrer erro
                 self.restore_window()
                 if hasattr(self, 'mtr_window'):
                     self.mtr_window.destroy()
-                    del self.mtr_window  # Remove a referência à janela
+                    del self.mtr_window
 
         self.mtr_window.protocol("WM_DELETE_WINDOW", on_closing)
 
