@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 93.26"
+    return "Beta 93.27"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -1712,6 +1712,19 @@ class ButtonManager:
             logger_main.info("Arquivo de hosts não encontrado - inicializando com listas vazias")
             self.hosts = [[] for _ in range(3)]  # Inicializa com listas vazias para três testes
 
+        # Carrega as configurações anteriores se existirem
+        config_file = os.path.join(os.path.dirname(self.hosts_file), 'test_config.json')
+        if os.path.exists(config_file):
+            with open(config_file, 'r') as f:
+                self.test_config = json.load(f)
+        else:
+            self.test_config = {'last_methods': ['mtr', 'mtr', 'mtr']}
+
+        # Variáveis de controle
+        self.executando_mtr = [False, False, False]  # Para três hosts
+        self.thread_mtr = [None, None, None]
+        self.metodos = ["mtr", "nmap", "ping"]  # Métodos disponíveis (adicionado ping)
+
         # Função para adicionar host à lista garantindo que não haja duplicatas
         def adicionar_host_sem_duplicata(index, novo_host):
             # Extrai o IP (remove a porta se existir)
@@ -1732,48 +1745,84 @@ class ButtonManager:
             
             logger_main.info(f"Host {novo_host} adicionado à lista de hosts na linha {index} sem duplicatas")
 
-        # Variáveis de controle
-        self.executando_mtr = [False, False, False]  # Para três hosts
-        self.thread_mtr = [None, None, None]
-        self.metodos = ["mtr", "nmap", "ping"]  # Métodos disponíveis (adicionado ping)
-
         # Função para criar uma seção de teste
         def criar_secao_teste(linha):
             # Frame para encapsular a linha do host e botões
             frame_host = tk.Frame(tab, bg="lightgray", bd=2, relief="groove")
             frame_host.grid(row=0, column=linha * 4, sticky='n', pady=5, columnspan=4)
 
+            # Combobox para seleção de host - declarada primeiro
+            combobox_var = tk.StringVar()
+            combobox_host = ttk.Combobox(frame_host, textvariable=combobox_var, width=25)
+            combobox_host.grid(row=0, column=3, padx=2)
+
             # Combobox para seleção de método
-            metodo_var = tk.StringVar(value="mtr")
+            metodo_var = tk.StringVar(value=self.test_config['last_methods'][linha])
             combobox_metodo = ttk.Combobox(frame_host, textvariable=metodo_var, width=8, values=self.metodos)
             combobox_metodo.grid(row=0, column=0, padx=2)
 
-            # Label e entrada para porta (visível apenas quando nmap for selecionado)
+            # Label e entrada para porta
             porta_label = tk.Label(frame_host, text="Porta:")
             porta_entry = tk.Entry(frame_host, width=6)
             porta_entry.insert(0, "6112")  # Valor padrão
 
+            # Função chamada quando o host é selecionado
+            def on_host_selected(event):
+                selected_host = combobox_var.get()
+                if not selected_host:
+                    return
+                    
+                for host_entry in self.hosts[linha]:
+                    if host_entry.startswith(selected_host):
+                        if ":" in host_entry and metodo_var.get() == "nmap":
+                            porta = host_entry.split(":")[1]
+                            porta_entry.delete(0, tk.END)
+                            porta_entry.insert(0, porta)
+                        break
+
+            combobox_host.bind("<<ComboboxSelected>>", on_host_selected)
+
+            # Função para mostrar/ocultar campo de porta
             def toggle_porta(*args):
                 if metodo_var.get() == "nmap":
                     porta_label.grid(row=0, column=1, padx=2)
                     porta_entry.grid(row=0, column=2, padx=2)
+                    
+                    # Verifica se o host selecionado tem porta
+                    selected_host = combobox_var.get()
+                    if selected_host:
+                        for host_entry in self.hosts[linha]:
+                            if host_entry.startswith(selected_host) and ":" in host_entry:
+                                porta = host_entry.split(":")[1]
+                                porta_entry.delete(0, tk.END)
+                                porta_entry.insert(0, porta)
+                                break
                 else:
                     porta_label.grid_forget()
                     porta_entry.grid_forget()
 
             metodo_var.trace("w", toggle_porta)
-            toggle_porta()  # Chama inicialmente para configurar o estado correto
 
-            # Combobox para seleção de host
-            combobox_var = tk.StringVar()
-            combobox_host = ttk.Combobox(frame_host, textvariable=combobox_var, width=25)
-            combobox_host.grid(row=0, column=3, padx=2)
+            # Configura os hosts
             if self.hosts[linha]:
-                cleaned_hosts = [host.split(':')[0] for host in self.hosts[linha]]
+                cleaned_hosts = []
+                for host_entry in self.hosts[linha]:
+                    if ":" in host_entry:
+                        cleaned_hosts.append(host_entry.split(":")[0])
+                    else:
+                        cleaned_hosts.append(host_entry)
+                
                 combobox_host['values'] = cleaned_hosts
-                combobox_host.set(cleaned_hosts[0])
-            else:
-                combobox_host['values'] = []
+                combobox_host.set(cleaned_hosts[0] if cleaned_hosts else "")
+                
+                # Configura porta se for nmap
+                if metodo_var.get() == "nmap" and ":" in self.hosts[linha][0]:
+                    porta = self.hosts[linha][0].split(":")[1]
+                    porta_entry.delete(0, tk.END)
+                    porta_entry.insert(0, porta)
+
+            # Chama toggle_porta após todas as variáveis estarem definidas
+            toggle_porta()
 
             # Botões para iniciar e parar
             botao_executar = tk.Button(frame_host, text="Iniciar", command=lambda: iniciar_teste(linha))
@@ -1938,9 +1987,19 @@ class ButtonManager:
                 adicionar_host_sem_duplicata(index, host_entry)
                 
                 # Atualiza a combobox com os novos valores
-                cleaned_hosts = [h.split(':')[0] for h in self.hosts[index]]
+                cleaned_hosts = []
+                for h in self.hosts[index]:
+                    if ":" in h:
+                        cleaned_hosts.append(h.split(":")[0])
+                    else:
+                        cleaned_hosts.append(h)
                 combobox_host['values'] = cleaned_hosts
                 combobox_host.set(cleaned_hosts[0])
+
+                # Salva o método usado
+                self.test_config['last_methods'][index] = metodo
+                with open(config_file, 'w') as f:
+                    json.dump(self.test_config, f)
 
                 # Define o comando apropriado
                 if metodo == "mtr":
