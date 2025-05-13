@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 94.1"
+    return "Beta 94.2"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -615,10 +615,12 @@ class ButtonManager:
         self.master.after(100, self.prepare_for_closing)  # Agendar a execução de prepare_for_closing após 100 ms
 
     def prepare_for_closing(self):
-        # Criar e exibir a tela de alerta
-        #self.show_closing_alert()
+        # Criar e exibir a tela de alerta de confirmação
+        if not self.show_closing_alert():
+            return  # Se o usuário cancelar, não continua com o encerramento
 
-        # Colocar aqui toda chamada de encerramento de threads que estiverem sendo executadas de forma initerrupta e qualquer função a ser chamada no encerramento do programa.
+        # Colocar aqui toda chamada de encerramento de threads que estiverem sendo executadas de forma ininterrupta
+        # e qualquer função a ser chamada no encerramento do programa.
         # Sinaliza para as threads que devem encerrar
         self.ping_forever = False
         self.stop_event_proxy.set()
@@ -629,31 +631,77 @@ class ButtonManager:
         self.save_window_position()
         self.suicidar_temer()
         plt.close('all')  # Fecha todos os gráficos
-        #self.master.after(1000, self.suicidar_temer)
         self.save_color_map()  # Salva o mapeamento de cores
 
         # Aguardar 900ms antes de destruir o widget
         self.master.after(900, self.destroy_widget)
 
     def show_closing_alert(self):
-        # Criar uma nova janela para a mensagem de encerramento
+        # Criar uma nova janela para a mensagem de confirmação
         self.alert_window = tk.Toplevel(self.master)
         self.alert_window.title("Encerrando")
-        self.alert_window.geometry("200x75")  # Definir o tamanho da janela
-
+        self.alert_window.geometry("300x120")  # Tamanho maior para os botões
+        self.alert_window.resizable(False, False)
+        
+        # Adicionar uma borda em alto relevo ao redor da janela
+        border_frame = tk.Frame(self.alert_window, 
+                              bd=4, 
+                              relief=tk.FLAT, 
+                              bg="SystemButtonFace")
+        border_frame.pack(fill=tk.BOTH, expand=True)
+        
         # Carregar a posição salva
         self.load_show_closing_alert_position()
+        
+        # Variável para armazenar a resposta
+        self.user_response = False
+        
+        # Frame principal (dentro da borda)
+        frame = tk.Frame(border_frame, 
+                        padx=10, 
+                        pady=10, 
+                        bg="SystemButtonFace")
+        frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Mensagem
+        message_label = tk.Label(frame, 
+                                text="Tem certeza que deseja encerrar o programa?", 
+                                pady=10,
+                                bg="SystemButtonFace")
+        message_label.pack()
+        
+        # Frame para os botões
+        button_frame = tk.Frame(frame, bg="SystemButtonFace")
+        button_frame.pack(pady=5)
+        
+        # Botão Sim com efeito de relevo
+        yes_button = tk.Button(button_frame, 
+                              text="Sim", 
+                              width=8,
+                              relief=tk.RAISED,
+                              bd=2,
+                              command=lambda: self.on_close_confirmation(True))
+        yes_button.pack(side=tk.LEFT, padx=10)
+        
+        # Botão Não com efeito de relevo
+        no_button = tk.Button(button_frame, 
+                             text="Não", 
+                             width=8,
+                             relief=tk.RAISED,
+                             bd=2,
+                             command=lambda: self.on_close_confirmation(False))
+        no_button.pack(side=tk.RIGHT, padx=10)
+        
+        # Tornar a janela modal
+        self.alert_window.transient(self.master)
+        self.alert_window.grab_set()
+        self.master.wait_window(self.alert_window)
+        
+        return self.user_response
 
-        # Criar um Frame cinza para o rótulo
-        frame = tk.Frame(self.alert_window, bg="lightgray", borderwidth=2)
-        frame.pack(padx=10, pady=10, expand=True, fill="both")
-
-        # Criar um rótulo para mostrar a mensagem dentro do Frame
-        message_label = tk.Label(frame, text="Encerrando, aguarde...", padx=20, pady=20, bg="lightgray")
-        message_label.pack(expand=True)
-
-        # Agendar a chamada de salvar a posição e fechar a janela
-        self.alert_window.after(1900, self.save_and_close_alert_window)
+    def on_close_confirmation(self, response):
+        self.user_response = response
+        self.save_and_close_alert_window()
 
     def load_show_closing_alert_position(self):
         if os.path.isfile("show_closing_alert_position.json"):
