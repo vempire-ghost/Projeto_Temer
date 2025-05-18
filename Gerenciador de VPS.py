@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 94.2"
+    return "Beta 94.3"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -1791,7 +1791,7 @@ class ButtonManager:
             with open(self.hosts_file, 'w') as f:
                 json.dump(self.hosts, f)
             
-            logger_main.info(f"Host {novo_host} adicionado à lista de hosts na linha {index} sem duplicatas")
+            logger_main.info(f"Host {novo_host} adicionado à lista de hosts no teste de latência {index +1} sem duplicatas")
 
         # Função para criar uma seção de teste
         def criar_secao_teste(linha):
@@ -2008,10 +2008,11 @@ class ButtonManager:
                             try:
                                 return float(match.group(1))
                             except ValueError:
-                                logger_main.warning("Valor de latência do ping inválido")
+                                logger_main.warning(f"Valor de latência do ping inválido para host {combobox_var.get()} no teste de latência {linha + 1}")
                         else:
                             # Ping sem resposta
-                            logger_main.warning("Ping sem resposta")
+                            host_atual = combobox_var.get()
+                            logger_main.warning(f"Ping sem resposta para host {host_atual} no teste de latência {linha + 1}")
                             return 999  # Valor alto para indicar falha
                     
                 except Exception as e:
@@ -2052,7 +2053,7 @@ class ButtonManager:
             # Função para iniciar o teste
             def iniciar_teste(index):
                 if self.executando_mtr[index]:
-                    logger_main.warning(f"Tentativa de iniciar teste já em execução na linha {index}")
+                    logger_main.warning(f"Tentativa de iniciar teste de latência {index +1} já em execução")
                     return
 
                 metodo = metodo_var.get()
@@ -2060,9 +2061,9 @@ class ButtonManager:
                 porta = porta_entry.get() if metodo == "nmap" else ""
 
                 if not host:
-                    logger_main.warning(f"Tentativa de iniciar teste sem host definido na linha {index}")
+                    logger_main.warning(f"Tentativa de iniciar teste de latência {index +1} sem host definido")
                     return
-                logger_main.info(f"Iniciando {metodo.upper()} para o host: {host} na linha {index}")
+                logger_main.info(f"Iniciando {metodo.upper()} para o host: {host} no teste de latência {index +1}")
 
                 # Armazena o host (com porta se for nmap) sem duplicatas
                 host_entry = f"{host}:{porta}" if metodo == "nmap" and porta else host
@@ -2119,7 +2120,7 @@ class ButtonManager:
                             error = stderr.read().decode()
 
                             if error and "WARNING" not in error:  # Ignora warnings comuns do Nmap
-                                logger_main.error(f"Erro ao executar {metodo} na linha {index}: {error.strip()}")
+                                logger_main.error(f"Erro ao executar {metodo} no teste de latência {index +1}: {error.strip()}")
                                 self.executando_mtr[index] = False
                                 return
 
@@ -2148,12 +2149,12 @@ class ButtonManager:
                             time.sleep(intervalo)
                         
                         except Exception as e:
-                            logger_main.error(f"Erro inesperado durante o teste na linha {index}: {str(e)}")
+                            logger_main.error(f"Erro inesperado durante o teste de latência {index +1}: {str(e)}")
                             connection_drops.append(datetime.now())  # Marca o momento da queda
                             update_graph()  # Atualiza o gráfico para mostrar a queda
                             
                             if not verificar_reconexao_ssh():
-                                logger_main.error("Não foi possível reconectar após erro - parando teste")
+                                logger_main.error("fNão foi possível reconectar após erro - parando teste {index +1}")
                                 self.executando_mtr[index] = False
                                 return
 
@@ -2170,7 +2171,7 @@ class ButtonManager:
 
         # Criação de três seções de teste
         for i in range(3):
-            logger_main.debug(f"Criando seção de teste para linha {i}")
+            logger_main.debug(f"Criando seção de teste de latência {i +1}")
             criar_secao_teste(i)
 
         # Função para fechar a janela corretamente
@@ -2178,7 +2179,7 @@ class ButtonManager:
             logger_main.info("Fechando janela de testes - parando todos os processos")
             for i in range(3):
                 if self.executando_mtr[i]:
-                    logger_main.info(f"Parando teste na linha {i} devido ao fechamento da janela")
+                    logger_main.info(f"Parando teste de latência {i +1} devido ao fechamento da janela")
                     self.executando_mtr[i] = False
 
         # Registre o handler na lista principal
