@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 94.3"
+    return "Beta 94.4"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -2439,7 +2439,7 @@ class ButtonManager:
                                 marker_times[interface].append(datetime.now())
 
                             # Atualiza a área de texto com a saída do MTR no thread principal
-                            callback_id = self.master.after(0, lambda: update_output_area(interface, output))
+                            callback_id = self.master.after(0, lambda i=interface, o=output: update_output_area(i, o))
                             callbacks.append(callback_id)  # Armazena o ID do callback
 
                             # Processa a saída do MTR para coletar a latência média e perda de pacotes
@@ -2474,7 +2474,10 @@ class ButtonManager:
 
                             time.sleep(1)
                     except Exception as e:
-                        callback_id = self.master.after(0, lambda: outputs[interface].insert(tk.END, f"Erro ao executar MTR para {interface_names[interface]}: {e}\n"))
+                        # Adiciona a mensagem de erro no log
+                        logger_main.info(f"Erro ao executar MTR para {interface_names[interface]}: {e}")
+                        # Atualiza a área de texto com a mensagem de erro
+                        #callback_id = self.master.after(0, lambda i=interface, msg=f"Erro ao executar MTR para {interface_names[i]}: {e}\n": outputs[i].insert(tk.END, msg))
                         callbacks.append(callback_id)
 
             # Função para atualizar a área de saída de texto no thread principal
