@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 94.4"
+    return "Beta 94.5"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -2428,57 +2428,62 @@ class ButtonManager:
             # Função para executar o MTR e coletar latências e perdas de pacotes
             def execute_mtr_and_collect(interface, line, loss_line, ax):
                 command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 -I {interface} {host}"
-                if hasattr(self, 'ssh_vpn_client') and self.ssh_vpn_client is not None:
+                while not stop_event.is_set():
                     try:
-                        while not stop_event.is_set():
-                            stdin, stdout, stderr = self.ssh_vpn_client.exec_command(command)
-                            output = stdout.read().decode()
+                        # Verifica se a conexão SSH está ativa
+                        if not hasattr(self, 'ssh_vpn_client') or self.ssh_vpn_client is None:
+                            self.master.after(0, lambda: logger_main.info(f"SSH desconectado para {interface_names[interface]}. Aguardando reconexão..."))
+                            time.sleep(5)  # Espera 5 segundos antes de tentar novamente
+                            continue
+                            
+                        stdin, stdout, stderr = self.ssh_vpn_client.exec_command(command)
+                        output = stdout.read().decode()
 
-                            # Verifica se há IPs especiais
-                            if check_special_ips(interface, output):
-                                marker_times[interface].append(datetime.now())
+                        # Verifica se há IPs especiais
+                        if check_special_ips(interface, output):
+                            marker_times[interface].append(datetime.now())
 
-                            # Atualiza a área de texto com a saída do MTR no thread principal
-                            callback_id = self.master.after(0, lambda i=interface, o=output: update_output_area(i, o))
-                            callbacks.append(callback_id)  # Armazena o ID do callback
-
-                            # Processa a saída do MTR para coletar a latência média e perda de pacotes
-                            last_lines = output.strip().splitlines()
-                            valid_lines = [line for line in last_lines if "?" not in line]  # Filtra linhas válidas
-
-                            if valid_lines:
-                                last_line = valid_lines[-1].split()
-                                avg_index = 6
-                                loss_index = -1  # O índice do percentual de perda de pacotes
-
-                                if len(last_line) > avg_index:
-                                    try:
-                                        latency = int(float(last_line[avg_index]))
-                                        pings_data[interface].append(latency)
-                                        timestamps[interface].append(datetime.now())
-                                    except ValueError:
-                                        pings_data[interface].append(None)
-                                        timestamps[interface].append(datetime.now())
-
-                                # Captura a perda de pacotes (último elemento)
-                                if last_line[loss_index].endswith('%'):
-                                    try:
-                                        loss = float(last_line[loss_index].replace('%', ''))
-                                        loss_data[interface].append(loss)  # Adiciona a perda de pacotes
-                                    except ValueError:
-                                        loss_data[interface].append(None)  # Caso não consiga converter
-
-                                # Chama a atualização do gráfico de forma segura (usando 'after')
-                            callback_id = self.master.after(0, update_graph_safe, interface, line, loss_line, ax)
-                            callbacks.append(callback_id)
-
-                            time.sleep(1)
-                    except Exception as e:
-                        # Adiciona a mensagem de erro no log
-                        logger_main.info(f"Erro ao executar MTR para {interface_names[interface]}: {e}")
-                        # Atualiza a área de texto com a mensagem de erro
-                        #callback_id = self.master.after(0, lambda i=interface, msg=f"Erro ao executar MTR para {interface_names[i]}: {e}\n": outputs[i].insert(tk.END, msg))
+                        # Atualiza a área de texto
+                        callback_id = self.master.after(0, lambda i=interface, o=output: update_output_area(i, o))
                         callbacks.append(callback_id)
+
+                        # Processa a saída do MTR
+                        last_lines = output.strip().splitlines()
+                        valid_lines = [line for line in last_lines if "?" not in line]
+
+                        if valid_lines:
+                            last_line = valid_lines[-1].split()
+                            avg_index = 6
+                            loss_index = -1
+
+                            # Captura a perda de pacotes (último elemento)
+                            if len(last_line) > avg_index:
+                                try:
+                                    latency = int(float(last_line[avg_index]))
+                                    pings_data[interface].append(latency)
+                                    timestamps[interface].append(datetime.now())
+                                except ValueError:
+                                    pings_data[interface].append(None)
+                                    timestamps[interface].append(datetime.now())
+
+                            if last_line[loss_index].endswith('%'):
+                                try:
+                                    loss = float(last_line[loss_index].replace('%', ''))
+                                    loss_data[interface].append(loss)
+                                except ValueError:
+                                    loss_data[interface].append(None)
+
+                        # Atualiza o gráfico
+                        callback_id = self.master.after(0, update_graph_safe, interface, line, loss_line, ax)
+                        callbacks.append(callback_id)
+
+                        time.sleep(1)
+                        
+                    except Exception as e:
+                         # Adiciona a mensagem de erro no log
+                        self.master.after(0, lambda: logger_main.info(f"Erro na conexão SSH para {interface_names[interface]}: {str(e)}. Tentando novamente em 5 segundos..."))
+                        time.sleep(5)  # Espera 5 segundos antes de tentar novamente
+                        continue
 
             # Função para atualizar a área de saída de texto no thread principal
             def update_output_area(interface, output):
