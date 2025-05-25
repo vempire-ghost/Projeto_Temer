@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 94.6"
+    return "Beta 94.7"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -3789,6 +3789,61 @@ class ButtonManager:
             server.close()
             logger_proxy.info(f"Proxy {connection_type} SOCKS na porta {port_local} foi fechado transport: {transport}.")
         
+    def _get_available_ipv6_address(self):
+        """Obtém um endereço IPv6 global válido com múltiplos métodos de fallback"""
+        try:
+            # Método 1: Usando socket (funciona na maioria dos sistemas)
+            with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as s:
+                try:
+                    s.connect(('2606:4700:4700::1111', 80))  # DNS IPv6 do Cloudflare
+                    local_ip = s.getsockname()[0]
+                    if '%' in local_ip:
+                        local_ip = local_ip.split('%')[0]  # Remove o identificador de interface
+                    if not local_ip.startswith(('fe80::', '::1')):  # Filtra link-local e loopback
+                        return local_ip
+                except:
+                    pass
+
+            # Método 2: Para Windows (ipconfig)
+            if os.name == 'nt':
+                try:
+                    result = subprocess.run(['ipconfig'], capture_output=True, text=True, encoding='utf-8')
+                    for line in result.stdout.split('\n'):
+                        if 'IPv6 Address' in line and not 'Temporary' in line:
+                            # Extrai o endereço IPv6 usando expressão regular
+                            match = re.search(r'([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}', line)
+                            if match:
+                                addr = match.group(0).split('%')[0]
+                                if not addr.startswith(('fe80::', '::1')):
+                                    return addr
+                except:
+                    pass
+
+            # Método 3: Lista todas interfaces (Linux/Windows)
+            try:
+                for interface in socket.if_nameindex():
+                    try:
+                        ifaddrs = socket.getaddrinfo(interface[1], None, socket.AF_INET6)
+                        for addr in ifaddrs:
+                            ip = addr[4][0]
+                            if '%' in ip:
+                                ip = ip.split('%')[0]
+                            if not ip.startswith(('fe80::', '::1')):
+                                return ip
+                    except:
+                        continue
+            except:
+                pass
+
+            # Método 4: Último recurso - endereço estático configurável
+            fallback_ipv6 = "2804:5020:23:4001:ff78:fbfe:75da:8abc"  # Pode ser configurado
+            logger_proxy.warning(f"Usando endereço IPv6 fallback: {fallback_ipv6}")
+            return fallback_ipv6
+
+        except Exception as e:
+            logger_proxy.error(f"Erro crítico ao obter IPv6: {str(e)}")
+            return None
+
     def handle_socks_connection(self, client_socket, transport):
         """Lida com uma conexão SOCKS usando o transporte SSH específico."""
         try:
@@ -3841,8 +3896,15 @@ class ButtonManager:
             logger_proxy.info(f"Recebido pedido para {addr}:{port} (IPv6)" if addr_type == 0x04 else f"Encaminhando para {addr}:{port} via SSH")
 
             if addr_type == 0x04:  # IPv6 - Conexão direta com bind no IP local
-                local_ipv6 = "2804:5020:23:4001:ff78:fbfe:75da:8abc"
-                
+                local_ipv6 = self._get_available_ipv6_address()
+                if not local_ipv6:
+                    logger_proxy.error("Nenhum endereço IPv6 global disponível encontrado")
+                    client_socket.sendall(b'\x05\x01\x00\x01\x00\x00\x00\x00\x00\x00')  # General failure
+                    client_socket.close()
+                    return
+                    
+                logger_proxy.info(f"Usando endereço IPv6 local: {local_ipv6}")
+
                 try:
                     # Cria socket IPv6
                     remote_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
