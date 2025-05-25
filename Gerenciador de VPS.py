@@ -41,7 +41,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 94.5"
+    return "Beta 94.6"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -3792,13 +3792,6 @@ class ButtonManager:
     def handle_socks_connection(self, client_socket, transport):
         """Lida com uma conexão SOCKS usando o transporte SSH específico."""
         try:
-            if transport is None:
-                logger_proxy.error("Transport SSH não está disponível.")
-                client_socket.close()
-                return
-
-            logger_proxy.info("Transport SSH está disponível durante o manuseio da conexão SOCKS.")
-
             # Handshake SOCKS5
             handshake = client_socket.recv(2)
             if len(handshake) < 2:
@@ -3828,20 +3821,15 @@ class ButtonManager:
                 client_socket.close()
                 return
 
-            # Verifica se é IPv6 e rejeita
-            if addr_type == 0x04:  # IPv6
-                logger_proxy.warning("Conexão IPv6 rejeitada - protocolo não suportado")
-                # Responde com erro "Address type not supported" (0x08)
-                client_socket.sendall(b'\x05\x08\x00\x01\x00\x00\x00\x00\x00\x00')
-                client_socket.close()
-                return
-
             # Obtém o endereço de destino
             if addr_type == 0x01:  # IPv4
                 addr = socket.inet_ntoa(client_socket.recv(4))
             elif addr_type == 0x03:  # Domínio
                 addr_len = client_socket.recv(1)[0]
                 addr = client_socket.recv(addr_len).decode()
+            elif addr_type == 0x04:  # IPv6
+                addr_bytes = client_socket.recv(16)
+                addr = socket.inet_ntop(socket.AF_INET6, addr_bytes)
             else:
                 logger_proxy.warning("Tipo de endereço não suportado.")
                 client_socket.close()
@@ -3850,24 +3838,72 @@ class ButtonManager:
             # Recebe a porta de destino
             port = int.from_bytes(client_socket.recv(2), 'big')
 
-            logger_proxy.info(f"Encaminhando para {addr}:{port}")
+            logger_proxy.info(f"Recebido pedido para {addr}:{port} (IPv6)" if addr_type == 0x04 else f"Encaminhando para {addr}:{port} via SSH")
 
-            # Responde ao cliente SOCKS
-            client_socket.sendall(b'\x05\x00\x00\x01' + socket.inet_aton('0.0.0.0') + b'\x00\x00')
+            if addr_type == 0x04:  # IPv6 - Conexão direta com bind no IP local
+                local_ipv6 = "2804:5020:23:4001:ff78:fbfe:75da:8abc"
+                
+                try:
+                    # Cria socket IPv6
+                    remote_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+                    remote_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                    
+                    # Faz bind no IP local IPv6
+                    remote_socket.bind((local_ipv6, 0))  # Porta 0 = sistema escolhe porta livre
+                    
+                    logger_proxy.info(f"Socket IPv6 vinculado a {local_ipv6}, conectando a {addr}:{port}")
+                    
+                    # Conecta ao destino original
+                    remote_socket.settimeout(30)
+                    remote_socket.connect((addr, port))
+                    
+                    # Responde ao cliente SOCKS (usando o endereço IPv6 de bind)
+                    response = (b'\x05\x00\x00\x04' + 
+                              socket.inet_pton(socket.AF_INET6, local_ipv6) + 
+                              port.to_bytes(2, 'big'))
+                    client_socket.sendall(response)
+                    
+                    # Inicia o encaminhamento de dados
+                    threading.Thread(target=self.forward_data, args=(client_socket, remote_socket, self.stop_event_proxy)).start()
+                    threading.Thread(target=self.forward_data, args=(remote_socket, client_socket, self.stop_event_proxy)).start()
+                    
+                except socket.timeout:
+                    logger_proxy.error(f"Timeout ao conectar a {addr}:{port}")
+                    client_socket.sendall(b'\x05\x06\x00\x01\x00\x00\x00\x00\x00\x00')  # TTL expired
+                    client_socket.close()
+                except ConnectionRefusedError:
+                    logger_proxy.error(f"Conexão recusada pelo destino {addr}:{port}")
+                    client_socket.sendall(b'\x05\x05\x00\x01\x00\x00\x00\x00\x00\x00')  # Connection refused
+                    client_socket.close()
+                except Exception as e:
+                    logger_proxy.error(f"Erro na conexão IPv6: {type(e).__name__}: {e}")
+                    client_socket.sendall(b'\x05\x01\x00\x01\x00\x00\x00\x00\x00\x00')  # General failure
+                    client_socket.close()
+                    
+            else:  # IPv4 ou domínio - Encaminha via SSH
+                if transport is None:
+                    logger_proxy.error("Transport SSH não está disponível.")
+                    client_socket.close()
+                    return
+                logger_proxy.info("Transport SSH está disponível durante o manuseio da conexão SOCKS.")
 
-            # Estabelece a conexão no túnel SSH
-            remote_socket = transport.open_channel('direct-tcpip', (addr, port), client_socket.getpeername())
-            if remote_socket is not None:
-                logger_proxy.info("Canal SSH aberto com sucesso.")
-                # Passa o evento de parada para as threads de encaminhamento de dados
-                threading.Thread(target=self.forward_data, args=(client_socket, remote_socket, self.stop_event_proxy)).start()
-                threading.Thread(target=self.forward_data, args=(remote_socket, client_socket, self.stop_event_proxy)).start()
-            else:
-                logger_proxy.error("Falha ao abrir o canal: remote_socket é None")
-                client_socket.close()
-        except paramiko.SSHException as e:
-            logger_proxy.error(f"Falha ao abrir o canal: {e}")
-            client_socket.close()
+                # Responde ao cliente SOCKS
+                client_socket.sendall(b'\x05\x00\x00\x01' + socket.inet_aton('0.0.0.0') + port.to_bytes(2, 'big'))
+
+                # Estabelece a conexão no túnel SSH
+                try:
+                    remote_socket = transport.open_channel('direct-tcpip', (addr, port), client_socket.getpeername())
+                    if remote_socket is not None:
+                        logger_proxy.info("Canal SSH aberto com sucesso.")
+                        threading.Thread(target=self.forward_data, args=(client_socket, remote_socket, self.stop_event_proxy)).start()
+                        threading.Thread(target=self.forward_data, args=(remote_socket, client_socket, self.stop_event_proxy)).start()
+                    else:
+                        logger_proxy.error("Falha ao abrir o canal SSH: remote_socket é None")
+                        client_socket.close()
+                except Exception as e:
+                    logger_proxy.error(f"Erro ao abrir canal SSH: {e}")
+                    client_socket.close()
+
         except Exception as e:
             logger_proxy.error(f"Erro ao lidar com a conexão SOCKS: {e}")
             client_socket.close()
@@ -4259,7 +4295,7 @@ class ButtonManager:
     def abrir_janela_logs(self):
         log_window = tk.Toplevel(self.master)
         log_window.title("Visualização de Logs")
-        log_window.geometry("877x656")  # Definir o tamanho da janela
+        log_window.geometry("1111x687")  # Definir o tamanho da janela
 
         # Carregar a posição salva
         self.load_log_position(log_window)
