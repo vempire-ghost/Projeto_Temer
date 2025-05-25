@@ -8,6 +8,8 @@ from logging.handlers import RotatingFileHandler
 import select
 import struct
 import os
+import subprocess
+import re
 
 # Cria a pasta Logs se ela não existir
 log_dir = 'Logs'
@@ -38,10 +40,68 @@ class SocksProxy:
     def __init__(self, local_port, bind_ip, bind_ipv6=None):
         self.local_port = local_port
         self.bind_ip = bind_ip
-        self.bind_ipv6 = bind_ipv6  # Novo parâmetro para o IPv6
+        self.bind_ipv6 = bind_ipv6 if bind_ipv6 else self._get_available_ipv6_address()  # Detecta IPv6 automaticamente
         self.udp_sessions = {}
         self.running = True
         self.clear_log_file('proxy_tcp_udp_jogo.log')
+
+    def _get_available_ipv6_address(self):
+        """Obtém um endereço IPv6 global válido com múltiplos métodos de fallback"""
+        try:
+            # Método 1: Usando socket (funciona na maioria dos sistemas)
+            with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as s:
+                try:
+                    s.connect(('2606:4700:4700::1111', 80))  # DNS IPv6 do Cloudflare
+                    local_ip = s.getsockname()[0]
+                    if '%' in local_ip:
+                        local_ip = local_ip.split('%')[0]  # Remove o identificador de interface
+                    if not local_ip.startswith(('fe80::', '::1')):  # Filtra link-local e loopback
+                        logger.info(f"Endereço IPv6 detectado (Método 1): {local_ip}")
+                        return local_ip
+                except:
+                    pass
+
+            # Método 2: Para Windows (ipconfig)
+            if os.name == 'nt':
+                try:
+                    result = subprocess.run(['ipconfig'], capture_output=True, text=True, encoding='utf-8')
+                    for line in result.stdout.split('\n'):
+                        if 'IPv6 Address' in line and not 'Temporary' in line:
+                            # Extrai o endereço IPv6 usando expressão regular
+                            match = re.search(r'([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}', line)
+                            if match:
+                                addr = match.group(0).split('%')[0]
+                                if not addr.startswith(('fe80::', '::1')):
+                                    logger.info(f"Endereço IPv6 detectado (Método 2): {addr}")
+                                    return addr
+                except:
+                    pass
+
+            # Método 3: Lista todas interfaces (Linux/Windows)
+            try:
+                for interface in socket.if_nameindex():
+                    try:
+                        ifaddrs = socket.getaddrinfo(interface[1], None, socket.AF_INET6)
+                        for addr in ifaddrs:
+                            ip = addr[4][0]
+                            if '%' in ip:
+                                ip = ip.split('%')[0]
+                            if not ip.startswith(('fe80::', '::1')):
+                                logger.info(f"Endereço IPv6 detectado (Método 3): {ip}")
+                                return ip
+                    except:
+                        continue
+            except:
+                pass
+
+            # Método 4: Último recurso - endereço estático configurável
+            fallback_ipv6 = "2804:5020:23:4001:ff78:fbfe:75da:8abc"  # Pode ser configurado
+            logger.warning(f"Nenhum IPv6 válido detectado. Usando endereço IPv6 fallback: {fallback_ipv6}")
+            return fallback_ipv6
+
+        except Exception as e:
+            logger.error(f"Erro crítico ao obter IPv6: {str(e)}")
+            return None
 
     def clear_log_file(self, log_file_name, log_dir='Logs'):
         # Define o caminho completo do arquivo de log
@@ -368,7 +428,7 @@ class SocksProxy:
 if __name__ == '__main__':
     local_port = 8890
     bind_ip = '192.168.100.2'
-    bind_ipv6 = '2804:5020:23:4001:ff78:fbfe:75da:8abc'  # Novo endereço IPv6
+    bind_ipv6 = None  # Opcional: pode definir um IPv6 manualmente aqui se quiser
 
     proxy = SocksProxy(local_port, bind_ip, bind_ipv6)
     try:
