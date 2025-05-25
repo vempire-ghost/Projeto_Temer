@@ -35,9 +35,10 @@ if ctypes.windll.kernel32.GetLastError() == 183:
     sys.exit(0)
 
 class SocksProxy:
-    def __init__(self, local_port, bind_ip):
+    def __init__(self, local_port, bind_ip, bind_ipv6=None):
         self.local_port = local_port
         self.bind_ip = bind_ip
+        self.bind_ipv6 = bind_ipv6  # Novo parâmetro para o IPv6
         self.udp_sessions = {}
         self.running = True
         self.clear_log_file('proxy_tcp_udp_jogo.log')
@@ -54,12 +55,14 @@ class SocksProxy:
     def start_socks_proxy(self):
         ctypes.windll.kernel32.SetConsoleTitleW("Proxy TCP/UDP")
 
-        # Servidor TCP
+        # Servidor TCP (IPv4)
         tcp_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tcp_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         tcp_server.bind(('0.0.0.0', self.local_port))
         tcp_server.listen(100)
-        logger.info(f"Proxy SOCKS iniciado (TCP/UDP): 192.168.100.2:{self.local_port}")
+        logger.info(f"Proxy SOCKS iniciado (TCP/UDP): {self.bind_ip}:{self.local_port}")
+        if self.bind_ipv6:
+            logger.info(f"Endereço IPv6 configurado: {self.bind_ipv6}")
 
         while self.running:
             try:
@@ -103,6 +106,9 @@ class SocksProxy:
             elif addr_type == 0x03:  # Domain
                 addr_len = client_socket.recv(1)[0]
                 dest_addr = client_socket.recv(addr_len).decode()
+            elif addr_type == 0x04:  # IPv6
+                raw_addr = client_socket.recv(16)
+                dest_addr = socket.inet_ntop(socket.AF_INET6, raw_addr)
             else:
                 logger.warning("Tipo de endereço não suportado")
                 client_socket.sendall(b'\x05\x08\x00\x01' + socket.inet_aton('0.0.0.0') + b'\x00\x00')
@@ -111,14 +117,19 @@ class SocksProxy:
 
             dest_port = int.from_bytes(client_socket.recv(2), 'big')
             
-            logger.info(f"Pedido SOCKS5: cmd={cmd}, addr={dest_addr}, 192.168.100.2 port={dest_port}")
+            # Mensagem de log modificada para mostrar o IP correto baseado no tipo
+            cmd_name = "TCP" if cmd == 0x01 else "UDP" if cmd == 0x03 else f"cmd={cmd}"
+            if addr_type == 0x04:  # IPv6
+                logger.info(f"Pedido IPv6: {cmd_name}, {dest_addr}, Encaminhado para: WIFI COOPERA, port={dest_port}")
+            else:
+                logger.info(f"Pedido IPv4: {cmd_name}, {dest_addr}, Encaminhado para: {self.bind_ip}, port={dest_port}")
 
             if cmd == 0x01:  # CONNECT (TCP)
-                self.handle_tcp_connection(client_socket, dest_addr, dest_port)
+                self.handle_tcp_connection(client_socket, dest_addr, dest_port, addr_type)
             elif cmd == 0x03:  # UDP ASSOCIATE
-                self.handle_udp_associate(client_socket, client_addr, dest_addr, dest_port)
+                self.handle_udp_associate(client_socket, client_addr, dest_addr, dest_port, addr_type)
             else:
-                logger.error(f"Comando não suportado: {cmd}")
+                logger.error(f"Comando não suportado: {cmd_name}")
                 client_socket.sendall(b'\x05\x07\x00\x01' + socket.inet_aton('0.0.0.0') + b'\x00\x00')
                 client_socket.close()
 
@@ -126,34 +137,48 @@ class SocksProxy:
             logger.error(f"Erro na conexão SOCKS: {e}")
             client_socket.close()
 
-    def handle_udp_associate(self, client_socket, client_addr, dest_addr, dest_port):
+    def handle_udp_associate(self, client_socket, client_addr, dest_addr, dest_port, addr_type):
         try:
             # Criar socket UDP para relay
-            relay_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            relay_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            relay_socket.bind((self.bind_ip, 0))
-            relay_addr, relay_port = relay_socket.getsockname()
+            if addr_type == 0x04:  # IPv6
+                # Usar o endereço IPv6 configurado
+                relay_socket = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+                relay_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                relay_socket.bind((self.bind_ipv6, 0))
+            else:
+                # IPv4 ou domínio
+                relay_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                relay_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                relay_socket.bind((self.bind_ip, 0))
+                
+            relay_addr, relay_port = relay_socket.getsockname()[:2]
 
             logger.info(f"UDP Associate: Relay criado em {relay_addr}:{relay_port}")
             logger.info(f"UDP Associate: Cliente original em {client_addr[0]}:{client_addr[1]}")
             logger.info(f"UDP Associate: Destino solicitado {dest_addr}:{dest_port}")
 
             # Responder ao cliente com endereço do relay
-            response = struct.pack('!BBBB4sH', 
-                0x05, 0x00, 0x00, 0x01,
-                socket.inet_aton(self.bind_ip),
-                relay_port
-            )
+            if addr_type == 0x04:  # IPv6
+                response = struct.pack('!BBBB', 0x05, 0x00, 0x00, 0x04)
+                response += socket.inet_pton(socket.AF_INET6, self.bind_ipv6)
+                response += struct.pack('!H', relay_port)
+            else:
+                response = struct.pack('!BBBB4sH', 
+                    0x05, 0x00, 0x00, 0x01,
+                    socket.inet_aton(self.bind_ip),
+                    relay_port
+                )
             client_socket.sendall(response)
 
-            # Configurar sessão UDP - Agora armazenando o endereço real do cliente
+            # Configurar sessão UDP
             session = {
                 'client_socket': client_socket,
                 'relay_socket': relay_socket,
                 'client_addr': client_addr[0],  # Endereço real do cliente
                 'client_port': None,  # Será definido quando recebermos o primeiro pacote
                 'remote_addr': None,
-                'remote_port': None
+                'remote_port': None,
+                'addr_type': addr_type  # Armazenar o tipo de endereço
             }
 
             # Usar endereço do relay como chave da sessão
@@ -183,6 +208,7 @@ class SocksProxy:
 
     def handle_udp_traffic(self, session):
         relay_socket = session['relay_socket']
+        addr_type = session['addr_type']
 
         while self.running:
             try:
@@ -222,6 +248,10 @@ class SocksProxy:
                         dest_addr = data[5:5+length].decode()
                         dest_port = struct.unpack('!H', data[5+length:7+length])[0]
                         header_size = 7 + length
+                    elif atyp == 0x04:  # IPv6
+                        dest_addr = socket.inet_ntop(socket.AF_INET6, data[4:20])
+                        dest_port = struct.unpack('!H', data[20:22])[0]
+                        header_size = 22
                     else:
                         continue
 
@@ -233,16 +263,31 @@ class SocksProxy:
 
                     # Enviar payload para o destino
                     payload = data[header_size:]
-                    relay_socket.sendto(payload, (dest_addr, dest_port))
+                    
+                    # Enviar para o destino apropriado
+                    if addr_type == 0x04 and atyp == 0x04:  # Se for IPv6
+                        try:
+                            relay_socket.sendto(payload, (self.bind_ipv6 if dest_addr == '::' else dest_addr, dest_port))
+                        except Exception as e:
+                            logger.error(f"Erro ao enviar pacote IPv6: {e}")
+                    else:
+                        relay_socket.sendto(payload, (dest_addr, dest_port))
+                    
                     logger.debug(f"UDP: Enviado para {dest_addr}:{dest_port}")
 
                 # Se for resposta do servidor
                 elif addr[0] == session['remote_addr'] and addr[1] == session['remote_port']:
                     # Construir resposta SOCKS UDP
-                    udp_header = struct.pack('!HB', 0, 0) + \
-                                bytes([0x01]) + \
-                                socket.inet_aton(addr[0]) + \
-                                struct.pack('!H', addr[1])
+                    if addr_type == 0x04:  # IPv6
+                        udp_header = struct.pack('!HB', 0, 0) + \
+                                    bytes([0x04]) + \
+                                    socket.inet_pton(socket.AF_INET6, addr[0]) + \
+                                    struct.pack('!H', addr[1])
+                    else:
+                        udp_header = struct.pack('!HB', 0, 0) + \
+                                    bytes([0x01]) + \
+                                    socket.inet_aton(addr[0]) + \
+                                    struct.pack('!H', addr[1])
                     
                     response = udp_header + data
                     # Usar o endereço real do cliente em vez de 0.0.0.0
@@ -253,18 +298,32 @@ class SocksProxy:
                 logger.error(f"Erro no processamento UDP: {e}")
                 break
 
-    def handle_tcp_connection(self, client_socket, addr, port):
+    def handle_tcp_connection(self, client_socket, addr, port, addr_type):
         try:
-            remote_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            remote_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            remote_socket.bind((self.bind_ip, 0))
-            remote_socket.connect((addr, port))
+            if addr_type == 0x04:  # IPv6
+                # Usar o endereço IPv6 configurado como destino
+                remote_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+                remote_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                remote_socket.bind((self.bind_ipv6, 0))
+                remote_socket.connect((self.bind_ipv6 if addr == '::' else addr, port))
+            else:
+                # IPv4 ou domínio
+                remote_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                remote_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                remote_socket.bind((self.bind_ip, 0))
+                remote_socket.connect((addr, port))
 
-            response = struct.pack('!BBBB4sH', 
-                0x05, 0x00, 0x00, 0x01,
-                socket.inet_aton('0.0.0.0'),
-                0
-            )
+            # Responder ao cliente
+            if addr_type == 0x04:  # IPv6
+                response = struct.pack('!BBBB', 0x05, 0x00, 0x00, 0x04)
+                response += socket.inet_pton(socket.AF_INET6, self.bind_ipv6)
+                response += struct.pack('!H', 0)
+            else:
+                response = struct.pack('!BBBB4sH', 
+                    0x05, 0x00, 0x00, 0x01,
+                    socket.inet_aton('0.0.0.0'),
+                    0
+                )
             client_socket.sendall(response)
 
             threading.Thread(target=self.forward_data, args=(client_socket, remote_socket)).start()
@@ -309,8 +368,9 @@ class SocksProxy:
 if __name__ == '__main__':
     local_port = 8890
     bind_ip = '192.168.100.2'
+    bind_ipv6 = '2804:5020:23:4001:ff78:fbfe:75da:8abc'  # Novo endereço IPv6
 
-    proxy = SocksProxy(local_port, bind_ip)
+    proxy = SocksProxy(local_port, bind_ip, bind_ipv6)
     try:
         proxy.start_socks_proxy()
     except KeyboardInterrupt:

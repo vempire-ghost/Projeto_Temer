@@ -118,17 +118,18 @@ class SocksProxy:
             dest_port = int.from_bytes(client_socket.recv(2), 'big')
             
             # Mensagem de log modificada para mostrar o IP correto baseado no tipo
+            cmd_name = "TCP" if cmd == 0x01 else "UDP" if cmd == 0x03 else f"cmd={cmd}"
             if addr_type == 0x04:  # IPv6
-                logger.info(f"Pedido SOCKS5: cmd={cmd}, Destino: addr={dest_addr}, Encaminhado para: [{self.bind_ipv6}], port={dest_port}")
+                logger.info(f"Pedido IPv6: {cmd_name}, {dest_addr}, Encaminhado para: WIFI COOPERA, port={dest_port}")
             else:
-                logger.info(f"Pedido SOCKS5: cmd={cmd}, Destino: addr={dest_addr}, Encaminhado para: {self.bind_ip}, port={dest_port}")
+                logger.info(f"Pedido IPv4: {cmd_name}, {dest_addr}, Encaminhado para: {self.bind_ip}, port={dest_port}")
 
             if cmd == 0x01:  # CONNECT (TCP)
                 self.handle_tcp_connection(client_socket, dest_addr, dest_port, addr_type)
             elif cmd == 0x03:  # UDP ASSOCIATE
                 self.handle_udp_associate(client_socket, client_addr, dest_addr, dest_port, addr_type)
             else:
-                logger.error(f"Comando não suportado: {cmd}")
+                logger.error(f"Comando não suportado: {cmd_name}")
                 client_socket.sendall(b'\x05\x07\x00\x01' + socket.inet_aton('0.0.0.0') + b'\x00\x00')
                 client_socket.close()
 
