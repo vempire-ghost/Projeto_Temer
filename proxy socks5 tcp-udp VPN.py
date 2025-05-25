@@ -44,7 +44,9 @@ class SocksProxy:
         self.clear_log_file('proxy_tcp_udp_vpn.log')
 
     def clear_log_file(self, log_file_name, log_dir='Logs'):
+        # Define o caminho completo do arquivo de log
         log_file_path = os.path.join(log_dir, log_file_name)
+        # Verifica se o arquivo existe antes de tentar limpá-lo
         if os.path.exists(log_file_path):
             open(log_file_path, 'w').close()
         else:
@@ -115,7 +117,11 @@ class SocksProxy:
 
             dest_port = int.from_bytes(client_socket.recv(2), 'big')
             
-            logger.info(f"Pedido SOCKS5: cmd={cmd}, addr={dest_addr}, port={dest_port}")
+            # Mensagem de log modificada para mostrar o IP correto baseado no tipo
+            if addr_type == 0x04:  # IPv6
+                logger.info(f"Pedido SOCKS5: cmd={cmd}, Destino: addr={dest_addr}, Encaminhado para: [{self.bind_ipv6}], port={dest_port}")
+            else:
+                logger.info(f"Pedido SOCKS5: cmd={cmd}, Destino: addr={dest_addr}, Encaminhado para: {self.bind_ip}, port={dest_port}")
 
             if cmd == 0x01:  # CONNECT (TCP)
                 self.handle_tcp_connection(client_socket, dest_addr, dest_port, addr_type)
@@ -167,13 +173,14 @@ class SocksProxy:
             session = {
                 'client_socket': client_socket,
                 'relay_socket': relay_socket,
-                'client_addr': client_addr[0],
-                'client_port': None,
+                'client_addr': client_addr[0],  # Endereço real do cliente
+                'client_port': None,  # Será definido quando recebermos o primeiro pacote
                 'remote_addr': None,
                 'remote_port': None,
                 'addr_type': addr_type  # Armazenar o tipo de endereço
             }
 
+            # Usar endereço do relay como chave da sessão
             session_key = (relay_addr, relay_port)
             self.udp_sessions[session_key] = session
 
@@ -216,10 +223,12 @@ class SocksProxy:
 
                 # Se for um pacote do cliente
                 if session['client_port'] is None or addr[0] == session['client_addr']:
+                    # Atualizar a porta do cliente se ainda não definida
                     if session['client_port'] is None:
                         session['client_port'] = addr[1]
                         logger.info(f"UDP: Porta do cliente definida como {addr[1]}")
 
+                    # Processar cabeçalho SOCKS UDP
                     if len(data) < 10:
                         continue
 
@@ -245,11 +254,13 @@ class SocksProxy:
                     else:
                         continue
 
+                    # Atualizar endereço remoto
                     if session['remote_addr'] != dest_addr or session['remote_port'] != dest_port:
                         session['remote_addr'] = dest_addr
                         session['remote_port'] = dest_port
                         logger.info(f"UDP: Novo destino configurado {dest_addr}:{dest_port}")
 
+                    # Enviar payload para o destino
                     payload = data[header_size:]
                     
                     # Enviar para o destino apropriado
@@ -265,6 +276,7 @@ class SocksProxy:
 
                 # Se for resposta do servidor
                 elif addr[0] == session['remote_addr'] and addr[1] == session['remote_port']:
+                    # Construir resposta SOCKS UDP
                     if addr_type == 0x04:  # IPv6
                         udp_header = struct.pack('!HB', 0, 0) + \
                                     bytes([0x04]) + \
@@ -277,6 +289,7 @@ class SocksProxy:
                                     struct.pack('!H', addr[1])
                     
                     response = udp_header + data
+                    # Usar o endereço real do cliente em vez de 0.0.0.0
                     relay_socket.sendto(response, (session['client_addr'], session['client_port']))
                     logger.debug(f"UDP: Resposta enviada para {session['client_addr']}:{session['client_port']}")
 
