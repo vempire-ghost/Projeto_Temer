@@ -120,9 +120,9 @@ class SocksProxy:
             # Mensagem de log modificada para mostrar o IP correto baseado no tipo
             cmd_name = "TCP" if cmd == 0x01 else "UDP" if cmd == 0x03 else f"cmd={cmd}"
             if addr_type == 0x04:  # IPv6
-                logger.info(f"Pedido IPv6: {cmd_name}, {dest_addr}, Encaminhado para: WIFI COOPERA, port={dest_port}")
+                logger.info(f"Pedido IPv6: {cmd_name}, {dest_addr} de {client_addr} Encaminhado para: WIFI COOPERA:{dest_port}")
             else:
-                logger.info(f"Pedido IPv4: {cmd_name}, {dest_addr}, Encaminhado para: {self.bind_ip}, port={dest_port}")
+                logger.info(f"Pedido IPv4: {cmd_name}, {dest_addr} de {client_addr} Encaminhado para: {self.bind_ip}:{dest_port}")
 
             if cmd == 0x01:  # CONNECT (TCP)
                 self.handle_tcp_connection(client_socket, dest_addr, dest_port, addr_type)
