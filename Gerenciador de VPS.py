@@ -39,9 +39,15 @@ from rich.console import Console
 from rich.text import Text
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+# Corrige o diretório de trabalho quando executado como serviço/inicialização
+if getattr(sys, 'frozen', False):
+    # Se o aplicativo estiver congelado (compilado)
+    application_path = os.path.dirname(sys.executable)
+    os.chdir(application_path)
+
 # Função para retornar a versão
 def get_version():
-    return "Beta 94.7"
+    return "Beta 95"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -145,7 +151,7 @@ class ButtonManager:
         if not os.path.isfile(self.config_file):
             self.create_default_config()
 
-        # Verifica se o Bitvise e o VirtualBox estão instalados
+        # Verifica se o VirtualBox esta instalado
         if not self.check_software_installation():
             return  # Interrompe a execução do restante do __init__ se a checagem falhar
 
@@ -212,6 +218,43 @@ class ButtonManager:
         # Cria a pasta de chaves ssh se não existir
         if not os.path.exists('ssh_keys'):
             os.makedirs('ssh_keys')
+
+        #Inicializa o servidor com o windows
+        #self.check_startup_and_run_script()
+
+# FUNÇÃO PARA INICIAR OS VPMS E OMRS AO INICIAR O PROGRAMA COM O WINDOWS
+    def check_startup_and_run_script(self):
+        """Versão mais robusta com verificação adicional"""
+        if not ('--startup' in sys.argv or 
+               (getattr(sys, 'frozen', False) and '--startup' in sys.executable)):
+            return
+        
+        time.sleep(3)  # Delay de 3 segundos
+        try:
+            script_path = self._get_startup_script_path()
+            if script_path:
+                self._execute_startup_script(script_path)
+        except Exception as e:
+            self._handle_startup_error(e)
+
+    def _get_startup_script_path(self):
+        """Obtém o caminho do script de forma isolada"""
+        config = configparser.ConfigParser()
+        config.read(self.config_file)
+        return config.get('startup', 'startup_script', fallback='') if 'startup' in config else ''
+
+    def _execute_startup_script(self, script_path):
+        """Executa o script com verificações"""
+        if os.path.isfile(script_path):
+            self.run_as_admin(script_path)
+        else:
+            messagebox.showwarning("Aviso", f"Script de inicialização não encontrado:\n{script_path}")
+
+    def _handle_startup_error(self, error):
+        """Centraliza o tratamento de erros"""
+        import traceback
+        traceback.print_exc()
+        messagebox.showerror("Erro", f"Falha na inicialização automática:\n{str(error)}")
 
 # FUNÇÃO PARA MINIMIZAR E RESTAURAR O PROGRAMA NO SYSTEM TRAY
     def setup_double_click(self):
@@ -1108,6 +1151,9 @@ class ButtonManager:
         # Adiciona o label de versão ao rodapé
         self.version_label = tk.Label(self.footer_frame, text=f"Projeto Temer - ©VempirE_GhosT - Versão: {get_version()}", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
+
+        #Inicializa o servidor com o windows
+        self.check_startup_and_run_script()
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
     # Método para abrir uma janela de instalação do MTR na conexão OMR VPN
@@ -6442,6 +6488,38 @@ class OMRManagerDialog:
         button_frame_bottom = tk.Frame(aba1)
         button_frame_bottom.pack(side="bottom", pady=10)
 
+        # Frame para iniciar com Windows e script de inicialização
+        startup_frame = tk.Frame(aba1, borderwidth=1, relief=tk.RIDGE)
+        startup_frame.pack(side="top", padx=10, pady=10, anchor='w', fill=tk.BOTH)
+
+        # Checkbox para iniciar com Windows
+        self.start_with_windows_var = tk.BooleanVar()
+        self.start_with_windows_check = tk.Checkbutton(
+            startup_frame, 
+            text="Iniciar programa com Windows",
+            variable=self.start_with_windows_var,
+            command=self.toggle_start_with_windows
+        )
+        self.start_with_windows_check.pack(side=tk.TOP, anchor='w', padx=5, pady=5)
+
+        # Frame para o script de inicialização
+        script_frame = tk.Frame(startup_frame)
+        script_frame.pack(side=tk.TOP, anchor='w', fill=tk.X, padx=5, pady=5)
+
+        tk.Label(script_frame, text="Script para executar ao iniciar:").pack(side=tk.LEFT)
+        self.startup_script_entry = tk.Entry(script_frame, width=40)
+        self.startup_script_entry.pack(side=tk.LEFT, padx=5)
+        
+        browse_button = tk.Button(
+            script_frame, 
+            text="Procurar", 
+            command=self.browse_startup_script
+        )
+        browse_button.pack(side=tk.LEFT)
+
+        # Carrega as configurações de inicialização
+        self.load_startup_settings()
+
         # Segunda aba (Configurações de Ping)
         aba2 = ttk.Frame(self.tabs)
         self.tabs.add(aba2, text="Configurações de Ping")
@@ -6750,6 +6828,92 @@ class OMRManagerDialog:
         self.load_bind_credentials()
 
         self.top.protocol("WM_DELETE_WINDOW", self.on_close)
+
+# METODOS PARA INICIALIZAÇÃO DO PROGRAMA COM O WINDOWS
+    def toggle_start_with_windows(self):
+        """Ativa/desativa a inicialização com Windows"""
+        if self.start_with_windows_var.get():
+            # Adiciona o programa à inicialização do Windows
+            self.add_to_startup()
+        else:
+            # Remove o programa da inicialização do Windows
+            self.remove_from_startup()
+        
+        # Salva a configuração
+        self.save_startup_settings()
+
+    def browse_startup_script(self):
+        """Abre diálogo para selecionar script de inicialização"""
+        file_path = filedialog.askopenfilename(
+            title="Selecione o script para executar ao iniciar",
+            filetypes=[("Arquivos Batch", "*.bat"), ("Todos os arquivos", "*.*")]
+        )
+        if file_path:
+            self.startup_script_entry.delete(0, tk.END)
+            self.startup_script_entry.insert(0, file_path)
+            self.save_startup_settings()
+
+    def add_to_startup(self):
+        """Adiciona o programa à inicialização do Windows"""
+        try:
+            import winreg
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Run",
+                0, winreg.KEY_SET_VALUE
+            )
+            # Adiciona o argumento --startup para identificar inicialização automática
+            winreg.SetValueEx(key, "Gerenciador de VPS", 0, winreg.REG_SZ, f'"{sys.executable}" --startup')
+            key.Close()
+        except Exception as e:
+            messagebox.showerror("Erro", f"Não foi possível adicionar à inicialização: {str(e)}")
+
+    def remove_from_startup(self):
+        """Remove o programa da inicialização do Windows"""
+        try:
+            import winreg
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Run",
+                0, winreg.KEY_SET_VALUE
+            )
+            winreg.DeleteValue(key, "Gerenciador de VPS")
+            key.Close()
+        except Exception as e:
+            messagebox.showerror("Erro", f"Não foi possível remover da inicialização: {str(e)}")
+
+    def load_startup_settings(self):
+        """Carrega as configurações de inicialização"""
+        try:
+            self.config.read(self.config_file)
+            if 'startup' in self.config:
+                # Configuração de iniciar com Windows
+                self.start_with_windows_var.set(self.config.getboolean('startup', 'start_with_windows', fallback=False))
+                
+                # Configuração do script de inicialização
+                script_path = self.config.get('startup', 'startup_script', fallback='')
+                self.startup_script_entry.delete(0, tk.END)
+                self.startup_script_entry.insert(0, script_path)
+                
+                # Atualiza o registro do Windows se necessário
+                if self.start_with_windows_var.get():
+                    self.add_to_startup()
+        except Exception as e:
+            print(f"Erro ao carregar configurações de inicialização: {str(e)}")
+
+    def save_startup_settings(self):
+        """Salva as configurações de inicialização"""
+        try:
+            if 'startup' not in self.config:
+                self.config.add_section('startup')
+            
+            self.config.set('startup', 'start_with_windows', str(self.start_with_windows_var.get()))
+            self.config.set('startup', 'startup_script', self.startup_script_entry.get())
+            
+            with open(self.config_file, 'w') as configfile:
+                self.config.write(configfile)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Não foi possível salvar as configurações de inicialização: {str(e)}")
 
 # METODO DA ABA DE CONFIGURAÇÃO DE PROXYS SOCKS5 E TUNEL SSH NA QUINTA ABA.
     def load_bind_credentials(self):
