@@ -47,7 +47,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95"
+    return "Beta 95.1"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -220,7 +220,7 @@ class ButtonManager:
             os.makedirs('ssh_keys')
 
         #Inicializa o servidor com o windows
-        #self.check_startup_and_run_script()
+        self.check_startup_and_run_script()
 
 # FUNÇÃO PARA INICIAR OS VPMS E OMRS AO INICIAR O PROGRAMA COM O WINDOWS
     def check_startup_and_run_script(self):
@@ -229,7 +229,6 @@ class ButtonManager:
                (getattr(sys, 'frozen', False) and '--startup' in sys.executable)):
             return
         
-        time.sleep(3)  # Delay de 3 segundos
         try:
             script_path = self._get_startup_script_path()
             if script_path:
@@ -1151,9 +1150,6 @@ class ButtonManager:
         # Adiciona o label de versão ao rodapé
         self.version_label = tk.Label(self.footer_frame, text=f"Projeto Temer - ©VempirE_GhosT - Versão: {get_version()}", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
-
-        #Inicializa o servidor com o windows
-        self.check_startup_and_run_script()
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
     # Método para abrir uma janela de instalação do MTR na conexão OMR VPN
