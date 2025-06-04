@@ -10,6 +10,7 @@ import struct
 import os
 import subprocess
 import re
+import time
 
 # Cria a pasta Logs se ela não existir
 log_dir = 'Logs'
@@ -204,12 +205,12 @@ class SocksProxy:
                 # Usar o endereço IPv6 configurado
                 relay_socket = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
                 relay_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                relay_socket.bind((self.bind_ipv6, 0))
+                relay_socket.bind(('::', 0))  # Escuta em todos endereços IPv6
             else:
                 # IPv4 ou domínio
                 relay_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 relay_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                relay_socket.bind((self.bind_ip, 0))
+                relay_socket.bind(('0.0.0.0', 0))  # Escuta em todos endereços IPv4
                 
             relay_addr, relay_port = relay_socket.getsockname()[:2]
 
@@ -225,7 +226,7 @@ class SocksProxy:
             else:
                 response = struct.pack('!BBBB4sH', 
                     0x05, 0x00, 0x00, 0x01,
-                    socket.inet_aton(self.bind_ip),
+                    socket.inet_aton('0.0.0.0'),
                     relay_port
                 )
             client_socket.sendall(response)
@@ -238,7 +239,8 @@ class SocksProxy:
                 'client_port': None,  # Será definido quando recebermos o primeiro pacote
                 'remote_addr': None,
                 'remote_port': None,
-                'addr_type': addr_type  # Armazenar o tipo de endereço
+                'addr_type': addr_type,  # Armazenar o tipo de endereço
+                'last_activity': time.time()
             }
 
             # Usar endereço do relay como chave da sessão
@@ -249,14 +251,16 @@ class SocksProxy:
             udp_thread.daemon = True
             udp_thread.start()
 
+            # Monitorar conexão TCP para saber quando encerrar
             while self.running:
                 try:
-                    client_socket.setblocking(False)
+                    # Verificar se a conexão TCP ainda está ativa
+                    client_socket.settimeout(1.0)
                     data = client_socket.recv(1)
-                    if not data:
+                    if not data:  # Conexão fechada
                         break
-                except BlockingIOError:
-                    pass
+                except socket.timeout:
+                    continue
                 except Exception:
                     break
 
