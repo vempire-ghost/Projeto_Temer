@@ -222,7 +222,7 @@ class SocksProxy:
             # Responder ao cliente com endereço do relay (usando o IP da interface que o cliente pode alcançar)
             response = struct.pack('!BBBB4sH', 
                 0x05, 0x00, 0x00, 0x01,
-                socket.inet_aton('192.168.0.4'),  # IP que o cliente pode alcançar
+                socket.inet_aton('0.0.0.0'),  # IP que o cliente pode alcançar
                 recv_port
             )
             client_socket.sendall(response)
@@ -285,12 +285,15 @@ class SocksProxy:
 
                     # Pacote do cliente (recebido pelo recv_socket)
                     if sock is recv_socket:
-                        logger.debug(f"UDP: Recebido pacote do cliente {addr[0]}:{addr[1]}")
+                        logger.debug(f"UDP: Pacote recebido de {addr[0]}:{addr[1]}")
 
-                        # Atualizar porta do cliente se necessário
-                        if session['client_port'] is None or addr[0] == session['client_addr']:
+                        # Atualizar porta do cliente apenas se necessário e logar apenas uma vez
+                        if session['client_port'] is None:
                             session['client_port'] = addr[1]
                             logger.info(f"UDP: Porta do cliente definida como {addr[1]}")
+                        elif addr[0] == session['client_addr'] and session['client_port'] != addr[1]:
+                            session['client_port'] = addr[1]
+                            logger.info(f"UDP: Porta do cliente atualizada para {addr[1]}")
 
                         # Processar cabeçalho SOCKS UDP
                         if len(data) < 10:
@@ -318,7 +321,7 @@ class SocksProxy:
                         else:
                             continue
 
-                        # Atualizar endereço remoto
+                        # Atualizar endereço remoto apenas se mudou
                         if session['remote_addr'] != dest_addr or session['remote_port'] != dest_port:
                             session['remote_addr'] = dest_addr
                             session['remote_port'] = dest_port
@@ -339,23 +342,23 @@ class SocksProxy:
                         # Verificar se é uma resposta do destino esperado
                         if (session['remote_addr'] == addr[0] and 
                             session['remote_port'] == addr[1]):
-                            
+
                             # Construir cabeçalho SOCKS UDP para enviar ao cliente
-                            udp_header = struct.pack('!HB', 0, 0)  # RSV, FRAG
+                            udp_header = struct.pack('!HB', 0, 0)
                             
                             if addr_type == 0x04:  # IPv6
-                                udp_header += bytes([0x04])  # ATYP (IPv6)
+                                udp_header += bytes([0x04])
                                 udp_header += socket.inet_pton(socket.AF_INET6, addr[0])
                             else:  # IPv4
-                                udp_header += bytes([0x01])  # ATYP (IPv4)
+                                udp_header += bytes([0x01])
                                 udp_header += socket.inet_aton(addr[0])
-                            
-                            udp_header += struct.pack('!H', addr[1])  # PORT
-                            
+
                             # Enviar pacote completo para o cliente
+                            udp_header += struct.pack('!H', addr[1])
+                            
                             full_packet = udp_header + data
                             recv_socket.sendto(full_packet, 
-                                              (session['client_addr'], session['client_port']))
+                                            (session['client_addr'], session['client_port']))
                             logger.debug(f"UDP: Resposta encaminhada para cliente {session['client_addr']}:{session['client_port']}")
 
             except Exception as e:
