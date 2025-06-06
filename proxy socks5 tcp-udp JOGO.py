@@ -200,51 +200,47 @@ class SocksProxy:
 
     def handle_udp_associate(self, client_socket, client_addr, dest_addr, dest_port, addr_type):
         try:
-            # Criar socket UDP para relay
-            if addr_type == 0x04:  # IPv6
-                # Usar o endereço IPv6 configurado
-                relay_socket = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
-                relay_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                relay_socket.bind(('::', 0))  # Escuta em todos endereços IPv6
-            else:
-                # IPv4 ou domínio
-                relay_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                relay_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                relay_socket.bind(('0.0.0.0', 0))  # Escuta em todos endereços IPv4
-                
-            relay_addr, relay_port = relay_socket.getsockname()[:2]
-
-            logger.info(f"UDP Associate: Relay criado em {relay_addr}:{relay_port}")
+            # Criar dois sockets UDP separados:
+            # 1. Para receber do cliente (na rede 192.168.0.x)
+            # 2. Para enviar para internet (na rede 192.168.100.x)
+            
+            # Socket para receber do cliente - bind em 0.0.0.0 (todas interfaces)
+            recv_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            recv_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            recv_socket.bind(('0.0.0.0', 0))
+            recv_port = recv_socket.getsockname()[1]
+            
+            # Socket para enviar para internet - bind na interface específica (192.168.100.2)
+            send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            send_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            send_socket.bind((self.bind_ip, 0))  # self.bind_ip = 192.168.100.2
+            
+            logger.info(f"UDP Associate: Relay criado (recebe em 0.0.0.0:{recv_port}, envia por {self.bind_ip})")
             logger.info(f"UDP Associate: Cliente original em {client_addr[0]}:{client_addr[1]}")
             logger.info(f"UDP Associate: Destino solicitado {dest_addr}:{dest_port}")
 
-            # Responder ao cliente com endereço do relay
-            if addr_type == 0x04:  # IPv6
-                response = struct.pack('!BBBB', 0x05, 0x00, 0x00, 0x04)
-                response += socket.inet_pton(socket.AF_INET6, self.bind_ipv6)
-                response += struct.pack('!H', relay_port)
-            else:
-                response = struct.pack('!BBBB4sH', 
-                    0x05, 0x00, 0x00, 0x01,
-                    socket.inet_aton('0.0.0.0'),
-                    relay_port
-                )
+            # Responder ao cliente com endereço do relay (usando o IP da interface que o cliente pode alcançar)
+            response = struct.pack('!BBBB4sH', 
+                0x05, 0x00, 0x00, 0x01,
+                socket.inet_aton('192.168.0.4'),  # IP que o cliente pode alcançar
+                recv_port
+            )
             client_socket.sendall(response)
 
             # Configurar sessão UDP
             session = {
                 'client_socket': client_socket,
-                'relay_socket': relay_socket,
-                'client_addr': client_addr[0],  # Endereço real do cliente
+                'recv_socket': recv_socket,  # Socket para receber do cliente
+                'send_socket': send_socket,    # Socket para enviar para internet
+                'client_addr': client_addr[0],
                 'client_port': None,  # Será definido quando recebermos o primeiro pacote
                 'remote_addr': None,
                 'remote_port': None,
-                'addr_type': addr_type,  # Armazenar o tipo de endereço
+                'addr_type': addr_type,
                 'last_activity': time.time()
             }
 
-            # Usar endereço do relay como chave da sessão
-            session_key = (relay_addr, relay_port)
+            session_key = (recv_socket.getsockname()[0], recv_port)
             self.udp_sessions[session_key] = session
 
             udp_thread = threading.Thread(target=self.handle_udp_traffic, args=(session,))
@@ -254,10 +250,9 @@ class SocksProxy:
             # Monitorar conexão TCP para saber quando encerrar
             while self.running:
                 try:
-                    # Verificar se a conexão TCP ainda está ativa
                     client_socket.settimeout(1.0)
                     data = client_socket.recv(1)
-                    if not data:  # Conexão fechada
+                    if not data:
                         break
                 except socket.timeout:
                     continue
@@ -271,92 +266,97 @@ class SocksProxy:
             client_socket.close()
 
     def handle_udp_traffic(self, session):
-        relay_socket = session['relay_socket']
+        recv_socket = session['recv_socket']  # Recebe do cliente (0.0.0.0)
+        send_socket = session['send_socket']  # Envia/recebe da internet (192.168.100.2)
         addr_type = session['addr_type']
 
         while self.running:
             try:
-                readable, _, _ = select.select([relay_socket], [], [], 1.0)
+                # Monitorar ambos os sockets
+                readable, _, _ = select.select([recv_socket, send_socket], [], [], 1.0)
                 if not readable:
                     continue
 
-                data, addr = relay_socket.recvfrom(65535)
-                if not data:
-                    continue
-
-                logger.debug(f"UDP: Recebido pacote de {addr[0]}:{addr[1]}")
-
-                # Se for um pacote do cliente
-                if session['client_port'] is None or addr[0] == session['client_addr']:
-                    # Atualizar a porta do cliente se ainda não definida
-                    if session['client_port'] is None:
-                        session['client_port'] = addr[1]
-                        logger.info(f"UDP: Porta do cliente definida como {addr[1]}")
-
-                    # Processar cabeçalho SOCKS UDP
-                    if len(data) < 10:
+                for sock in readable:
+                    # Receber dados do socket
+                    data, addr = sock.recvfrom(65535)
+                    if not data:
                         continue
 
-                    frag = data[2]
-                    atyp = data[3]
-                    
-                    if frag != 0:
-                        continue
+                    # Pacote do cliente (recebido pelo recv_socket)
+                    if sock is recv_socket:
+                        logger.debug(f"UDP: Recebido pacote do cliente {addr[0]}:{addr[1]}")
 
-                    if atyp == 0x01:  # IPv4
-                        dest_addr = socket.inet_ntoa(data[4:8])
-                        dest_port = struct.unpack('!H', data[8:10])[0]
-                        header_size = 10
-                    elif atyp == 0x03:  # Domain
-                        length = data[4]
-                        dest_addr = data[5:5+length].decode()
-                        dest_port = struct.unpack('!H', data[5+length:7+length])[0]
-                        header_size = 7 + length
-                    elif atyp == 0x04:  # IPv6
-                        dest_addr = socket.inet_ntop(socket.AF_INET6, data[4:20])
-                        dest_port = struct.unpack('!H', data[20:22])[0]
-                        header_size = 22
-                    else:
-                        continue
+                        # Atualizar porta do cliente se necessário
+                        if session['client_port'] is None or addr[0] == session['client_addr']:
+                            session['client_port'] = addr[1]
+                            logger.info(f"UDP: Porta do cliente definida como {addr[1]}")
 
-                    # Atualizar endereço remoto
-                    if session['remote_addr'] != dest_addr or session['remote_port'] != dest_port:
-                        session['remote_addr'] = dest_addr
-                        session['remote_port'] = dest_port
-                        logger.info(f"UDP: Novo destino configurado {dest_addr}:{dest_port}")
+                        # Processar cabeçalho SOCKS UDP
+                        if len(data) < 10:
+                            continue
 
-                    # Enviar payload para o destino
-                    payload = data[header_size:]
-                    
-                    # Enviar para o destino apropriado
-                    if addr_type == 0x04 and atyp == 0x04:  # Se for IPv6
+                        frag = data[2]
+                        atyp = data[3]
+                        
+                        if frag != 0:
+                            continue
+
+                        if atyp == 0x01:  # IPv4
+                            dest_addr = socket.inet_ntoa(data[4:8])
+                            dest_port = struct.unpack('!H', data[8:10])[0]
+                            header_size = 10
+                        elif atyp == 0x03:  # Domain
+                            length = data[4]
+                            dest_addr = data[5:5+length].decode()
+                            dest_port = struct.unpack('!H', data[5+length:7+length])[0]
+                            header_size = 7 + length
+                        elif atyp == 0x04:  # IPv6
+                            dest_addr = socket.inet_ntop(socket.AF_INET6, data[4:20])
+                            dest_port = struct.unpack('!H', data[20:22])[0]
+                            header_size = 22
+                        else:
+                            continue
+
+                        # Atualizar endereço remoto
+                        if session['remote_addr'] != dest_addr or session['remote_port'] != dest_port:
+                            session['remote_addr'] = dest_addr
+                            session['remote_port'] = dest_port
+                            logger.info(f"UDP: Novo destino configurado {dest_addr}:{dest_port}")
+
+                        # Enviar payload para o destino usando o socket de envio
+                        payload = data[header_size:]
                         try:
-                            relay_socket.sendto(payload, (self.bind_ipv6 if dest_addr == '::' else dest_addr, dest_port))
+                            send_socket.sendto(payload, (dest_addr, dest_port))
+                            logger.debug(f"UDP: Enviado para {dest_addr}:{dest_port} via {self.bind_ip}")
                         except Exception as e:
-                            logger.error(f"Erro ao enviar pacote IPv6: {e}")
-                    else:
-                        relay_socket.sendto(payload, (dest_addr, dest_port))
-                    
-                    logger.debug(f"UDP: Enviado para {dest_addr}:{dest_port}")
+                            logger.error(f"Erro ao enviar pacote UDP: {e}")
 
-                # Se for resposta do servidor
-                elif addr[0] == session['remote_addr'] and addr[1] == session['remote_port']:
-                    # Construir resposta SOCKS UDP
-                    if addr_type == 0x04:  # IPv6
-                        udp_header = struct.pack('!HB', 0, 0) + \
-                                    bytes([0x04]) + \
-                                    socket.inet_pton(socket.AF_INET6, addr[0]) + \
-                                    struct.pack('!H', addr[1])
-                    else:
-                        udp_header = struct.pack('!HB', 0, 0) + \
-                                    bytes([0x01]) + \
-                                    socket.inet_aton(addr[0]) + \
-                                    struct.pack('!H', addr[1])
-                    
-                    response = udp_header + data
-                    # Usar o endereço real do cliente em vez de 0.0.0.0
-                    relay_socket.sendto(response, (session['client_addr'], session['client_port']))
-                    logger.debug(f"UDP: Resposta enviada para {session['client_addr']}:{session['client_port']}")
+                    # Resposta do servidor (recebida pelo send_socket)
+                    elif sock is send_socket:
+                        logger.debug(f"UDP: Recebido pacote do servidor {addr[0]}:{addr[1]}")
+
+                        # Verificar se é uma resposta do destino esperado
+                        if (session['remote_addr'] == addr[0] and 
+                            session['remote_port'] == addr[1]):
+                            
+                            # Construir cabeçalho SOCKS UDP para enviar ao cliente
+                            udp_header = struct.pack('!HB', 0, 0)  # RSV, FRAG
+                            
+                            if addr_type == 0x04:  # IPv6
+                                udp_header += bytes([0x04])  # ATYP (IPv6)
+                                udp_header += socket.inet_pton(socket.AF_INET6, addr[0])
+                            else:  # IPv4
+                                udp_header += bytes([0x01])  # ATYP (IPv4)
+                                udp_header += socket.inet_aton(addr[0])
+                            
+                            udp_header += struct.pack('!H', addr[1])  # PORT
+                            
+                            # Enviar pacote completo para o cliente
+                            full_packet = udp_header + data
+                            recv_socket.sendto(full_packet, 
+                                              (session['client_addr'], session['client_port']))
+                            logger.debug(f"UDP: Resposta encaminhada para cliente {session['client_addr']}:{session['client_port']}")
 
             except Exception as e:
                 logger.error(f"Erro no processamento UDP: {e}")
