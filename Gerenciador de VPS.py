@@ -47,7 +47,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.2"
+    return "Beta 95.3"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -4900,6 +4900,10 @@ class ButtonManager:
 
             self.botao_alternar.config(text="Iniciar Monitoramento do OMR")
             logger_main.info("Monitoramento parado.")
+            
+            # Chama a função execute_mtr_and_plot após parar o monitoramento
+            self.execute_mtr_and_plot()
+            logger_main.info("Monitoramento de conexões iniciado.")
 
     def alternar_monitoramento(self):
         if self.monitor_xray:
