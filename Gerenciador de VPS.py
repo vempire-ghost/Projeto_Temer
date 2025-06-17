@@ -47,7 +47,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.5"
+    return "Beta 95.6"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -5264,6 +5264,7 @@ class ButtonManager:
             # Teste inicial de conexão ao endereço 192.168.100.1 na porta 80
             if not test_connection('192.168.100.1', 80, timeout):
                 # Se falhar no teste inicial, retorna OFF em vermelho
+                self.servidor_conectado = False
                 return "Desligado", "red"
 
         # Loop de ping até que a conexão SSH/VPN seja estabelecida
@@ -5286,15 +5287,20 @@ class ButtonManager:
                 if response:
                     # Se a conexão SSH/VPN estiver ativa, retorna ON (verde) e para os testes
                     if self.connection_established_ssh_vps_jogo_bind.is_set():
+                        self.servidor_conectado = True
                         return "Conectado", "green"
                     # Caso contrário, retorna ON (amarelo)
+                    self.servidor_conectado = False
                     return "Conectando", "#B8860B"
                 else:
+                    self.servidor_conectado = False
                     return "Ligado", "blue"
             except (socket.timeout, socket.error):
+                self.servidor_conectado = False
                 return "Ligado", "blue"
 
         # Se a conexão SSH/VPN estiver ativa, retorna ON (verde) diretamente
+        self.servidor_conectado = True
         return "Conectado", "green"
 
     def ping_forever_omr_jogo(self, url, update_func, interval=1):
@@ -5345,7 +5351,6 @@ class ButtonManager:
         # Verifica se a conexão SSH já está estabelecida
         if self.connection_established_ssh_vps_jogo.is_set():
             # Se a conexão SSH estiver ativa, retorna ON (verde)
-            self.servidor_conectado = True
             return "Ligado", "green"
         
         # Caso a conexão SSH não esteja ativa, realiza o teste de ping
@@ -5368,12 +5373,10 @@ class ButtonManager:
             # Verifica se a resposta é válida
             if response:
                 # Se o ping foi bem-sucedido, retorna ON (amarelo)
-                self.servidor_conectado = False
                 return "Ligando", "#B8860B"
             else:
                 return "Desligado", "red"
         except (socket.timeout, socket.error):
-            self.servidor_conectado = False
             return "Desligado", "red"
 
     def ping_forever_vps_jogo(self, url, update_func, interval=1):

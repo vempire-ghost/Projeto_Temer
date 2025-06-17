@@ -28,6 +28,7 @@ Scripts Locais\teste.bat
 !hakai.py
 !compila hakai.ps1
 !cliente_temer.py
+!Compilar Cliente_Temer.ps1
 
 # Não ignorar diretórios específicos e seus conteúdos
 !diretorio_que_quero_monitorar/

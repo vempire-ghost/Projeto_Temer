@@ -1,0 +1,1 @@
+pyinstaller --onefile --noconsole --icon=.\omr-logo.ico "cliente_temer.py" 
