@@ -47,7 +47,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.4"
+    return "Beta 95.5"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -233,7 +233,7 @@ class ButtonManager:
             'vps_jogo_via_vpn': 'VPS JOGO via OMR VPN'
         }
 
-        self.servidor_conectado = True  # Exemplo de variável de status
+        self.servidor_conectado = False  # Exemplo de variável de status
         # Inicia o servidor de API
         self.iniciar_monitor_status()  # Inicia o monitor que sempre fica ouvindo
 
@@ -5345,6 +5345,7 @@ class ButtonManager:
         # Verifica se a conexão SSH já está estabelecida
         if self.connection_established_ssh_vps_jogo.is_set():
             # Se a conexão SSH estiver ativa, retorna ON (verde)
+            self.servidor_conectado = True
             return "Ligado", "green"
         
         # Caso a conexão SSH não esteja ativa, realiza o teste de ping
@@ -5367,10 +5368,12 @@ class ButtonManager:
             # Verifica se a resposta é válida
             if response:
                 # Se o ping foi bem-sucedido, retorna ON (amarelo)
+                self.servidor_conectado = False
                 return "Ligando", "#B8860B"
             else:
                 return "Desligado", "red"
         except (socket.timeout, socket.error):
+            self.servidor_conectado = False
             return "Desligado", "red"
 
     def ping_forever_vps_jogo(self, url, update_func, interval=1):
