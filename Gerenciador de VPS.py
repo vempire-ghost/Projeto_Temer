@@ -47,7 +47,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.3"
+    return "Beta 95.4"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -232,6 +232,67 @@ class ButtonManager:
             'vps_jogo_bind': 'UBUNTU via OMR JOGO',
             'vps_jogo_via_vpn': 'VPS JOGO via OMR VPN'
         }
+
+        self.servidor_conectado = True  # Exemplo de variável de status
+        # Inicia o servidor de API
+        self.iniciar_monitor_status()  # Inicia o monitor que sempre fica ouvindo
+
+#FUNÇÃO PARA INICIAR SERVIDOR DE API
+    def iniciar_monitor_status(self, host='0.0.0.0', port=5000):
+        """
+        Método da classe ButtonManager que inicia o servidor de monitoramento
+        """
+        def handle_client(conn, addr):
+            """Lida com uma conexão de cliente individual"""
+            try:
+                while True:
+                    data = conn.recv(1024)
+                    if not data:
+                        break
+                        
+                    try:
+                        request = json.loads(data.decode('utf-8'))
+                        if request.get('action') == 'get_status':
+                            response = {
+                                'connected': True,
+                                'server_status': self.servidor_conectado
+                            }
+                            conn.send(json.dumps(response).encode('utf-8'))
+                        elif request.get('action') == 'disconnect':
+                            break
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        pass
+            except (ConnectionResetError, BrokenPipeError):
+                pass
+            finally:
+                conn.close()
+
+        def server_loop():
+            """Loop principal do servidor de monitoramento"""
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                    s.bind((str(host), int(port)))
+                    s.listen()
+                    
+                    print(f"Servidor de monitoramento iniciado em {host}:{port}")
+                    
+                    while True:
+                        try:
+                            conn, addr = s.accept()
+                            threading.Thread(
+                                target=handle_client, 
+                                args=(conn, addr), 
+                                daemon=True
+                            ).start()
+                        except OSError as e:
+                            print(f"Erro ao aceitar conexão: {e}")
+                            break
+            except Exception as e:
+                print(f"Erro no servidor de monitoramento: {e}")
+
+        # Inicia a thread do servidor
+        threading.Thread(target=server_loop, daemon=True).start()
 
 # FUNÇÃO PARA INICIAR OS VPMS E OMRS AO INICIAR O PROGRAMA COM O WINDOWS
     def check_startup_and_run_script(self):
