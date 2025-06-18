@@ -9,6 +9,17 @@ from PIL import Image, ImageDraw
 import sys
 import configparser
 import os
+import winreg  # Adicionado para manipulação do registro do Windows
+
+# Corrige o diretório de trabalho quando executado como serviço/inicialização
+if getattr(sys, 'frozen', False):
+    # Se o aplicativo estiver congelado (compilado)
+    application_path = os.path.dirname(sys.executable)
+    os.chdir(application_path)
+
+# Função para retornar a versão
+def get_version():
+    return "Beta 1.0"
 
 class ClientApp:
     def __init__(self):
@@ -22,12 +33,16 @@ class ClientApp:
         self.connected = False
         self.server_status = False
         self.tray_icon = None
-        self.auto_reconnect = True  # Adicionado aqui
+        self.auto_reconnect = True
         self.reconnect_attempts = 0
         self.max_reconnect_attempts = 10000
         self.reconnect_delay = 5  # segundos
         self.update_thread = None
         self.running = True
+        
+        # Variáveis para os checkboxes
+        self.start_with_windows = tk.BooleanVar()
+        self.start_minimized = tk.BooleanVar()
         
         # Carrega configurações do arquivo .ini
         self.config = configparser.ConfigParser()
@@ -37,6 +52,11 @@ class ClientApp:
         # Define os valores das variáveis após carregar a configuração
         self.server_ip.set(self.config.get('DEFAULT', 'host', fallback="127.0.0.1"))
         self.server_port.set(self.config.getint('DEFAULT', 'port', fallback=5000))
+        self.start_with_windows.set(self.config.getboolean('DEFAULT', 'start_with_windows', fallback=False))
+        self.start_minimized.set(self.config.getboolean('DEFAULT', 'start_minimized', fallback=False))
+        
+        # Configura inicialização com Windows
+        self.configure_start_with_windows()
         
         self.connected = False
         self.server_status = False
@@ -52,6 +72,29 @@ class ClientApp:
 
         # Inicia tentativa de conexão automática
         self.root.after(1000, self.auto_connect)
+        
+        # Se configurado para iniciar minimizado
+        if self.start_minimized.get():
+            self.root.after(100, self.minimize_to_tray)
+
+    def configure_start_with_windows(self):
+        """Configura ou remove a entrada no registro para iniciar com o Windows"""
+        key = winreg.HKEY_CURRENT_USER
+        subkey = r"Software\Microsoft\Windows\CurrentVersion\Run"
+        app_name = "ClientApp"
+        app_path = os.path.abspath(sys.argv[0])
+        
+        try:
+            with winreg.OpenKey(key, subkey, 0, winreg.KEY_SET_VALUE) as registry_key:
+                if self.start_with_windows.get():
+                    winreg.SetValueEx(registry_key, app_name, 0, winreg.REG_SZ, app_path)
+                else:
+                    try:
+                        winreg.DeleteValue(registry_key, app_name)
+                    except WindowsError:
+                        pass  # A chave não existe, não há problema
+        except WindowsError as e:
+            print(f"Erro ao acessar o registro do Windows: {e}")
 
     def setup_window_position(self):
         """Configura a posição da janela com base nas configurações salvas"""
@@ -91,16 +134,15 @@ class ClientApp:
                             'height': height
                         }
                         
-                        # Salva no arquivo (opcional - pode ser feito apenas no quit)
-                        # self.save_config()
-    
     def load_config(self):
         """Carrega as configurações do arquivo .ini ou cria um novo com valores padrão"""
         if not os.path.exists(self.config_file):
             # Cria configuração padrão se o arquivo não existir
             self.config['DEFAULT'] = {
                 'host': '127.0.0.1',
-                'port': '5000'
+                'port': '5000',
+                'start_with_windows': 'False',
+                'start_minimized': 'False'
             }
             self.config['WINDOW'] = {
                 'x': '100',
@@ -118,7 +160,9 @@ class ClientApp:
         if hasattr(self, 'server_ip') and hasattr(self, 'server_port'):
             self.config['DEFAULT'] = {
                 'host': self.server_ip.get(),
-                'port': str(self.server_port.get())
+                'port': str(self.server_port.get()),
+                'start_with_windows': str(self.start_with_windows.get()),
+                'start_minimized': str(self.start_minimized.get())
             }
             
             # Salva também a posição atual da janela
@@ -139,57 +183,56 @@ class ClientApp:
             
             with open(self.config_file, 'w') as configfile:
                 self.config.write(configfile)
-            messagebox.showinfo("Sucesso", "Configurações salvas com sucesso!")
-        
-    def load_config(self):
-        """Carrega as configurações do arquivo .ini ou cria um novo com valores padrão"""
-        if not os.path.exists(self.config_file):
-            # Cria configuração padrão se o arquivo não existir
-            self.config['DEFAULT'] = {
-                'host': '127.0.0.1',
-                'port': '5000'
-            }
-            with open(self.config_file, 'w') as configfile:
-                self.config.write(configfile)
-        else:
-            self.config.read(self.config_file)
-    
-    def save_config(self):
-        """Salva as configurações atuais no arquivo .ini"""
-        if hasattr(self, 'server_ip') and hasattr(self, 'server_port'):
-            self.config['DEFAULT'] = {
-                'host': self.server_ip.get(),
-                'port': str(self.server_port.get())
-            }
-            with open(self.config_file, 'w') as configfile:
-                self.config.write(configfile)
-            messagebox.showinfo("Sucesso", "Configurações salvas com sucesso!")
+            
+            # Configura inicialização com Windows
+            self.configure_start_with_windows()
+            
+            #messagebox.showinfo("Sucesso", "Configurações salvas com sucesso!")
     
     def setup_ui(self):
         """Configura a interface do usuário"""
-        frame = tk.Frame(self.root, padx=10, pady=10)
-        frame.pack()
+        # Frame principal com borda
+        main_frame = tk.Frame(self.root, bd=2, relief=tk.GROOVE, padx=5, pady=5)
+        main_frame.pack(padx=10, pady=(10, 0), fill=tk.BOTH, expand=True)
+        
+        # Frame para o conteúdo
+        content_frame = tk.Frame(main_frame)
+        content_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Entrada de IP
-        tk.Label(frame, text="IP do Servidor:").grid(row=0, column=0, sticky="w")
-        tk.Entry(frame, textvariable=self.server_ip).grid(row=0, column=1)
+        tk.Label(content_frame, text="IP do Servidor:").grid(row=0, column=0, sticky="w", pady=(0, 5))
+        tk.Entry(content_frame, textvariable=self.server_ip).grid(row=0, column=1, pady=(0, 5))
         
         # Entrada de Porta
-        tk.Label(frame, text="Porta:").grid(row=1, column=0, sticky="w")
-        tk.Entry(frame, textvariable=self.server_port).grid(row=1, column=1)
+        tk.Label(content_frame, text="Porta:").grid(row=1, column=0, sticky="w", pady=(0, 5))
+        tk.Entry(content_frame, textvariable=self.server_port).grid(row=1, column=1, pady=(0, 5))
+        
+        # Checkboxes
+        tk.Checkbutton(content_frame, text="Iniciar com Windows", variable=self.start_with_windows).grid(
+            row=2, column=0, columnspan=2, sticky="w", pady=(0, 5))
+        tk.Checkbutton(content_frame, text="Iniciar minimizado", variable=self.start_minimized).grid(
+            row=3, column=0, columnspan=2, sticky="w", pady=(0, 10))
         
         # Botões
-        btn_frame = tk.Frame(frame)
-        btn_frame.grid(row=2, columnspan=2, pady=10)
+        btn_frame = tk.Frame(content_frame)
+        btn_frame.grid(row=4, columnspan=2, pady=(0, 10))
         
-        tk.Button(btn_frame, text="Conectar", command=self.connect).pack(side="left", padx=5)
-        tk.Button(btn_frame, text="Desconectar", command=self.disconnect).pack(side="left", padx=5)
-        tk.Button(btn_frame, text="Salvar Config", command=self.save_config).pack(side="left", padx=5)
-        tk.Button(btn_frame, text="Sair", command=self.quit_app).pack(side="right", padx=5)
+        tk.Button(btn_frame, text="Conectar", command=self.connect).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Desconectar", command=self.disconnect).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Salvar Config", command=self.save_config).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Sair", command=self.quit_app).pack(side=tk.RIGHT, padx=5)
         
         # Status
-        self.status_label = tk.Label(frame, text="Status: Desconectado", fg="red")
-        self.status_label.grid(row=3, columnspan=2, pady=5)
+        self.status_label = tk.Label(content_frame, text="Status: Desconectado", fg="red")
+        self.status_label.grid(row=5, columnspan=2, pady=(0, 10))
+        
+        # Cria o frame para o rodapé da janela
+        self.footer_frame = tk.Frame(self.root, bg='lightgray', borderwidth=1, relief=tk.RAISED)
+        self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
+
+        # Adiciona o label de versão ao rodapé
+        self.version_label = tk.Label(self.footer_frame, text=f"Projeto Xandão - ©VempirE_GhosT - Versão: {get_version()}", bg='lightgray', fg='black')
+        self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
         
     def create_tray_icon(self):
         """Cria o ícone na bandeja do sistema"""
@@ -232,7 +275,7 @@ class ClientApp:
     
     def update_tray_icon(self):
         """Atualiza o ícone na bandeja com base no status"""
-        if not self.connected or self.reconnect_attempts > 0:  # Modificado aqui
+        if not self.connected or self.reconnect_attempts > 0:
             self.tray_icon.icon = self.red_icon
         elif self.server_status:
             self.tray_icon.icon = self.green_icon
@@ -415,6 +458,7 @@ class ClientApp:
         """Encerra o aplicativo completamente"""
         # Salva a posição atual da janela antes de sair
         self.save_window_position()
+        self.save_config()
 
         # Sinaliza para todas as threads pararem
         self.running = False
