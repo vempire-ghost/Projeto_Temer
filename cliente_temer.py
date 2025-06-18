@@ -19,7 +19,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 1.0"
+    return "Beta 1.1"
 
 class ClientApp:
     def __init__(self):
@@ -75,7 +75,7 @@ class ClientApp:
         
         # Se configurado para iniciar minimizado
         if self.start_minimized.get():
-            self.root.after(100, self.minimize_to_tray)
+            self.root.withdraw()  # Esconde a janela imediatamente
 
     def configure_start_with_windows(self):
         """Configura ou remove a entrada no registro para iniciar com o Windows"""
@@ -233,6 +233,10 @@ class ClientApp:
         # Adiciona o label de versão ao rodapé
         self.version_label = tk.Label(self.footer_frame, text=f"Projeto Xandão - ©VempirE_GhosT - Versão: {get_version()}", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
+
+        # Se estiver minimizado, garante que a janela não será mostrada
+        if not self.start_minimized.get():
+            self.root.deiconify()  # Mostra a janela apenas se não for para iniciar minimizado
         
     def create_tray_icon(self):
         """Cria o ícone na bandeja do sistema"""
