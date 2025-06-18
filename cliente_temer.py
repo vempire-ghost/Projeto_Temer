@@ -19,7 +19,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 1.1"
+    return "Beta 1.2"
 
 class ClientApp:
     def __init__(self):
@@ -237,7 +237,7 @@ class ClientApp:
         # Se estiver minimizado, garante que a janela não será mostrada
         if not self.start_minimized.get():
             self.root.deiconify()  # Mostra a janela apenas se não for para iniciar minimizado
-        
+
     def create_tray_icon(self):
         """Cria o ícone na bandeja do sistema"""
         # Cria imagens para os diferentes estados
@@ -260,23 +260,45 @@ class ClientApp:
         
         # Inicia uma thread para o tray icon
         threading.Thread(target=self.tray_icon.run, daemon=True).start()
-    
+
     def create_icon_image(self, color):
-        """Cria uma imagem para o tray icon com a cor especificada"""
-        width = 64
-        height = 64
-        image = Image.new('RGB', (width, height), (0, 0, 0, 0))
-        dc = ImageDraw.Draw(image)
-        
-        if color == "red":
-            dc.rectangle((0, 0, width, height), fill=(255, 0, 0))
-        elif color == "blue":
-            dc.rectangle((0, 0, width, height), fill=(0, 0, 255))
-        elif color == "green":
-            dc.rectangle((0, 0, width, height), fill=(0, 255, 0))
-        
-        return image
-    
+        """Cria uma imagem para o tray icon com a imagem especificada"""
+        try:
+            if color == "red":
+                image_path = "server_status_desligado.png"
+            elif color == "blue":
+                image_path = "server_status_ligado.png"
+            elif color == "green":
+                image_path = "server_status_operacional.png"
+            else:
+                # Fallback para uma imagem padrão se a cor não for reconhecida
+                image_path = "server_status_desligado.png"
+            
+            # Carrega a imagem do arquivo
+            image = Image.open(image_path).convert("RGBA")
+            
+            # Redimensiona para 64x64 se necessário (opcional)
+            if image.size != (64, 64):
+                image = image.resize((64, 64), Image.Resampling.LANCZOS)
+                
+            return image
+        except Exception as e:
+            print(f"Erro ao carregar imagem do ícone: {e}")
+            # Fallback: cria um ícone sólido se a imagem não puder ser carregada
+            width = 64
+            height = 64
+            image = Image.new('RGB', (width, height), (0, 0, 0, 0))
+            dc = ImageDraw.Draw(image)
+            
+            if color == "red":
+                dc.rectangle((0, 0, width, height), fill=(255, 0, 0))
+            elif color == "blue":
+                dc.rectangle((0, 0, width, height), fill=(0, 0, 255))
+            elif color == "green":
+                dc.rectangle((0, 0, width, height), fill=(0, 255, 0))
+            
+            return image
+
     def update_tray_icon(self):
         """Atualiza o ícone na bandeja com base no status"""
         if not self.connected or self.reconnect_attempts > 0:
