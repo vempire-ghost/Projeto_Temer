@@ -47,7 +47,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.6"
+    return "Beta 95.7"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -4664,6 +4664,7 @@ class ButtonManager:
         logger_main.info("Iniciando teste de conexão com o IP 192.168.101.1...")
         if not test_connection('192.168.101.1', 80, timeout):
             logger_main.error("Falha na conexão com o IP 192.168.101.1. Aguardando 5 segundos para testar novamente...")
+            return "OFF", "red"
             for _ in range(5):  # Divida a espera em intervalos de 1 segundo
                 if not self.monitor_xray:
                     logger_main.info("Monitoramento interrompido durante a espera.")
@@ -4697,6 +4698,7 @@ class ButtonManager:
         logger_main.info("Iniciando teste de conexão com o IP 192.168.100.1...")
         if not test_connection('192.168.100.1', 80, timeout):
             logger_main.error("Falha na conexão com o IP 192.168.100.1. Aguardando 5 segundos para testar novamente...")
+            return "OFF", "red"
             for _ in range(5):  # Divida a espera em intervalos de 1 segundo
                 if not self.monitor_xray:
                     logger_main.info("Monitoramento interrompido durante a espera.")
@@ -4766,7 +4768,27 @@ class ButtonManager:
             while consecutive_failures_vpn < 6 and self.monitor_xray:
                 logger_main.info("Verificando conexão com o Glorytun VPN...")
                 status_vpn, _ = self.ping_glorytun_vpn(self.url_to_ping_omr_vpn)
-                if status_vpn == "OFF":
+                if status_vpn.startswith("OFF"):  # ou if "OFF" in status_vpn:
+                    # Verifica o estado da VM VPN
+                    vm_vpn_state = self.get_vm_state(self.vm_names['vpn'])
+                    if vm_vpn_state == "poweroff":
+                        logger_main.error("VM VPN está desligada. Tentando iniciar...")
+                        self.run_command("startvm", self.vm_names['vpn'])
+                        
+                        # Aguarda 5 segundos e testa novamente
+                        for _ in range(5):
+                            if not self.monitor_xray:
+                                return
+                            time.sleep(1)
+                        
+                        # Testa o ping novamente após iniciar a VM
+                        status_vpn, _ = self.ping_glorytun_vpn(self.url_to_ping_omr_vpn)
+                        if status_vpn == "ON":
+                            logger_main.info("Conexão restaurada após iniciar a VM VPN.")
+                            break
+                        else:
+                            logger_main.error("Falha na conexão mesmo após iniciar a VM VPN.")
+                    
                     if first_failure_vpn:
                         logger_main.error("Primeira falha na conexão com o Glorytun VPN. Reiniciando imediatamente...")
                         first_failure_vpn = False
@@ -4843,7 +4865,27 @@ class ButtonManager:
             while consecutive_failures_xray < 4 and self.monitor_xray:
                 logger_main.info("Verificando conexão com o Xray Jogo...")
                 status_xray, _ = self.ping_xray_jogo(self.url_to_ping_omr_jogo)
-                if status_xray == "OFF":
+                if status_xray.startswith("OFF"):  # ou if "OFF" in status_xray:
+                    # Verifica o estado da VM Jogo
+                    vm_jogo_state = self.get_vm_state(self.vm_names['jogo'])
+                    if vm_jogo_state == "poweroff":
+                        logger_main.error("VM Jogo está desligada. Tentando iniciar...")
+                        self.run_command("startvm", self.vm_names['jogo'])
+                        
+                        # Aguarda 5 segundos e testa novamente
+                        for _ in range(5):
+                            if not self.monitor_xray:
+                                return
+                            time.sleep(1)
+                        
+                        # Testa o ping novamente após iniciar a VM
+                        status_xray, _ = self.ping_xray_jogo(self.url_to_ping_omr_jogo)
+                        if status_xray == "ON":
+                            logger_main.info("Conexão restaurada após iniciar a VM Jogo.")
+                            break
+                        else:
+                            logger_main.error("Falha na conexão mesmo após iniciar a VM Jogo.")
+                    
                     if first_failure_xray:
                         logger_main.error("Primeira falha na conexão com o Xray Jogo. Reiniciando imediatamente...")
                         first_failure_xray = False
@@ -4919,8 +4961,21 @@ class ButtonManager:
                 continue  # Reinicia o loop para testar o Xray novamente
 
             logger_main.info("Ambos os testes foram bem-sucedidos. Encerrando o monitoramento...")
-            self.botao_alternar.after(0, self.stop_monitoring)
+            self.botao_alternar.after(0, lambda: self.stop_monitoring(success=True))
             return  # Sai do loop principal se ambos os testes forem bem-sucedidos
+
+    # Adicionando a função get_vm_state à classe se ela não existir
+    def get_vm_state(self, vm_name):
+        try:
+            result = subprocess.check_output(
+                f'"C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe" showvminfo "{vm_name}" --machinereadable | findstr /C:"VMState="',
+                shell=True, text=True
+            )
+            # Extrai o estado da VM do resultado do comando
+            state = result.strip().split('=')[1].replace('"', '')
+            return state
+        except subprocess.CalledProcessError:
+            return "Erro"
 
     def start_monitoring_delay(self):
         if not self.monitor_xray:
@@ -4946,7 +5001,7 @@ class ButtonManager:
             self.thread.start()
             self.botao_alternar.config(text="Parar Monitoramento do OMR")
 
-    def stop_monitoring(self):
+    def stop_monitoring(self, success=False):
         if self.monitor_xray:
             logger_main.info("Parando monitoramento...")
             self.monitor_xray = False
@@ -4962,9 +5017,10 @@ class ButtonManager:
             self.botao_alternar.config(text="Iniciar Monitoramento do OMR")
             logger_main.info("Monitoramento parado.")
             
-            # Chama a função execute_mtr_and_plot após parar o monitoramento
-            self.execute_mtr_and_plot()
-            logger_main.info("Monitoramento de conexões iniciado.")
+            # Chama a função execute_mtr_and_plot apenas se foi uma conclusão bem-sucedida
+            if success:
+                self.execute_mtr_and_plot()
+                logger_main.info("Monitoramento de conexões iniciado.")
 
     def alternar_monitoramento(self):
         if self.monitor_xray:

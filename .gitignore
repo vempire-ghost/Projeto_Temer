@@ -1,6 +1,5 @@
 # Ignorar todos os arquivos
 *
-Scripts Locais\teste.bat
 
 # Não ignorar o próprio arquivo .gitignore
 !.gitignore
@@ -29,6 +28,7 @@ Scripts Locais\teste.bat
 !compila hakai.ps1
 !cliente_temer.py
 !Compilar Cliente_Temer.ps1
+!/server_status_*.png
 
 # Não ignorar diretórios específicos e seus conteúdos
 !diretorio_que_quero_monitorar/
@@ -42,3 +42,4 @@ Scripts Locais\teste.bat
 
 # Ignorar arquivo específico dentro de Scripts Locais
 Scripts Locais/teste.bat
+old_beta/server_status_*.png
