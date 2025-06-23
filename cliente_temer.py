@@ -19,12 +19,12 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 1.4"
+    return "Beta 1.5"
 
 class ClientApp:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("Cliente do Servidor")
+        self.root.title("Cliente do Projeto Temer")
         self.root.protocol("WM_DELETE_WINDOW", self.minimize_to_tray)
         
         # Inicializa as variáveis antes de carregar a configuração
@@ -411,8 +411,24 @@ class ClientApp:
     def handle_connection_lost(self):
         """Lida com perda de conexão"""
         self.disconnect(silent=True)
-        # Atualiza ícone para vermelho
+        
+        # Atualiza todos os provedores para Offline
+        self.root.after(0, lambda: self.update_providers_status(False, False, False))
+        
+        # Atualiza o status da interface
+        self.root.after(0, lambda: self.status_label.config(
+            text="Status: Desconectado", 
+            fg="red"))
+        
+        # Atualiza o tray icon
         self.root.after(0, self.update_tray_icon)
+        
+        # Atualiza o tooltip do tray icon (que será atualizado pelo get_tray_tooltip)
+        if hasattr(self, 'tray_icon'):
+            self.tray_icon.title = self.get_tray_tooltip()
+            if hasattr(self.tray_icon, '_update_icon'):
+                self.tray_icon._update_icon()
+        
         if self.auto_reconnect:
             self.auto_connect()
 
@@ -431,8 +447,13 @@ class ClientApp:
         self.connected = False
         self.server_status = False
         
+        # Atualiza todos os provedores para Offline
+        self.root.after(0, lambda: self.update_providers_status(False, False, False))
+        
         if not silent:
-            self.root.after(0, lambda: self.status_label.config(text="Status: Desconectado", fg="red"))
+            self.root.after(0, lambda: self.status_label.config(
+                text="Status: Desconectado", 
+                fg="red"))
             self.update_tray_icon()
 
     def update_status_loop(self):
@@ -510,7 +531,7 @@ class ClientApp:
     def update_status_ui(self):
         """Atualiza a interface do usuário"""
         if self.server_status:
-            self.status_label.config(text="Status: Servidor Ativo", fg="green")
+            self.status_label.config(text="Status: Servidor Operacional", fg="green")
         else:
             self.status_label.config(text="Status: Conectado", fg="blue")
         self.update_tray_icon()
