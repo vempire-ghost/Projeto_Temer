@@ -19,7 +19,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 1.3"
+    return "Beta 1.4"
 
 class ClientApp:
     def __init__(self):
@@ -252,6 +252,30 @@ class ClientApp:
         if not self.start_minimized.get():
             self.root.deiconify()  # Mostra a janela apenas se não for para iniciar minimizado
 
+    def get_tray_tooltip(self):
+        """Retorna o texto completo para o tooltip do tray icon"""
+        base_text = "Projeto Xandão"
+        
+        if not self.connected:
+            return f"{base_text}\nStatus: Desligado"
+        
+        status_text = "Servidor: " + ("Operacional" if self.server_status else "Ligado")
+        
+        # Adiciona status dos provedores
+        providers_text = []
+        if hasattr(self, 'coopera_status'):
+            providers_text.append(f"Coopera: {'Online' if self.coopera_status else 'Offline'}")
+        if hasattr(self, 'claro_status'):
+            providers_text.append(f"Claro: {'Online' if self.claro_status else 'Offline'}")
+        if hasattr(self, 'unifique_status'):
+            providers_text.append(f"Unifique: {'Online' if self.unifique_status else 'Offline'}")
+        
+        full_text = f"{base_text}\n{status_text}"
+        if providers_text:
+            full_text += "\n" + "\n".join(providers_text)
+        
+        return full_text
+
     def create_tray_icon(self):
         """Cria o ícone na bandeja do sistema"""
         # Cria imagens para os diferentes estados
@@ -268,7 +292,7 @@ class ClientApp:
         self.tray_icon = pystray.Icon(
             "server_client",
             self.red_icon,
-            "Cliente do Servidor",
+            self.get_tray_tooltip(),  # Usa o tooltip atualizado
             menu
         )
         
@@ -454,6 +478,11 @@ class ClientApp:
 
     def update_providers_status(self, coopera_status, claro_status, unifique_status):
         """Atualiza os status dos provedores na interface"""
+        # Armazena os status como atributos
+        self.coopera_status = coopera_status
+        self.claro_status = claro_status
+        self.unifique_status = unifique_status
+        
         # Coopera
         if coopera_status:
             self.coopera_label.config(text="Coopera: Online", fg="green")
@@ -471,6 +500,12 @@ class ClientApp:
             self.unifique_label.config(text="Unifique: Online", fg="green")
         else:
             self.unifique_label.config(text="Unifique: Offline", fg="red")
+        
+        # Atualiza o tooltip do tray icon
+        if hasattr(self, 'tray_icon'):
+            self.tray_icon.title = self.get_tray_tooltip()
+            if hasattr(self.tray_icon, '_update_icon'):
+                self.tray_icon._update_icon()
 
     def update_status_ui(self):
         """Atualiza a interface do usuário"""
@@ -479,6 +514,12 @@ class ClientApp:
         else:
             self.status_label.config(text="Status: Conectado", fg="blue")
         self.update_tray_icon()
+        
+        # Atualiza o tooltip do tray icon
+        if hasattr(self, 'tray_icon'):
+            self.tray_icon.title = self.get_tray_tooltip()
+            if hasattr(self.tray_icon, '_update_icon'):
+                self.tray_icon._update_icon()
 
     def handle_connection_lost(self):
         """Lida com perda de conexão"""
