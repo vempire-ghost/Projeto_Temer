@@ -47,7 +47,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.7"
+    return "Beta 95.8"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -233,9 +233,12 @@ class ButtonManager:
             'vps_jogo_via_vpn': 'VPS JOGO via OMR VPN'
         }
 
-        self.servidor_conectado = False  # Exemplo de variável de status
-        # Inicia o servidor de API
-        self.iniciar_monitor_status()  # Inicia o monitor que sempre fica ouvindo
+        # Variaveis relacionadas ao API
+        self.servidor_conectado = False  # Variavel para definir servidor como conectado e funcional
+        self.coopera_online = False # Variavel para definir estado da conexão com a internet
+        self.claro_online = False # Variavel para definir estado da conexão com a internet
+        self.unifique_online = False # Variavel para definir estado da conexão com a internet
+        self.iniciar_monitor_status()  # Inicia o servidor de API
 
 #FUNÇÃO PARA INICIAR SERVIDOR DE API
     def iniciar_monitor_status(self, host='0.0.0.0', port=5000):
@@ -255,7 +258,10 @@ class ButtonManager:
                         if request.get('action') == 'get_status':
                             response = {
                                 'connected': True,
-                                'server_status': self.servidor_conectado
+                                'server_status': self.servidor_conectado,
+                                'coopera_online': self.coopera_online,
+                                'claro_online': self.claro_online,
+                                'unifique_online': self.unifique_online
                             }
                             conn.send(json.dumps(response).encode('utf-8'))
                         elif request.get('action') == 'disconnect':
@@ -4303,6 +4309,11 @@ class ButtonManager:
         self.claro_status.config(text="CLARO: Offline", bg='red')
         self.coopera_status.config(text="COOPERA: Offline", bg='red')
         
+        # Atualiza as variáveis de status
+        self.unifique_online = False
+        self.claro_online = False
+        self.coopera_online = False
+        
         # Incrementa todos os contadores
         #self.unifique_fail_count += 1
         #self.claro_fail_count += 1
@@ -4352,19 +4363,28 @@ class ButtonManager:
         """Atualiza o status da interface e incrementa o contador se offline"""
         if is_online:
             button.config(text=f"{name}: Online", bg='green')
+            # Atualiza a variável de status correspondente
+            if name == 'UNIFIQUE':
+                self.unifique_online = True
+            elif name == 'CLARO':
+                self.claro_online = True
+            elif name == 'COOPERA':
+                self.coopera_online = True
         else:
             button.config(text=f"{name}: Offline", bg='red')
-            # Incrementa o contador de falhas apropriado
+            # Atualiza a variável de status correspondente
             if name == 'UNIFIQUE':
+                self.unifique_online = False
                 self.unifique_fail_count += 1
                 self.tooltip_fail_unifique.text = f"Quedas desde o início: {self.unifique_fail_count}"
             elif name == 'CLARO':
+                self.claro_online = False
                 self.claro_fail_count += 1
                 self.tooltip_fail_claro.text = f"Quedas desde o início: {self.claro_fail_count}"
             elif name == 'COOPERA':
+                self.coopera_online = False
                 self.coopera_fail_count += 1
                 self.tooltip_fail_coopera.text = f"Quedas desde o início: {self.coopera_fail_count}"
-            
 
     def check_status(self):
         """Verifica o status das interfaces usando as conexões SSH apropriadas."""
