@@ -19,7 +19,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 1.2"
+    return "Beta 1.3"
 
 class ClientApp:
     def __init__(self):
@@ -224,7 +224,21 @@ class ClientApp:
         
         # Status
         self.status_label = tk.Label(content_frame, text="Status: Desconectado", fg="red")
-        self.status_label.grid(row=5, columnspan=2, pady=(0, 10))
+        self.status_label.grid(row=5, columnspan=2, pady=(0, 5))
+        
+        # Frame para status dos provedores
+        self.providers_frame = tk.Frame(content_frame)
+        self.providers_frame.grid(row=6, columnspan=2, pady=(5, 10), sticky="ew")
+        
+        # Labels para status dos provedores
+        self.coopera_label = tk.Label(self.providers_frame, text="Coopera: Offline", fg="red")
+        self.coopera_label.pack(side=tk.LEFT, padx=5)
+        
+        self.claro_label = tk.Label(self.providers_frame, text="Claro: Offline", fg="red")
+        self.claro_label.pack(side=tk.LEFT, padx=5)
+        
+        self.unifique_label = tk.Label(self.providers_frame, text="Unifique: Offline", fg="red")
+        self.unifique_label.pack(side=tk.LEFT, padx=5)
         
         # Cria o frame para o rodapé da janela
         self.footer_frame = tk.Frame(self.root, bg='lightgray', borderwidth=1, relief=tk.RAISED)
@@ -370,32 +384,6 @@ class ClientApp:
                     fg="red"))
                 self.root.after(10000, self.auto_connect)
 
-    def update_status_loop(self):
-        """Monitora a conexão e tenta reconectar se necessário"""
-        while self.running and self.connected:
-            try:
-                request = json.dumps({'action': 'get_status'})
-                self.socket.send(request.encode('utf-8'))
-                
-                response = self.socket.recv(1024)
-                if not response:
-                    raise ConnectionError()
-                    
-                data = json.loads(response.decode('utf-8'))
-                
-                if data.get('connected', False):
-                    new_status = data.get('server_status', False)
-                    if new_status != self.server_status:
-                        self.server_status = new_status
-                        self.root.after(0, self.update_status_ui)
-                
-            except Exception:
-                # Conexão perdida
-                self.root.after(0, self.handle_connection_lost)
-                break
-                
-            time.sleep(1)
-
     def handle_connection_lost(self):
         """Lida com perda de conexão"""
         self.disconnect(silent=True)
@@ -443,6 +431,13 @@ class ClientApp:
                     if new_status != self.server_status:
                         self.server_status = new_status
                         self.root.after(0, self.update_status_ui)
+                    
+                    # Atualiza status dos provedores
+                    self.root.after(0, lambda: self.update_providers_status(
+                        data.get('coopera_online', False),
+                        data.get('claro_online', False),
+                        data.get('unifique_online', False)
+                    ))
                 
             except ConnectionResetError:
                 self.root.after(0, self.handle_connection_lost)
@@ -456,6 +451,26 @@ class ClientApp:
                 break
                 
             time.sleep(1)  # Verifica a cada 1 segundo
+
+    def update_providers_status(self, coopera_status, claro_status, unifique_status):
+        """Atualiza os status dos provedores na interface"""
+        # Coopera
+        if coopera_status:
+            self.coopera_label.config(text="Coopera: Online", fg="green")
+        else:
+            self.coopera_label.config(text="Coopera: Offline", fg="red")
+        
+        # Claro
+        if claro_status:
+            self.claro_label.config(text="Claro: Online", fg="green")
+        else:
+            self.claro_label.config(text="Claro: Offline", fg="red")
+        
+        # Unifique
+        if unifique_status:
+            self.unifique_label.config(text="Unifique: Online", fg="green")
+        else:
+            self.unifique_label.config(text="Unifique: Offline", fg="red")
 
     def update_status_ui(self):
         """Atualiza a interface do usuário"""
