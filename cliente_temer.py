@@ -19,7 +19,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 1.5"
+    return "Beta 1.6"
 
 class ClientApp:
     def __init__(self):
@@ -39,6 +39,7 @@ class ClientApp:
         self.reconnect_delay = 5  # segundos
         self.update_thread = None
         self.running = True
+        self.notify_provider_changes = tk.BooleanVar(value=True)  # Valor padrão True (ativado)
         
         # Variáveis para os checkboxes
         self.start_with_windows = tk.BooleanVar()
@@ -142,7 +143,8 @@ class ClientApp:
                 'host': '127.0.0.1',
                 'port': '5000',
                 'start_with_windows': 'False',
-                'start_minimized': 'False'
+                'start_minimized': 'False',
+                'notify_provider_changes': 'True'  # Adicionado
             }
             self.config['WINDOW'] = {
                 'x': '100',
@@ -154,6 +156,8 @@ class ClientApp:
                 self.config.write(configfile)
         else:
             self.config.read(self.config_file)
+            # Carrega a configuração de notificação
+            self.notify_provider_changes.set(self.config.getboolean('DEFAULT', 'notify_provider_changes', fallback=True))
     
     def save_config(self):
         """Salva as configurações atuais no arquivo .ini"""
@@ -162,7 +166,8 @@ class ClientApp:
                 'host': self.server_ip.get(),
                 'port': str(self.server_port.get()),
                 'start_with_windows': str(self.start_with_windows.get()),
-                'start_minimized': str(self.start_minimized.get())
+                'start_minimized': str(self.start_minimized.get()),
+                'notify_provider_changes': str(self.notify_provider_changes.get())  # Adicionado
             }
             
             # Salva também a posição atual da janela
@@ -211,11 +216,14 @@ class ClientApp:
         tk.Checkbutton(content_frame, text="Iniciar com Windows", variable=self.start_with_windows).grid(
             row=2, column=0, columnspan=2, sticky="w", pady=(0, 5))
         tk.Checkbutton(content_frame, text="Iniciar minimizado", variable=self.start_minimized).grid(
-            row=3, column=0, columnspan=2, sticky="w", pady=(0, 10))
+            row=3, column=0, columnspan=2, sticky="w", pady=(0, 5))
+        # Novo checkbox para notificações
+        tk.Checkbutton(content_frame, text="Notificar mudanças nos provedores", variable=self.notify_provider_changes).grid(
+            row=4, column=0, columnspan=2, sticky="w", pady=(0, 10))
         
         # Botões
         btn_frame = tk.Frame(content_frame)
-        btn_frame.grid(row=4, columnspan=2, pady=(0, 10))
+        btn_frame.grid(row=5, columnspan=2, pady=(0, 10))
         
         tk.Button(btn_frame, text="Conectar", command=self.connect).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Desconectar", command=self.disconnect).pack(side=tk.LEFT, padx=5)
@@ -224,11 +232,11 @@ class ClientApp:
         
         # Status
         self.status_label = tk.Label(content_frame, text="Status: Desconectado", fg="red")
-        self.status_label.grid(row=5, columnspan=2, pady=(0, 5))
+        self.status_label.grid(row=6, columnspan=2, pady=(0, 5))
         
         # Frame para status dos provedores
         self.providers_frame = tk.Frame(content_frame)
-        self.providers_frame.grid(row=6, columnspan=2, pady=(5, 10), sticky="ew")
+        self.providers_frame.grid(row=7, columnspan=2, pady=(5, 10), sticky="ew")
         
         # Labels para status dos provedores
         self.coopera_label = tk.Label(self.providers_frame, text="Coopera: Offline", fg="red")
@@ -499,6 +507,14 @@ class ClientApp:
 
     def update_providers_status(self, coopera_status, claro_status, unifique_status):
         """Atualiza os status dos provedores na interface"""
+        # Verifica mudanças nos status para notificação
+        if hasattr(self, 'coopera_status') and coopera_status != self.coopera_status:
+            self.show_provider_notification("Coopera", coopera_status)
+        if hasattr(self, 'claro_status') and claro_status != self.claro_status:
+            self.show_provider_notification("Claro", claro_status)
+        if hasattr(self, 'unifique_status') and unifique_status != self.unifique_status:
+            self.show_provider_notification("Unifique", unifique_status)
+        
         # Armazena os status como atributos
         self.coopera_status = coopera_status
         self.claro_status = claro_status
@@ -527,6 +543,21 @@ class ClientApp:
             self.tray_icon.title = self.get_tray_tooltip()
             if hasattr(self.tray_icon, '_update_icon'):
                 self.tray_icon._update_icon()
+
+    # Adicione este novo método para mostrar notificações
+    def show_provider_notification(self, provider_name, is_online):
+        """Mostra uma notificação quando o status de um provedor muda"""
+        if not self.notify_provider_changes.get():
+            return
+            
+        status = "Online" if is_online else "Offline"
+        message = f"Provedor {provider_name} está agora {status}"
+        
+        if hasattr(self, 'tray_icon') and self.tray_icon:
+            try:
+                self.tray_icon.notify(message, "Alteração de Conexão")
+            except Exception as e:
+                print(f"Erro ao mostrar notificação: {e}")
 
     def update_status_ui(self):
         """Atualiza a interface do usuário"""
