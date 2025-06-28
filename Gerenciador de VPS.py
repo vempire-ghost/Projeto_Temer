@@ -47,7 +47,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.8"
+    return "Beta 95.9"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -264,6 +264,9 @@ class ButtonManager:
                                 'unifique_online': self.unifique_online
                             }
                             conn.send(json.dumps(response).encode('utf-8'))
+                        elif request.get('action') == 'poweroff':  # No handle_client
+                            success = self._execute_poweroff_script()
+                            conn.send(json.dumps({'success': success}).encode('utf-8'))
                         elif request.get('action') == 'disconnect':
                             break
                     except (json.JSONDecodeError, UnicodeDecodeError):
@@ -332,6 +335,23 @@ class ButtonManager:
         import traceback
         traceback.print_exc()
         messagebox.showerror("Erro", f"Falha na inicialização automática:\n{str(error)}")
+
+# FUNÇÃO PARA ENCERRAR O OMR E OS VPS APARTIR DO CLIENTE TEMER.
+    def _get_poweroff_script_path(self):
+        """Obtém o caminho do script de poweroff do arquivo de configuração"""
+        config = configparser.ConfigParser()
+        config.read(self.config_file)
+        return config.get('poweroff', 'poweroff_script', fallback='') if 'poweroff' in config else ''
+
+    def _execute_poweroff_script(self):
+        """Executa o script de poweroff com verificações e privilégios de admin"""
+        script_path = self._get_poweroff_script_path()
+        if os.path.isfile(script_path):
+            self.run_as_admin(script_path)
+            return True
+        else:
+            messagebox.showwarning("Aviso", f"Script de desligamento não encontrado:\n{script_path}")
+            return False
 
 # FUNÇÃO PARA MINIMIZAR E RESTAURAR O PROGRAMA NO SYSTEM TRAY
     def setup_double_click(self):
