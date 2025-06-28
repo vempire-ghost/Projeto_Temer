@@ -47,7 +47,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.9"
+    return "Beta 95.10"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -239,6 +239,11 @@ class ButtonManager:
         self.claro_online = False # Variavel para definir estado da conexão com a internet
         self.unifique_online = False # Variavel para definir estado da conexão com a internet
         self.iniciar_monitor_status()  # Inicia o servidor de API
+        #Variaveis de estado das conexões para o desligamento do programa
+        self.omr_vpn_conectado = False
+        self.omr_jogo_conectado = False
+        self.vps_vpn_conectado = False
+        self.vps_jogo_conectado = False
 
 #FUNÇÃO PARA INICIAR SERVIDOR DE API
     def iniciar_monitor_status(self, host='0.0.0.0', port=5000):
@@ -352,6 +357,29 @@ class ButtonManager:
         else:
             messagebox.showwarning("Aviso", f"Script de desligamento não encontrado:\n{script_path}")
             return False
+
+    def monitorar_e_desligar(self):
+        """Monitora as variáveis de conexão e desliga o Windows se todas estiverem False"""
+        while True:
+            # Verifica se todas as variáveis são False
+            if (not self.omr_vpn_conectado and 
+                not self.omr_jogo_conectado and 
+                not self.vps_vpn_conectado and 
+                not self.vps_jogo_conectado):
+                
+                print("Todas as conexões estão desativadas - desligando o sistema...")
+                os.system("shutdown /s /t 1")  # Desliga o Windows em 1 segundo
+                break  # Sai do loop após enviar o comando de desligamento
+            
+            time.sleep(10)  # Verifica a cada 10 segundos
+
+    def iniciar_monitoramento_auto_desligamento(self):
+        """Inicia a thread de monitoramento para desligamento automático"""
+        thread = threading.Thread(
+            target=self.monitorar_e_desligar,
+            daemon=True  # Thread será encerrada quando o programa principal terminar
+        )
+        thread.start()
 
 # FUNÇÃO PARA MINIMIZAR E RESTAURAR O PROGRAMA NO SYSTEM TRAY
     def setup_double_click(self):
@@ -5311,6 +5339,7 @@ class ButtonManager:
             # Teste inicial de conexão ao endereço 192.168.101.1 na porta 80
             if not test_connection('192.168.101.1', 80, timeout):
                 # Se falhar no teste inicial, retorna OFF em vermelho
+                self.omr_vpn_conectado = False
                 return "Desligado", "red"
 
         # Looping de ping até que a conexão SSH/VPN seja estabelecida
@@ -5326,14 +5355,18 @@ class ButtonManager:
                 # Se o ping for bem-sucedido, verifica se a conexão SSH já foi estabelecida
                 if self.connection_established_ssh_vps_vpn_bind.is_set():
                     # Se a conexão SSH/VPN estiver ativa, retorna ON (verde) e para os testes
+                    self.omr_vpn_conectado = True
                     return "Conectado", "green"
                 # Caso contrário, retorna ON (amarelo)
+                self.omr_vpn_conectado = False
                 return "Conectando", "#B8860B"
             except (socket.timeout, socket.error):
                 # Se o teste de ping falhar, atualiza para OFF em azul
+                self.omr_vpn_conectado = False
                 return "Ligado", "blue"
 
         # Se a conexão SSH/VPN estiver ativa, retorna ON (verde) diretamente
+        self.omr_vpn_conectado = True
         return "Conectado", "green"
 
     def ping_forever_omr_vpn(self, url, update_func, interval=1):
@@ -5360,6 +5393,7 @@ class ButtonManager:
             # Teste inicial de conexão ao endereço 192.168.100.1 na porta 80
             if not test_connection('192.168.100.1', 80, timeout):
                 # Se falhar no teste inicial, retorna OFF em vermelho
+                self.omr_jogo_conectado = False
                 self.servidor_conectado = False
                 return "Desligado", "red"
 
@@ -5383,19 +5417,24 @@ class ButtonManager:
                 if response:
                     # Se a conexão SSH/VPN estiver ativa, retorna ON (verde) e para os testes
                     if self.connection_established_ssh_vps_jogo_bind.is_set():
+                        self.omr_jogo_conectado = True
                         self.servidor_conectado = True
                         return "Conectado", "green"
                     # Caso contrário, retorna ON (amarelo)
+                    self.omr_jogo_conectado = False
                     self.servidor_conectado = False
                     return "Conectando", "#B8860B"
                 else:
+                    self.omr_jogo_conectado = False
                     self.servidor_conectado = False
                     return "Ligado", "blue"
             except (socket.timeout, socket.error):
+                self.omr_jogo_conectado = False
                 self.servidor_conectado = False
                 return "Ligado", "blue"
 
         # Se a conexão SSH/VPN estiver ativa, retorna ON (verde) diretamente
+        self.omr_jogo_conectado = True
         self.servidor_conectado = True
         return "Conectado", "green"
 
@@ -5409,6 +5448,7 @@ class ButtonManager:
         # Verifica se a conexão SSH/VPN já está estabelecida
         if self.connection_established_ssh_vps_vpn.is_set():
             # Se a conexão SSH/VPN estiver ativa, retorna ON (verde)
+            self.vps_vpn_conectado = True
             return "Ligado", "green"
         
         # Caso a conexão SSH/VPN não esteja ativa, realiza o teste de ping
@@ -5431,10 +5471,13 @@ class ButtonManager:
             # Verifica se a resposta é válida
             if response:
                 # Se o ping foi bem-sucedido, retorna ON (amarelo)
+                self.vps_vpn_conectado = False
                 return "Ligando", "#B8860B"
             else:
+                self.vps_vpn_conectado = False
                 return "Desligado", "red"
         except (socket.timeout, socket.error):
+            self.vps_vpn_conectado = False
             return "Desligado", "red"
 
     def ping_forever_vps_vpn(self, url, update_func, interval=1):
@@ -5447,6 +5490,7 @@ class ButtonManager:
         # Verifica se a conexão SSH já está estabelecida
         if self.connection_established_ssh_vps_jogo.is_set():
             # Se a conexão SSH estiver ativa, retorna ON (verde)
+            self.vps_jogo_conectado = True
             return "Ligado", "green"
         
         # Caso a conexão SSH não esteja ativa, realiza o teste de ping
@@ -5469,10 +5513,13 @@ class ButtonManager:
             # Verifica se a resposta é válida
             if response:
                 # Se o ping foi bem-sucedido, retorna ON (amarelo)
+                self.vps_jogo_conectado = False
                 return "Ligando", "#B8860B"
             else:
+                self.vps_jogo_conectado = False
                 return "Desligado", "red"
         except (socket.timeout, socket.error):
+            self.vps_jogo_conectado = False
             return "Desligado", "red"
 
     def ping_forever_vps_jogo(self, url, update_func, interval=1):
@@ -6192,6 +6239,9 @@ class ButtonManager:
                             if "PROCESSO CONCLUIDO" in line:
                                 self.start_monitoring_delay()
 
+                            if "DESLIGAR WINDOWS" in line:
+                                self.iniciar_monitoramento_auto_desligamento()
+
                             if "DESLIGAMENTO CONCLUIDO" in line:
                                 self.verificar_vm = False
 
@@ -6696,6 +6746,28 @@ class OMRManagerDialog:
         # Carrega as configurações de inicialização
         self.load_startup_settings()
 
+        # Frame para o script de poweroff
+        poweroff_frame = tk.Frame(aba1, borderwidth=1, relief=tk.RIDGE)
+        poweroff_frame.pack(side="top", padx=10, pady=10, anchor='w', fill=tk.BOTH)
+
+        # Frame para o script de poweroff
+        script_poweroff_frame = tk.Frame(poweroff_frame)
+        script_poweroff_frame.pack(side=tk.TOP, anchor='w', fill=tk.X, padx=5, pady=5)
+
+        tk.Label(script_poweroff_frame, text="Script para executar no desligamento:").pack(side=tk.LEFT)
+        self.poweroff_script_entry = tk.Entry(script_poweroff_frame, width=40)
+        self.poweroff_script_entry.pack(side=tk.LEFT, padx=5)
+
+        browse_poweroff_button = tk.Button(
+            script_poweroff_frame, 
+            text="Procurar", 
+            command=self.browse_poweroff_script
+        )
+        browse_poweroff_button.pack(side=tk.LEFT)
+
+        # Carrega as configurações de desligamento
+        self.load_poweroff_settings()
+
         # Segunda aba (Configurações de Ping)
         aba2 = ttk.Frame(self.tabs)
         self.tabs.add(aba2, text="Configurações de Ping")
@@ -7004,6 +7076,42 @@ class OMRManagerDialog:
         self.load_bind_credentials()
 
         self.top.protocol("WM_DELETE_WINDOW", self.on_close)
+
+#METODOS PARA DESLIGAMENTO DO PROGRAMA PELO CLIENTE TEMER
+    def browse_poweroff_script(self):
+        """Abre diálogo para selecionar script de desligamento"""
+        file_path = filedialog.askopenfilename(
+            title="Selecione o script para executar no desligamento",
+            filetypes=[("Arquivos Batch", "*.bat"), ("Todos os arquivos", "*.*")]
+        )
+        if file_path:
+            self.poweroff_script_entry.delete(0, tk.END)
+            self.poweroff_script_entry.insert(0, file_path)
+            self.save_poweroff_settings()
+
+    def load_poweroff_settings(self):
+        """Carrega as configurações de desligamento"""
+        try:
+            self.config.read(self.config_file)
+            if 'poweroff' in self.config:
+                script_path = self.config.get('poweroff', 'poweroff_script', fallback='')
+                self.poweroff_script_entry.delete(0, tk.END)
+                self.poweroff_script_entry.insert(0, script_path)
+        except Exception as e:
+            print(f"Erro ao carregar configurações de desligamento: {str(e)}")
+
+    def save_poweroff_settings(self):
+        """Salva as configurações de desligamento"""
+        try:
+            if 'poweroff' not in self.config:
+                self.config.add_section('poweroff')
+            
+            self.config.set('poweroff', 'poweroff_script', self.poweroff_script_entry.get())
+            
+            with open(self.config_file, 'w') as configfile:
+                self.config.write(configfile)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Não foi possível salvar as configurações de desligamento: {str(e)}")
 
 # METODOS PARA INICIALIZAÇÃO DO PROGRAMA COM O WINDOWS
     def toggle_start_with_windows(self):
