@@ -19,7 +19,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 1.6"
+    return "Beta 1.7"
 
 class ClientApp:
     def __init__(self):
@@ -291,21 +291,60 @@ class ClientApp:
         self.blue_icon = self.create_icon_image("blue")
         self.green_icon = self.create_icon_image("green")
         
-        # Menu do tray icon
+        # Menu do tray icon (agora com a opção de desligamento)
         menu = (
             pystray.MenuItem("Abrir", self.restore_from_tray),
+            pystray.MenuItem("Desligar Servidor", self.send_poweroff_command),
             pystray.MenuItem("Sair", self.quit_app)
         )
         
         self.tray_icon = pystray.Icon(
             "server_client",
             self.red_icon,
-            self.get_tray_tooltip(),  # Usa o tooltip atualizado
+            self.get_tray_tooltip(),
             menu
         )
         
         # Inicia uma thread para o tray icon
         threading.Thread(target=self.tray_icon.run, daemon=True).start()
+
+    def send_poweroff_command(self):
+        """Envia comando de desligamento para o servidor após confirmação"""
+        if not self.connected:
+            messagebox.showwarning("Aviso", "Não conectado ao servidor")
+            return
+        
+        # Janela de confirmação
+        confirm = messagebox.askyesno(
+            "Confirmar Desligamento",
+            "Tem certeza que deseja desligar o servidor?\nEsta ação não pode ser desfeita.",
+            icon='warning'
+        )
+        
+        if not confirm:
+            return  # Usuário cancelou a ação
+        
+        try:
+            # Cria um socket temporário para enviar o comando
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(3)
+                s.connect((self.server_ip.get(), self.server_port.get()))
+                
+                # Envia o comando de desligamento
+                request = json.dumps({'action': 'poweroff'})
+                s.send(request.encode('utf-8'))
+                
+                # Aguarda resposta
+                response = s.recv(1024)
+                if response:
+                    data = json.loads(response.decode('utf-8'))
+                    if data.get('success', False):
+                        messagebox.showinfo("Sucesso", "Comando de desligamento enviado com sucesso")
+                    else:
+                        messagebox.showerror("Erro", "Falha ao executar desligamento no servidor")
+        
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha ao enviar comando: {str(e)}")
 
     def create_icon_image(self, color):
         """Cria uma imagem para o tray icon com a imagem especificada"""
