@@ -34,7 +34,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 2.5"
+    return "Beta 2.6"
 
 class ClientApp:
     def __init__(self):
@@ -189,7 +189,7 @@ class ClientApp:
     move /y "{temp_name}" "cliente_temer.exe" >nul
     echo [ATUALIZADOR] Iniciando nova versão...
     timeout /t 5 /nobreak >nul
-    start cliente_temer.exe
+    start "" /D "%~dp0" cliente_temer.exe
     timeout /t 2 /nobreak >nul
     del update.bat
     exit
