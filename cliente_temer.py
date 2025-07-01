@@ -34,7 +34,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 2.2"
+    return "Beta 2.3"
 
 class ClientApp:
     def __init__(self):
@@ -177,6 +177,9 @@ class ClientApp:
                             with open(temp_name, 'wb') as f:
                                 f.write(response.content)
                             
+                            # Obtém o diretório atual para usar no script
+                            diretorio_atual = os.getcwd()
+                            
                             # Cria script de atualização para Windows em PowerShell
                             with open("update.ps1", "w", encoding='utf-8') as f:
                                 f.write(f"""
@@ -189,8 +192,13 @@ class ClientApp:
     Write-Host "[ATUALIZADOR] Atualizando executável..."
     Move-Item -Path "{temp_name}" -Destination "cliente_temer.exe" -Force
     Write-Host "[ATUALIZADOR] Iniciando nova versão..."
-    Start-Sleep -Seconds 2
-    Start-Process -FilePath "cliente_temer.exe"
+    Start-Sleep -Seconds 1
+    # Inicia o novo executável especificando o diretório de trabalho
+    $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $processInfo.FileName = "cliente_temer.exe"
+    $processInfo.WorkingDirectory = "{diretorio_atual}"
+    $processInfo.UseShellExecute = $true
+    [System.Diagnostics.Process]::Start($processInfo)
     Remove-Item -Path "update.ps1" -Force
     exit
     """)
