@@ -1,1 +1,1 @@
-pyinstaller --onefile --noconsole --icon=.\omr_logo.ico --runtime-tmpdir "C:\Temp\cliente_temer" "cliente_temer.py" 
+pyinstaller --onefile --noconsole --icon=.\omr_logo.ico "cliente_temer.py" 

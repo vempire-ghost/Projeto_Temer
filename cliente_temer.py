@@ -16,9 +16,6 @@ from datetime import datetime
 from datetime import timezone
 import logging
 
-if hasattr(sys, '_MEIPASS'):
-    os.chdir(sys._MEIPASS)
-
 # Configuração básica do logging
 logging.basicConfig(
     level=logging.INFO,
@@ -37,7 +34,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 2.6"
+    return "Beta 2.7"
 
 class ClientApp:
     def __init__(self):
@@ -184,17 +181,22 @@ class ClientApp:
                             if os.name == 'nt':
                                 with open("update.bat", "w") as f:
                                     f.write(f"""
-    @echo on
-    echo [ATUALIZADOR] Aguardando encerramento do aplicativo...
-    timeout /t 2 /nobreak >nul
+    @echo off
+    echo [ATUALIZADOR] Encerrando aplicativo...
     taskkill /f /im cliente_temer.exe >nul 2>&1
+    timeout /t 2 >nul
+
     echo [ATUALIZADOR] Atualizando executável...
-    move /y "{temp_name}" "cliente_temer.exe" >nul
+    move /y "cliente_temer_new.exe" "cliente_temer.exe" >nul
+
+    echo [ATUALIZADOR] Criando script de inicialização...
+    echo @echo off > iniciar.bat
+    echo start "" /D "%~dp0" cliente_temer.exe >> iniciar.bat
+    echo del "%~f0" >> iniciar_bat  (opcional: auto-exclusão)
+
     echo [ATUALIZADOR] Iniciando nova versão...
-    timeout /t 5 /nobreak >nul
-    start "" /D "%~dp0" cliente_temer.exe
-    timeout /t 2 /nobreak >nul
-    del update.bat
+    start "" iniciar.bat
+
     exit
     """)
                                 # Executa o script de atualização
