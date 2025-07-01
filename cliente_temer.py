@@ -16,6 +16,9 @@ from datetime import datetime
 from datetime import timezone
 import logging
 
+if hasattr(sys, '_MEIPASS'):
+    os.chdir(sys._MEIPASS)
+
 # Configuração básica do logging
 logging.basicConfig(
     level=logging.INFO,
