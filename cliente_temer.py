@@ -171,19 +171,37 @@ class ClientApp:
                     logging.info(f"Iniciando download do arquivo {arquivo}...")
                     response = requests.get(download_url, timeout=30)
                     if response.status_code == 200:
-                        with open(arquivo, 'wb') as f:
-                            f.write(response.content)
-                        logging.info(f"Download do arquivo {arquivo} concluído com sucesso")
-                        
                         if arquivo == "cliente_temer.exe":
+                            # Salva o novo executável com um nome temporário
+                            temp_name = "cliente_temer_new.exe"
+                            with open(temp_name, 'wb') as f:
+                                f.write(response.content)
+                            
+                            # Cria um script de atualização
+                            with open("update.bat", "w") as f:
+                                f.write(f"""
+        @echo off
+        timeout /t 1 /nobreak >nul
+        taskkill /f /im cliente_temer.exe >nul 2>&1
+        move /y {temp_name} cliente_temer.exe >nul
+        start cliente_temer.exe
+        del update.bat
+        """)
+                            logging.info(f"Download do arquivo {arquivo} concluído. Reinicie para aplicar a atualização.")
                             executavel_atualizado = True
-                            logging.warning("ATENÇÃO: Executável atualizado. Por favor, reinicie o aplicativo.")
+                            # Inicia o script de atualização
+                            os.startfile("update.bat")
+                            sys.exit(0)
+                        else:
+                            with open(arquivo, 'wb') as f:
+                                f.write(response.content)
+                            logging.info(f"Download do arquivo {arquivo} concluído com sucesso")
                     else:
                         logging.error(f"Falha no download de {arquivo}. Status code: {response.status_code}")
                 except Exception as e:
                     logging.error(f"Erro durante o download de {arquivo}: {str(e)}", exc_info=True)
-        
-        return executavel_atualizado
+            
+            return executavel_atualizado
 
     def configure_start_with_windows(self):
         """Configura ou remove a entrada no registro para iniciar com o Windows"""
