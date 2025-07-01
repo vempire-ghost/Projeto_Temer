@@ -34,7 +34,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 1.11"
+    return "Beta 2.0"
 
 class ClientApp:
     def __init__(self):
@@ -188,6 +188,7 @@ class ClientApp:
     echo [ATUALIZADOR] Atualizando executável...
     move /y "{temp_name}" "cliente_temer.exe" >nul
     echo [ATUALIZADOR] Iniciando nova versão...
+    timeout /t 5 /nobreak >nul
     start cliente_temer.exe
     del update.bat
     exit
