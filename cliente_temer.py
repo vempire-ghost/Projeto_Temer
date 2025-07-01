@@ -34,7 +34,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 2.1"
+    return "Beta 2.2"
 
 class ClientApp:
     def __init__(self):
@@ -177,45 +177,28 @@ class ClientApp:
                             with open(temp_name, 'wb') as f:
                                 f.write(response.content)
                             
-                            # Cria script de atualização para Windows
-                            if os.name == 'nt':
-                                with open("update.bat", "w") as f:
-                                    f.write(f"""
-    @echo off
-    echo [ATUALIZADOR] Aguardando encerramento do aplicativo...
-    timeout /t 2 /nobreak >nul
-    taskkill /f /im cliente_temer.exe >nul 2>&1
-    echo [ATUALIZADOR] Atualizando executável...
-    move /y "{temp_name}" "cliente_temer.exe" >nul
-    echo [ATUALIZADOR] Iniciando nova versão...
-    timeout /t 5 /nobreak >nul
-    start "" "cliente_temer.exe"
-    del update.bat
+                            # Cria script de atualização para Windows em PowerShell
+                            with open("update.ps1", "w", encoding='utf-8') as f:
+                                f.write(f"""
+    # Atualizador PowerShell
+    Write-Host "[ATUALIZADOR] Aguardando encerramento do aplicativo..."
+    Start-Sleep -Seconds 2
+    try {{
+        Stop-Process -Name "cliente_temer" -Force -ErrorAction SilentlyContinue
+    }} catch {{ }}
+    Write-Host "[ATUALIZADOR] Atualizando executável..."
+    Move-Item -Path "{temp_name}" -Destination "cliente_temer.exe" -Force
+    Write-Host "[ATUALIZADOR] Iniciando nova versão..."
+    Start-Sleep -Seconds 2
+    Start-Process -FilePath "cliente_temer.exe"
+    Remove-Item -Path "update.ps1" -Force
     exit
     """)
-                                # Executa o script de atualização
-                                os.startfile("update.bat")
-                                executavel_atualizado = True
-                                logging.warning("ATENÇÃO: Executável atualizado. O aplicativo será reiniciado automaticamente.")
-                                sys.exit(0)
-                            else:
-                                # Script para Linux/Mac
-                                with open("update.sh", "w") as f:
-                                    f.write(f"""#!/bin/bash
-    echo "[ATUALIZADOR] Aguardando encerramento do aplicativo..."
-    sleep 2
-    pkill -f cliente_temer
-    echo "[ATUALIZADOR] Atualizando executável..."
-    mv -f "{temp_name}" "cliente_temer"
-    chmod +x "cliente_temer"
-    echo "[ATUALIZADOR] Iniciando nova versão..."
-    ./cliente_temer &
-    rm -f update.sh
-    exit
-    """)
-                                os.chmod("update.sh", 0o755)
-                                os.system("./update.sh &")
-                                sys.exit(0)
+                            # Executa o script de atualização
+                            os.system("start powershell -ExecutionPolicy Bypass -File update.ps1")
+                            executavel_atualizado = True
+                            logging.warning("ATENÇÃO: Executável atualizado. O aplicativo será reiniciado automaticamente.")
+                            sys.exit(0)
                         else:
                             # Para arquivos que não são o executável principal
                             with open(arquivo, 'wb') as f:
