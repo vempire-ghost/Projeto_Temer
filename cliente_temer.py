@@ -34,7 +34,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 1.9"
+    return "Beta 1.10"
 
 class ClientApp:
     def __init__(self):
