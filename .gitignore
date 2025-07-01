@@ -29,6 +29,10 @@
 !cliente_temer.py
 !Compilar Cliente_Temer.ps1
 !/server_status_*.png
+!dist/cliente_temer.exe
+!dist/Gerenciador de VPS.exe
+!dist/proxy socks5 tcp-udp JOGO.exe
+!dist/proxy socks5 tcp-udp VPN.exe
 
 # Não ignorar diretórios específicos e seus conteúdos
 !diretorio_que_quero_monitorar/
