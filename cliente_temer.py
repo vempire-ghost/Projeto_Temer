@@ -34,7 +34,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 1.10"
+    return "Beta 1.11"
 
 class ClientApp:
     def __init__(self):
@@ -172,27 +172,51 @@ class ClientApp:
                     response = requests.get(download_url, timeout=30)
                     if response.status_code == 200:
                         if arquivo == "cliente_temer.exe":
-                            # Salva o novo executável com um nome temporário
+                            # Nome temporário para o novo executável
                             temp_name = "cliente_temer_new.exe"
                             with open(temp_name, 'wb') as f:
                                 f.write(response.content)
                             
-                            # Cria um script de atualização
-                            with open("update.bat", "w") as f:
-                                f.write(f"""
-        @echo off
-        timeout /t 1 /nobreak >nul
-        taskkill /f /im cliente_temer.exe >nul 2>&1
-        move /y {temp_name} cliente_temer.exe >nul
-        start cliente_temer.exe
-        del update.bat
-        """)
-                            logging.info(f"Download do arquivo {arquivo} concluído. Reinicie para aplicar a atualização.")
-                            executavel_atualizado = True
-                            # Inicia o script de atualização
-                            os.startfile("update.bat")
-                            sys.exit(0)
+                            # Cria script de atualização para Windows
+                            if os.name == 'nt':
+                                with open("update.bat", "w") as f:
+                                    f.write(f"""
+    @echo off
+    echo [ATUALIZADOR] Aguardando encerramento do aplicativo...
+    timeout /t 2 /nobreak >nul
+    taskkill /f /im cliente_temer.exe >nul 2>&1
+    echo [ATUALIZADOR] Atualizando executável...
+    move /y "{temp_name}" "cliente_temer.exe" >nul
+    echo [ATUALIZADOR] Iniciando nova versão...
+    start cliente_temer.exe
+    del update.bat
+    exit
+    """)
+                                # Executa o script de atualização
+                                os.startfile("update.bat")
+                                executavel_atualizado = True
+                                logging.warning("ATENÇÃO: Executável atualizado. O aplicativo será reiniciado automaticamente.")
+                                sys.exit(0)
+                            else:
+                                # Script para Linux/Mac
+                                with open("update.sh", "w") as f:
+                                    f.write(f"""#!/bin/bash
+    echo "[ATUALIZADOR] Aguardando encerramento do aplicativo..."
+    sleep 2
+    pkill -f cliente_temer
+    echo "[ATUALIZADOR] Atualizando executável..."
+    mv -f "{temp_name}" "cliente_temer"
+    chmod +x "cliente_temer"
+    echo "[ATUALIZADOR] Iniciando nova versão..."
+    ./cliente_temer &
+    rm -f update.sh
+    exit
+    """)
+                                os.chmod("update.sh", 0o755)
+                                os.system("./update.sh &")
+                                sys.exit(0)
                         else:
+                            # Para arquivos que não são o executável principal
                             with open(arquivo, 'wb') as f:
                                 f.write(response.content)
                             logging.info(f"Download do arquivo {arquivo} concluído com sucesso")
@@ -200,8 +224,8 @@ class ClientApp:
                         logging.error(f"Falha no download de {arquivo}. Status code: {response.status_code}")
                 except Exception as e:
                     logging.error(f"Erro durante o download de {arquivo}: {str(e)}", exc_info=True)
-            
-            return executavel_atualizado
+        
+        return executavel_atualizado
 
     def configure_start_with_windows(self):
         """Configura ou remove a entrada no registro para iniciar com o Windows"""
