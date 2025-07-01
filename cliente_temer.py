@@ -10,6 +10,8 @@ import sys
 import configparser
 import os
 import winreg  # Adicionado para manipulação do registro do Windows
+import requests
+from packaging import version
 
 # Corrige o diretório de trabalho quando executado como serviço/inicialização
 if getattr(sys, 'frozen', False):
@@ -19,10 +21,12 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 1.7"
+    return "Beta 1.8"
 
 class ClientApp:
     def __init__(self):
+        # Verificar e atualizar arquivos antes de qualquer inicialização
+        self.verificar_e_atualizar_arquivos()
         self.root = tk.Tk()
         self.root.title("Cliente do Projeto Temer")
         self.root.protocol("WM_DELETE_WINDOW", self.minimize_to_tray)
@@ -77,6 +81,69 @@ class ClientApp:
         # Se configurado para iniciar minimizado
         if self.start_minimized.get():
             self.root.withdraw()  # Esconde a janela imediatamente
+
+    def verificar_e_atualizar_arquivos(self):
+        # Lista de arquivos necessários e seus caminhos no GitHub
+        arquivos_necessarios = {
+            "server_status_desligado.png": "https://raw.githubusercontent.com/vempire-ghost/Projeto_Temer/main/server_status_desligado.png",
+            "server_status_ligado.png": "https://raw.githubusercontent.com/vempire-ghost/Projeto_Temer/main/server_status_ligado.png",
+            "server_status_operacional.png": "https://raw.githubusercontent.com/vempire-ghost/Projeto_Temer/main/server_status_operacional.png"
+        }
+        
+        # URL para verificar a versão mais recente
+        versao_url = "https://raw.githubusercontent.com/vempire-ghost/Projeto_Temer/main/version.json"
+        
+        try:
+            # Verificar versão
+            response = requests.get(versao_url, timeout=5)
+            if response.status_code == 200:
+                dados_versao = response.json()
+                versao_atual = get_version()
+                versao_github = dados_versao.get('version', '0.0')
+                
+                if version.parse(versao_github) > version.parse(versao_atual):
+                    print(f"Atualização disponível: {versao_github} (sua versão: {versao_atual})")
+                    # Aqui você pode adicionar lógica para atualizar o executável se necessário
+                else:
+                    print(f"Versão atual ({versao_atual}) está atualizada")
+            
+            # Verificar e baixar arquivos ausentes/desatualizados
+            for arquivo, url in arquivos_necessarios.items():
+                precisa_baixar = False
+                
+                # Verifica se o arquivo existe localmente
+                if not os.path.exists(arquivo):
+                    precisa_baixar = True
+                    print(f"Arquivo {arquivo} não encontrado, baixando...")
+                else:
+                    # Verifica se o arquivo local é diferente do remoto
+                    try:
+                        headers = {'Cache-Control': 'no-cache'}
+                        response = requests.head(url, headers=headers, timeout=10)
+                        if response.status_code == 200:
+                            tamanho_remoto = int(response.headers.get('Content-Length', 0))
+                            tamanho_local = os.path.getsize(arquivo)
+                            if tamanho_remoto != tamanho_local:
+                                precisa_baixar = True
+                                print(f"Arquivo {arquivo} desatualizado, baixando nova versão...")
+                    except Exception as e:
+                        print(f"Erro ao verificar arquivo {arquivo}: {e}")
+                        continue
+                
+                if precisa_baixar:
+                    try:
+                        response = requests.get(url, timeout=30)
+                        if response.status_code == 200:
+                            with open(arquivo, 'wb') as f:
+                                f.write(response.content)
+                            print(f"Arquivo {arquivo} baixado com sucesso")
+                        else:
+                            print(f"Falha ao baixar {arquivo} - código {response.status_code}")
+                    except Exception as e:
+                        print(f"Erro ao baixar arquivo {arquivo}: {e}")
+        
+        except Exception as e:
+            print(f"Erro ao verificar atualizações: {e}")
 
     def configure_start_with_windows(self):
         """Configura ou remove a entrada no registro para iniciar com o Windows"""
