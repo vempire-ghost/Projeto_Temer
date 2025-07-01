@@ -12,6 +12,19 @@ import os
 import winreg  # Adicionado para manipulação do registro do Windows
 import requests
 from packaging import version
+from datetime import datetime
+from datetime import timezone
+import logging
+
+# Configuração básica do logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('atualizador.log'),
+        logging.StreamHandler()
+    ]
+)
 
 # Corrige o diretório de trabalho quando executado como serviço/inicialização
 if getattr(sys, 'frozen', False):
@@ -21,7 +34,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 1.8"
+    return "Beta 1.9"
 
 class ClientApp:
     def __init__(self):
@@ -83,67 +96,94 @@ class ClientApp:
             self.root.withdraw()  # Esconde a janela imediatamente
 
     def verificar_e_atualizar_arquivos(self):
-        # Lista de arquivos necessários e seus caminhos no GitHub
         arquivos_necessarios = {
-            "server_status_desligado.png": "https://raw.githubusercontent.com/vempire-ghost/Projeto_Temer/main/server_status_desligado.png",
-            "server_status_ligado.png": "https://raw.githubusercontent.com/vempire-ghost/Projeto_Temer/main/server_status_ligado.png",
-            "server_status_operacional.png": "https://raw.githubusercontent.com/vempire-ghost/Projeto_Temer/main/server_status_operacional.png"
+            "server_status_desligado.png": ("vempire-ghost/Projeto_Temer", "server_status_desligado.png"),
+            "server_status_ligado.png": ("vempire-ghost/Projeto_Temer", "server_status_ligado.png"),
+            "server_status_operacional.png": ("vempire-ghost/Projeto_Temer", "server_status_operacional.png"),
+            "cliente_temer.exe": ("vempire-ghost/Projeto_Temer", "dist/cliente_temer.exe")
         }
         
-        # URL para verificar a versão mais recente
-        versao_url = "https://raw.githubusercontent.com/vempire-ghost/Projeto_Temer/main/version.json"
+        executavel_atualizado = False
         
-        try:
-            # Verificar versão
-            response = requests.get(versao_url, timeout=5)
-            if response.status_code == 200:
-                dados_versao = response.json()
-                versao_atual = get_version()
-                versao_github = dados_versao.get('version', '0.0')
-                
-                if version.parse(versao_github) > version.parse(versao_atual):
-                    print(f"Atualização disponível: {versao_github} (sua versão: {versao_atual})")
-                    # Aqui você pode adicionar lógica para atualizar o executável se necessário
+        def get_github_file_last_modified(repo, path):
+            api_url = f"https://api.github.com/repos/{repo}/commits?path={path}&page=1&per_page=1"
+            try:
+                response = requests.get(api_url, timeout=10)
+                if response.status_code == 200:
+                    commits = response.json()
+                    if commits:
+                        last_modified = commits[0]['commit']['committer']['date']
+                        return datetime.strptime(last_modified, '%Y-%m-%dT%H:%M:%SZ')
                 else:
-                    print(f"Versão atual ({versao_atual}) está atualizada")
+                    logging.warning(f"Falha ao acessar API GitHub para {path}. Status code: {response.status_code}")
+            except Exception as e:
+                logging.error(f"Erro ao acessar API GitHub para {path}: {str(e)}", exc_info=True)
+            return None
+        
+        for arquivo, (repo, path) in arquivos_necessarios.items():
+            precisa_baixar = False
+            download_url = f"https://raw.githubusercontent.com/{repo}/main/{path}"
             
-            # Verificar e baixar arquivos ausentes/desatualizados
-            for arquivo, url in arquivos_necessarios.items():
-                precisa_baixar = False
-                
-                # Verifica se o arquivo existe localmente
-                if not os.path.exists(arquivo):
-                    precisa_baixar = True
-                    print(f"Arquivo {arquivo} não encontrado, baixando...")
-                else:
-                    # Verifica se o arquivo local é diferente do remoto
-                    try:
-                        headers = {'Cache-Control': 'no-cache'}
-                        response = requests.head(url, headers=headers, timeout=10)
+            if not os.path.exists(arquivo):
+                precisa_baixar = True
+                logging.info(f"Arquivo {arquivo} não encontrado localmente. Iniciando download...")
+            else:
+                try:
+                    if arquivo == "cliente_temer.exe":
+                        # Verificação robusta para o executável
+                        data_remota = get_github_file_last_modified(repo, path)
+                        
+                        if data_remota:
+                            data_local = datetime.fromtimestamp(os.path.getmtime(arquivo)).astimezone(timezone.utc)
+                            data_remota = data_remota.replace(tzinfo=timezone.utc)
+                            
+                            if data_remota > data_local:
+                                precisa_baixar = True
+                                logging.info(f"Executável desatualizado. GitHub: {data_remota}, Local: {data_local}")
+                            else:
+                                logging.debug(f"Executável atualizado. GitHub: {data_remota}, Local: {data_local}")
+                        else:
+                            # Fallback para verificação por tamanho
+                            response = requests.head(download_url, timeout=10)
+                            if response.status_code == 200:
+                                tamanho_remoto = int(response.headers.get('Content-Length', 0))
+                                tamanho_local = os.path.getsize(arquivo)
+                                if tamanho_remoto != tamanho_local:
+                                    precisa_baixar = True
+                                    logging.info(f"Executável com tamanho diferente. Remoto: {tamanho_remoto} bytes, Local: {tamanho_local} bytes")
+                    else:
+                        # Verificação simplificada para imagens
+                        response = requests.head(download_url, timeout=10)
                         if response.status_code == 200:
                             tamanho_remoto = int(response.headers.get('Content-Length', 0))
                             tamanho_local = os.path.getsize(arquivo)
                             if tamanho_remoto != tamanho_local:
                                 precisa_baixar = True
-                                print(f"Arquivo {arquivo} desatualizado, baixando nova versão...")
-                    except Exception as e:
-                        print(f"Erro ao verificar arquivo {arquivo}: {e}")
-                        continue
-                
-                if precisa_baixar:
-                    try:
-                        response = requests.get(url, timeout=30)
-                        if response.status_code == 200:
-                            with open(arquivo, 'wb') as f:
-                                f.write(response.content)
-                            print(f"Arquivo {arquivo} baixado com sucesso")
+                                logging.info(f"Imagem {arquivo} com tamanho diferente. Remoto: {tamanho_remoto} bytes, Local: {tamanho_local} bytes")
                         else:
-                            print(f"Falha ao baixar {arquivo} - código {response.status_code}")
-                    except Exception as e:
-                        print(f"Erro ao baixar arquivo {arquivo}: {e}")
+                            logging.warning(f"Falha ao verificar imagem {arquivo}. Status code: {response.status_code}")
+                except Exception as e:
+                    logging.error(f"Erro ao verificar {arquivo}: {str(e)}", exc_info=True)
+                    continue
+            
+            if precisa_baixar:
+                try:
+                    logging.info(f"Iniciando download do arquivo {arquivo}...")
+                    response = requests.get(download_url, timeout=30)
+                    if response.status_code == 200:
+                        with open(arquivo, 'wb') as f:
+                            f.write(response.content)
+                        logging.info(f"Download do arquivo {arquivo} concluído com sucesso")
+                        
+                        if arquivo == "cliente_temer.exe":
+                            executavel_atualizado = True
+                            logging.warning("ATENÇÃO: Executável atualizado. Por favor, reinicie o aplicativo.")
+                    else:
+                        logging.error(f"Falha no download de {arquivo}. Status code: {response.status_code}")
+                except Exception as e:
+                    logging.error(f"Erro durante o download de {arquivo}: {str(e)}", exc_info=True)
         
-        except Exception as e:
-            print(f"Erro ao verificar atualizações: {e}")
+        return executavel_atualizado
 
     def configure_start_with_windows(self):
         """Configura ou remove a entrada no registro para iniciar com o Windows"""
