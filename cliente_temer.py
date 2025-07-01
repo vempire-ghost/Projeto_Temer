@@ -34,7 +34,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 2.8"
+    return "Beta 2.9"
 
 class ClientApp:
     def __init__(self):
@@ -182,35 +182,26 @@ class ClientApp:
                                 with open("update.bat", "w") as f:
                                     f.write(f"""
     @echo off
-    :: Script de atualização principal (update.bat)
-    setlocal enabledelayedexpansion
-
-    :: 1. Fecha o aplicativo se estiver em execução
+    echo [ATUALIZADOR] Encerrando aplicativo...
     taskkill /f /im cliente_temer.exe >nul 2>&1
-    timeout /t 3 >nul
+    timeout /t 2 >nul
 
-    :: 2. Limpa arquivos temporários antigos (opcional)
-    for /d %%i in ("%LocalAppData%\Temp\_MEI*") do (
-        rmdir /s /q "%%i" >nul 2>&1
-    )
+    echo [ATUALIZADOR] Atualizando executável...
+    move /y "cliente_temer_new.exe" "cliente_temer.exe" >nul
 
-    :: 3. Substitui o executável
-    if exist "cliente_temer_new.exe" (
-        del /q cliente_temer.exe >nul 2>&1
-        ren cliente_temer_new.exe cliente_temer.exe
-    )
-
-    :: 4. Cria script de inicialização dedicado
+    echo [ATUALIZADOR] Criando script de inicialização...
     (
         echo @echo off
         echo cd /d "%~dp0"
-        echo echo [INICIADOR] Iniciando aplicativo...
-        echo start "" "cliente_temer.exe"
-        echo del "%%~f0" ^& exit
-    ) > iniciar_temp.bat
+        echo "cliente_temer.exe"
+        echo del "%%~f0"
+        echo taskkill /F /IM cmd.exe
+        echo exit
+    ) > iniciar.bat
 
-    :: 5. Executa o iniciador em novo contexto
-    start "" cmd /c "iniciar_temp.bat"
+    echo [ATUALIZADOR] Iniciando nova versão...
+    start "" /B cmd /c "cd /d %~dp0 && cliente_temer.exe"
+    taskkill /F /IM cmd.exe
     exit
     """)
                                 # Executa o script de atualização
