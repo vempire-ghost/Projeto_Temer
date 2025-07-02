@@ -16,14 +16,21 @@ from datetime import datetime
 from datetime import timezone
 import logging
 
-# Corrige o diretório de trabalho quando executado como serviço/inicialização
+# Determina o caminho base para arquivos do aplicativo
 if getattr(sys, 'frozen', False):
     # Se o aplicativo estiver congelado (compilado)
     application_path = os.path.dirname(sys.executable)
-    os.chdir(application_path)
+else:
+    application_path = os.path.dirname(os.path.abspath(__file__))
+
+# Cria um diretório para logs se não existir
+log_dir = os.path.join(application_path, 'logs')
+os.makedirs(log_dir, exist_ok=True)
+
+# Configuração do caminho do arquivo de log
+log_file = os.path.join(log_dir, 'atualizador.log')
 
 # Configuração básica do logging
-log_file = os.path.join(application_path if getattr(sys, 'frozen', False) else os.path.dirname(__file__), 'atualizador.log')
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -33,9 +40,12 @@ logging.basicConfig(
     ]
 )
 
+# Altera o diretório de trabalho para o local do aplicativo
+os.chdir(application_path)
+
 # Função para retornar a versão
 def get_version():
-    return "Beta 2.11"
+    return "Beta 2.12"
 
 class ClientApp:
     def __init__(self):
