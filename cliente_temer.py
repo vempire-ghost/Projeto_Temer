@@ -45,7 +45,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 2.14"
+    return "Beta 3.0"
 
 class ClientApp:
     def __init__(self):
@@ -440,14 +440,160 @@ class ClientApp:
         if not self.start_minimized.get():
             self.root.deiconify()  # Mostra a janela apenas se não for para iniciar minimizado
 
+    def find_proxifier_path(self):
+        """Busca abrangente no registro do Windows por qualquer entrada que aponte para proxifier.exe"""
+        try:
+            # 1. Primeiro verifica nos locais padrão de aplicativos (mais rápido)
+            standard_locations = [
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Proxifier.exe"),
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\Proxifier.exe"),
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\App Paths\Proxifier.exe")
+            ]
+
+            for root, subkey in standard_locations:
+                try:
+                    with winreg.OpenKey(root, subkey) as key:
+                        path = winreg.QueryValue(key, None)
+                        if path and os.path.exists(path):
+                            return os.path.abspath(path)
+                except WindowsError:
+                    continue
+
+            # 2. Busca recursiva por menções a proxifier.exe no registro
+            registry_roots = [
+                winreg.HKEY_LOCAL_MACHINE,
+                winreg.HKEY_CURRENT_USER,
+                winreg.HKEY_CLASSES_ROOT
+            ]
+
+            search_keys = [
+                r"SOFTWARE",
+                r"SOFTWARE\WOW6432Node",
+                r"Microsoft\Windows\CurrentVersion\Uninstall",
+                r"Classes\Applications"
+            ]
+
+            def search_registry(root, key_path, depth=0):
+                if depth > 5:  # Limita a profundidade da busca
+                    return None
+                
+                try:
+                    with winreg.OpenKey(root, key_path) as key:
+                        for i in range(0, winreg.QueryInfoKey(key)[0]):
+                            subkey_name = winreg.EnumKey(key, i)
+                            full_path = f"{key_path}\\{subkey_name}" if key_path else subkey_name
+                            
+                            # Verifica valores na chave atual
+                            try:
+                                with winreg.OpenKey(root, full_path) as subkey:
+                                    for j in range(0, winreg.QueryInfoKey(subkey)[1]):
+                                        name, value, _ = winreg.EnumValue(subkey, j)
+                                        if isinstance(value, str) and "proxifier.exe" in value.lower():
+                                            # Tenta extrair um caminho válido
+                                            path = self.extract_path_from_string(value)
+                                            if path and os.path.exists(path):
+                                                return os.path.abspath(path)
+                            except WindowsError:
+                                pass
+                            
+                            # Busca recursiva
+                            result = search_registry(root, full_path, depth + 1)
+                            if result:
+                                return result
+                except WindowsError:
+                    pass
+                return None
+
+            for root in registry_roots:
+                for key in search_keys:
+                    path = search_registry(root, key)
+                    if path:
+                        return path
+
+            # 3. Verifica locais comuns de instalação
+            common_paths = [
+                r"C:\Program Files\Proxifier\Proxifier.exe",
+                r"C:\Program Files (x86)\Proxifier\Proxifier.exe",
+                r"C:\Program Files\Proxifier PE\Proxifier.exe",
+                r"C:\Program Files (x86)\Proxifier PE\Proxifier.exe",
+                os.path.expandvars(r"%ProgramFiles%\Proxifier\Proxifier.exe"),
+                os.path.expandvars(r"%ProgramFiles(x86)%\Proxifier\Proxifier.exe"),
+                os.path.expandvars(r"%ProgramFiles%\Proxifier PE\Proxifier.exe"),
+                os.path.expandvars(r"%ProgramFiles(x86)%\Proxifier PE\Proxifier.exe"),
+                os.path.expandvars(r"%LocalAppData%\Programs\Proxifier\Proxifier.exe")
+            ]
+
+            for path in common_paths:
+                if os.path.exists(path):
+                    return os.path.abspath(path)
+
+            # 4. Tenta encontrar no PATH do sistema
+            import shutil
+            path = shutil.which("Proxifier.exe")
+            if path:
+                return os.path.abspath(path)
+
+        except Exception as e:
+            logging.error(f"Erro ao tentar localizar o Proxifier: {str(e)}")
+        
+        return None
+
+    def extract_path_from_string(self, s):
+        """Extrai um caminho de arquivo válido de uma string que contenha 'proxifier.exe'"""
+        patterns = [
+            r'"[^"]*proxifier\.exe"',  # Caminhos entre aspas
+            r'\b[a-z]:\\[^"]*proxifier\.exe\b',  # Caminhos sem aspas
+            r'\\[^"]*proxifier\.exe\b'  # Caminhos de rede
+        ]
+        
+        import re
+        for pattern in patterns:
+            match = re.search(pattern, s, re.IGNORECASE)
+            if match:
+                path = match.group(0).strip('"')
+                if os.path.exists(path):
+                    return path
+                # Tenta encontrar o executável no caminho pai
+                dir_path = os.path.dirname(path)
+                if os.path.exists(dir_path):
+                    for file in os.listdir(dir_path):
+                        if file.lower() == "proxifier.exe":
+                            return os.path.join(dir_path, file)
+        return None
+
     def start_proxifier(self):
         """Inicia o Proxifier se não estiver rodando"""
         try:
-            #os.system('taskkill /f /im proxifier.exe >nul 2>&1')  # Encerra se já estiver rodando
-            os.system('start "" "I:\\Proxifier v3.0 Standard Edition\\Proxifier PE\\Proxifier.exe"')  # Substitua pelo caminho correto
-            logging.info("Proxifier iniciado com sucesso")
+            # Primeiro verifica se já está rodando
+            if self.is_proxifier_running():
+                logging.info("Proxifier já está em execução")
+                return True
+
+            # Localiza o executável
+            proxifier_path = self.find_proxifier_path()
+            
+            if not proxifier_path:
+                logging.error("Não foi possível localizar o Proxifier no sistema")
+                return False
+
+            # Inicia o Proxifier
+            os.system(f'start "" "{proxifier_path}"')
+            logging.info(f"Proxifier iniciado com sucesso a partir de: {proxifier_path}")
+            return True
+            
         except Exception as e:
             logging.error(f"Erro ao iniciar Proxifier: {str(e)}")
+            return False
+
+    def is_proxifier_running(self):
+        """Verifica se o Proxifier já está em execução"""
+        try:
+            # Usa tasklist para verificar se o processo está rodando
+            output = os.popen('tasklist /FI "IMAGENAME eq Proxifier.exe"').read()
+            return "Proxifier.exe" in output
+        except Exception as e:
+            logging.error(f"Erro ao verificar se Proxifier está rodando: {str(e)}")
+            return False
 
     def stop_proxifier(self):
         """Encerra o Proxifier se estiver rodando"""
