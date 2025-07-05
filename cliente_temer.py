@@ -45,7 +45,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 2.13"
+    return "Beta 2.14"
 
 class ClientApp:
     def __init__(self):
@@ -68,6 +68,7 @@ class ClientApp:
         self.update_thread = None
         self.running = True
         self.notify_provider_changes = tk.BooleanVar(value=False)  # Valor padrão True (ativado)
+        self.control_proxifier = tk.BooleanVar(value=False)
         
         # Variáveis para os checkboxes
         self.start_with_windows = tk.BooleanVar()
@@ -331,6 +332,7 @@ class ClientApp:
             self.config.read(self.config_file)
             # Carrega a configuração de notificação
             self.notify_provider_changes.set(self.config.getboolean('DEFAULT', 'notify_provider_changes', fallback=False))
+            self.control_proxifier.set(self.config.getboolean('DEFAULT', 'control_proxifier', fallback=False)) 
     
     def save_config(self):
         """Salva as configurações atuais no arquivo .ini"""
@@ -340,7 +342,8 @@ class ClientApp:
                 'port': str(self.server_port.get()),
                 'start_with_windows': str(self.start_with_windows.get()),
                 'start_minimized': str(self.start_minimized.get()),
-                'notify_provider_changes': str(self.notify_provider_changes.get())  # Adicionado
+                'notify_provider_changes': str(self.notify_provider_changes.get()),
+                'control_proxifier': str(self.control_proxifier.get())  # Adicione esta linha
             }
             
             # Salva também a posição atual da janela
@@ -393,10 +396,14 @@ class ClientApp:
         # Novo checkbox para notificações
         tk.Checkbutton(content_frame, text="Notificar mudanças nos provedores", variable=self.notify_provider_changes).grid(
             row=4, column=0, columnspan=2, sticky="w", pady=(0, 10))
+
+        tk.Checkbutton(content_frame, text="Controlar Proxifier automaticamente", 
+                      variable=self.control_proxifier).grid(
+            row=5, column=0, columnspan=2, sticky="w", pady=(0, 10))
         
         # Botões
         btn_frame = tk.Frame(content_frame)
-        btn_frame.grid(row=5, columnspan=2, pady=(0, 10))
+        btn_frame.grid(row=6, columnspan=2, pady=(0, 10))
         
         tk.Button(btn_frame, text="Conectar", command=self.connect).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Desconectar", command=self.disconnect).pack(side=tk.LEFT, padx=5)
@@ -405,11 +412,11 @@ class ClientApp:
         
         # Status
         self.status_label = tk.Label(content_frame, text="Status: Desconectado", fg="red")
-        self.status_label.grid(row=6, columnspan=2, pady=(0, 5))
+        self.status_label.grid(row=7, columnspan=2, pady=(0, 5))
         
         # Frame para status dos provedores
         self.providers_frame = tk.Frame(content_frame)
-        self.providers_frame.grid(row=7, columnspan=2, pady=(5, 10), sticky="ew")
+        self.providers_frame.grid(row=8, columnspan=2, pady=(5, 10), sticky="ew")
         
         # Labels para status dos provedores
         self.coopera_label = tk.Label(self.providers_frame, text="Coopera: Offline", fg="red")
@@ -432,6 +439,33 @@ class ClientApp:
         # Se estiver minimizado, garante que a janela não será mostrada
         if not self.start_minimized.get():
             self.root.deiconify()  # Mostra a janela apenas se não for para iniciar minimizado
+
+    def start_proxifier(self):
+        """Inicia o Proxifier se não estiver rodando"""
+        try:
+            #os.system('taskkill /f /im proxifier.exe >nul 2>&1')  # Encerra se já estiver rodando
+            os.system('start "" "I:\\Proxifier v3.0 Standard Edition\\Proxifier PE\\Proxifier.exe"')  # Substitua pelo caminho correto
+            logging.info("Proxifier iniciado com sucesso")
+        except Exception as e:
+            logging.error(f"Erro ao iniciar Proxifier: {str(e)}")
+
+    def stop_proxifier(self):
+        """Encerra o Proxifier se estiver rodando"""
+        try:
+            os.system('taskkill /f /im proxifier.exe >nul 2>&1')
+            logging.info("Proxifier encerrado com sucesso")
+        except Exception as e:
+            logging.error(f"Erro ao encerrar Proxifier: {str(e)}")
+
+    def check_and_control_proxifier(self):
+        """Verifica o status e controla o Proxifier conforme necessário"""
+        if not self.control_proxifier.get():
+            return
+            
+        if self.server_status:  # Se estiver operacional
+            self.start_proxifier()
+        else:
+            self.stop_proxifier()
 
     def get_tray_tooltip(self):
         """Retorna o texto completo para o tooltip do tray icon"""
@@ -667,6 +701,10 @@ class ClientApp:
         self.connected = False
         self.server_status = False
         
+        # Para o Proxifier se estiver configurado
+        if self.control_proxifier.get():
+            self.stop_proxifier()
+        
         # Atualiza todos os provedores para Offline
         self.root.after(0, lambda: self.update_providers_status(False, False, False))
         
@@ -777,7 +815,9 @@ class ClientApp:
             self.status_label.config(text="Status: Servidor Operacional", fg="green")
         else:
             self.status_label.config(text="Status: Conectado", fg="blue")
+        
         self.update_tray_icon()
+        self.check_and_control_proxifier()  # Adicione esta linha
         
         # Atualiza o tooltip do tray icon
         if hasattr(self, 'tray_icon'):
