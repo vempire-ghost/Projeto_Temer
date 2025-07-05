@@ -45,7 +45,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 2.12"
+    return "Beta 2.13"
 
 class ClientApp:
     def __init__(self):
@@ -67,7 +67,7 @@ class ClientApp:
         self.reconnect_delay = 5  # segundos
         self.update_thread = None
         self.running = True
-        self.notify_provider_changes = tk.BooleanVar(value=True)  # Valor padrão True (ativado)
+        self.notify_provider_changes = tk.BooleanVar(value=False)  # Valor padrão True (ativado)
         
         # Variáveis para os checkboxes
         self.start_with_windows = tk.BooleanVar()
@@ -79,7 +79,7 @@ class ClientApp:
         self.load_config()
         
         # Define os valores das variáveis após carregar a configuração
-        self.server_ip.set(self.config.get('DEFAULT', 'host', fallback="127.0.0.1"))
+        self.server_ip.set(self.config.get('DEFAULT', 'host', fallback="192.168.2.21"))
         self.server_port.set(self.config.getint('DEFAULT', 'port', fallback=5000))
         self.start_with_windows.set(self.config.getboolean('DEFAULT', 'start_with_windows', fallback=False))
         self.start_minimized.set(self.config.getboolean('DEFAULT', 'start_minimized', fallback=False))
@@ -313,11 +313,11 @@ class ClientApp:
         if not os.path.exists(self.config_file):
             # Cria configuração padrão se o arquivo não existir
             self.config['DEFAULT'] = {
-                'host': '127.0.0.1',
+                'host': '192.168.2.21',
                 'port': '5000',
                 'start_with_windows': 'False',
                 'start_minimized': 'False',
-                'notify_provider_changes': 'True'  # Adicionado
+                'notify_provider_changes': 'False'  # Adicionado
             }
             self.config['WINDOW'] = {
                 'x': '100',
@@ -330,7 +330,7 @@ class ClientApp:
         else:
             self.config.read(self.config_file)
             # Carrega a configuração de notificação
-            self.notify_provider_changes.set(self.config.getboolean('DEFAULT', 'notify_provider_changes', fallback=True))
+            self.notify_provider_changes.set(self.config.getboolean('DEFAULT', 'notify_provider_changes', fallback=False))
     
     def save_config(self):
         """Salva as configurações atuais no arquivo .ini"""
