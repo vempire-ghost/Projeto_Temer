@@ -45,7 +45,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.0"
+    return "Beta 3.1"
 
 class ClientApp:
     def __init__(self):
@@ -107,6 +107,7 @@ class ClientApp:
         if self.start_minimized.get():
             self.root.withdraw()  # Esconde a janela imediatamente
 
+# FUNÇÃO PARA DOWNLOAD E ATUALIZAÇÃO DO PROGRAMA.
     def verificar_e_atualizar_arquivos(self):
         arquivos_necessarios = {
             "server_status_desligado.png": ("vempire-ghost/Projeto_Temer", "server_status_desligado.png"),
@@ -252,6 +253,7 @@ class ClientApp:
         
         return executavel_atualizado
 
+# FUNÇÃO PARA INICIAR COM O WINDOWS
     def configure_start_with_windows(self):
         """Configura ou remove a entrada no registro para iniciar com o Windows"""
         key = winreg.HKEY_CURRENT_USER
@@ -271,6 +273,7 @@ class ClientApp:
         except WindowsError as e:
             print(f"Erro ao acessar o registro do Windows: {e}")
 
+# FUNÇÃO PARA SALVAR E CARREGAR TAMANHO E POSIÇÃO DA JANELA.
     def setup_window_position(self):
         """Configura a posição da janela com base nas configurações salvas"""
         # Carrega a posição salva ou usa valores padrão
@@ -308,7 +311,7 @@ class ClientApp:
                             'width': width,
                             'height': height
                         }
-                        
+# FUNÇÕES PARA CARREGAR E SALVAR OPÇÕES DO PROGRAMA.                        
     def load_config(self):
         """Carrega as configurações do arquivo .ini ou cria um novo com valores padrão"""
         if not os.path.exists(self.config_file):
@@ -369,7 +372,8 @@ class ClientApp:
             self.configure_start_with_windows()
             
             #messagebox.showinfo("Sucesso", "Configurações salvas com sucesso!")
-    
+
+# FUNÇÃO PARA CRIAR A INTERFACE DO PROGRAMA.    
     def setup_ui(self):
         """Configura a interface do usuário"""
         # Frame principal com borda
@@ -440,6 +444,7 @@ class ClientApp:
         if not self.start_minimized.get():
             self.root.deiconify()  # Mostra a janela apenas se não for para iniciar minimizado
 
+# FUNÇÃO PARA LOCALIZAR E INICIAR O PROXIFIER.
     def find_proxifier_path(self):
         """Busca abrangente no registro do Windows por qualquer entrada que aponte para proxifier.exe"""
         try:
@@ -613,6 +618,7 @@ class ClientApp:
         else:
             self.stop_proxifier()
 
+# FUNÇÃO PARA CRIAR E CONTROLAR O ICONE DE TRAY.
     def get_tray_tooltip(self):
         """Retorna o texto completo para o tooltip do tray icon"""
         base_text = "Projeto Xandão"
@@ -660,44 +666,6 @@ class ClientApp:
         
         # Inicia uma thread para o tray icon
         threading.Thread(target=self.tray_icon.run, daemon=True).start()
-
-    def send_poweroff_command(self):
-        """Envia comando de desligamento para o servidor após confirmação"""
-        if not self.connected:
-            messagebox.showwarning("Aviso", "Não conectado ao servidor")
-            return
-        
-        # Janela de confirmação
-        confirm = messagebox.askyesno(
-            "Confirmar Desligamento",
-            "Tem certeza que deseja desligar o servidor?\nEsta ação não pode ser desfeita.",
-            icon='warning'
-        )
-        
-        if not confirm:
-            return  # Usuário cancelou a ação
-        
-        try:
-            # Cria um socket temporário para enviar o comando
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(3)
-                s.connect((self.server_ip.get(), self.server_port.get()))
-                
-                # Envia o comando de desligamento
-                request = json.dumps({'action': 'poweroff'})
-                s.send(request.encode('utf-8'))
-                
-                # Aguarda resposta
-                response = s.recv(1024)
-                if response:
-                    data = json.loads(response.decode('utf-8'))
-                    if data.get('success', False):
-                        messagebox.showinfo("Sucesso", "Comando de desligamento enviado com sucesso")
-                    else:
-                        messagebox.showerror("Erro", "Falha ao executar desligamento no servidor")
-        
-        except Exception as e:
-            messagebox.showerror("Erro", f"Falha ao enviar comando: {str(e)}")
 
     def create_icon_image(self, color):
         """Cria uma imagem para o tray icon com a imagem especificada"""
@@ -748,7 +716,48 @@ class ClientApp:
         
         if hasattr(self.tray_icon, '_update_icon'):
             self.tray_icon._update_icon()
-    
+
+# FUNÇÃO PARA DESLIGAR O SERVIDOR REMOTO, VPS, OMR E O WINDOWS.
+    def send_poweroff_command(self):
+        """Envia comando de desligamento para o servidor após confirmação"""
+        if not self.connected:
+            messagebox.showwarning("Aviso", "Não conectado ao servidor")
+            return
+        
+        # Janela de confirmação
+        confirm = messagebox.askyesno(
+            "Confirmar Desligamento",
+            "Tem certeza que deseja desligar o servidor?\nEsta ação não pode ser desfeita.",
+            icon='warning'
+        )
+        
+        if not confirm:
+            return  # Usuário cancelou a ação
+        
+        try:
+            # Cria um socket temporário para enviar o comando
+            self.notify_provider_changes = tk.BooleanVar(value=False)
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(3)
+                s.connect((self.server_ip.get(), self.server_port.get()))
+                
+                # Envia o comando de desligamento
+                request = json.dumps({'action': 'poweroff'})
+                s.send(request.encode('utf-8'))
+                
+                # Aguarda resposta
+                response = s.recv(1024)
+                if response:
+                    data = json.loads(response.decode('utf-8'))
+                    if data.get('success', False):
+                        messagebox.showinfo("Sucesso", "Comando de desligamento enviado com sucesso")
+                    else:
+                        messagebox.showerror("Erro", "Falha ao executar desligamento no servidor")
+        
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha ao enviar comando: {str(e)}")
+
+# FUNÇÕES DE CONEXÃO E DESCONEXÃO DO PROGRAMA COM O SERVIDOR.    
     def auto_connect(self):
         """Tenta conectar automaticamente ao servidor"""
         try:
@@ -860,6 +869,13 @@ class ClientApp:
                 fg="red"))
             self.update_tray_icon()
 
+    def handle_connection_lost(self):
+        """Lida com perda de conexão"""
+        self.disconnect(silent=True)
+        if self.auto_reconnect:
+            self.auto_connect()
+
+# FUNÇÃO PARA VERIFICAR O ESTADO DOS PROVEDORES NO SERVIDOR
     def update_status_loop(self):
         """Loop para verificar o status do servidor usando a conexão persistente"""
         while self.running and self.connected:
@@ -971,12 +987,7 @@ class ClientApp:
             if hasattr(self.tray_icon, '_update_icon'):
                 self.tray_icon._update_icon()
 
-    def handle_connection_lost(self):
-        """Lida com perda de conexão"""
-        self.disconnect(silent=True)
-        if self.auto_reconnect:
-            self.auto_connect()
-    
+# FUNÇÕES PARA MINIMIZAR E FECHAR O PROGRAMA.
     def minimize_to_tray(self):
         """Minimiza a janela para a bandeja"""
         self.root.withdraw()
@@ -991,6 +1002,7 @@ class ClientApp:
         # Salva a posição atual da janela antes de sair
         self.save_window_position()
         self.save_config()
+        self.notify_provider_changes = tk.BooleanVar(value=False)
 
         # Sinaliza para todas as threads pararem
         self.running = False
