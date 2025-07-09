@@ -45,7 +45,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.1"
+    return "Beta 3.2"
 
 class ClientApp:
     def __init__(self):
@@ -201,6 +201,7 @@ class ClientApp:
 
     echo [ATUALIZADOR] Atualizando executável...
     move /y "cliente_temer_new.exe" "cliente_temer.exe" >nul
+    timeout /t 2 >nul
 
     echo [ATUALIZADOR] Criando script de inicialização...
     (
