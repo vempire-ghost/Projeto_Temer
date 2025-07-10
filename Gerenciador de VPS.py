@@ -48,7 +48,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.12"
+    return "Beta 95.13"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -363,8 +363,9 @@ class ButtonManager:
         if not os.path.exists(backup_folder):
             os.makedirs(backup_folder)
             
-        # Obtém a pasta do programa (subindo um nível)
+        # Obtém a pasta do programa e sobe um nível
         program_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        parent_dir = os.path.dirname(program_dir)
         
         # Nome do arquivo de backup com data
         today = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -372,10 +373,10 @@ class ButtonManager:
         
         # Cria o arquivo zip
         with zipfile.ZipFile(backup_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for root, dirs, files in os.walk(program_dir):
+            for root, dirs, files in os.walk(parent_dir):  # Agora usando parent_dir
                 for file in files:
                     file_path = os.path.join(root, file)
-                    arcname = os.path.relpath(file_path, start=program_dir)
+                    arcname = os.path.relpath(file_path, start=parent_dir)
                     zipf.write(file_path, arcname)
         
         # Mantém apenas os últimos 5 backups
@@ -7285,8 +7286,9 @@ class OMRManagerDialog:
         if not os.path.exists(backup_folder):
             os.makedirs(backup_folder)
             
-        # Obtém a pasta do programa (subindo um nível)
+        # Obtém a pasta do programa e sobe um nível
         program_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        parent_dir = os.path.dirname(program_dir)
         
         # Nome do arquivo de backup com data
         today = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -7294,10 +7296,10 @@ class OMRManagerDialog:
         
         # Cria o arquivo zip
         with zipfile.ZipFile(backup_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for root, dirs, files in os.walk(program_dir):
+            for root, dirs, files in os.walk(parent_dir):  # Agora usando parent_dir
                 for file in files:
                     file_path = os.path.join(root, file)
-                    arcname = os.path.relpath(file_path, start=program_dir)
+                    arcname = os.path.relpath(file_path, start=parent_dir)
                     zipf.write(file_path, arcname)
         
         # Mantém apenas os últimos 5 backups
