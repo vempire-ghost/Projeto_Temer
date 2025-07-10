@@ -26,6 +26,7 @@ import webbrowser
 import win32api
 import win32con
 import win32gui
+import glob
 from datetime import datetime
 from ctypes import wintypes
 from pystray import Icon, MenuItem, Menu as TrayMenu
@@ -47,7 +48,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.10"
+    return "Beta 95.11"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -7075,7 +7076,162 @@ class OMRManagerDialog:
         # Carregar informações ao inicializar
         self.load_bind_credentials()
 
+        # Sexta aba (Backup do OMR)
+        aba6 = ttk.Frame(self.tabs)
+        self.tabs.add(aba6, text="Backup do OMR")
+
+        # Frame principal para configurações de backup
+        frame_backup = tk.Frame(aba6, borderwidth=1, relief=tk.RAISED)
+        frame_backup.pack(padx=10, pady=10, fill=tk.BOTH)
+
+        # Checkbox para backup automático
+        self.backup_auto_var = tk.BooleanVar()
+        self.backup_auto_check = tk.Checkbutton(
+            frame_backup, 
+            text="Backup automático do OMR",
+            variable=self.backup_auto_var,
+            command=self.save_backup_settings
+        )
+        self.backup_auto_check.pack(side=tk.TOP, anchor='w', padx=5, pady=5)
+
+        # Frame para seleção de pasta
+        folder_frame = tk.Frame(frame_backup)
+        folder_frame.pack(side=tk.TOP, anchor='w', fill=tk.X, padx=5, pady=5)
+
+        tk.Label(folder_frame, text="Pasta para salvar backup:").pack(side=tk.LEFT)
+        self.backup_folder_entry = tk.Entry(folder_frame, width=40)
+        self.backup_folder_entry.pack(side=tk.LEFT, padx=5)
+
+        browse_button = tk.Button(
+            folder_frame, 
+            text="Procurar", 
+            command=self.browse_backup_folder
+        )
+        browse_button.pack(side=tk.LEFT)
+
+        # Botão para backup manual
+        self.backup_button = tk.Button(
+            frame_backup,
+            text="Executar Backup Agora",
+            command=self.create_omr_backup_threaded
+        )
+        self.backup_button.pack(side=tk.TOP, anchor='w', padx=5, pady=5)
+
+        # Carrega as configurações de backup
+        self.load_backup_settings()
+
         self.top.protocol("WM_DELETE_WINDOW", self.on_close)
+
+#METODOS PARA O BACKUP AUTOMATICO DO PROGRAMA
+    def browse_backup_folder(self):
+        """Abre diálogo para selecionar pasta de backup"""
+        folder_selected = filedialog.askdirectory()
+        if folder_selected:
+            self.backup_folder_entry.delete(0, tk.END)
+            self.backup_folder_entry.insert(0, folder_selected)
+            self.save_backup_settings()
+
+    def load_backup_settings(self):
+        """Carrega as configurações de backup do arquivo config.ini"""
+        if not os.path.exists(self.config_file):
+            return
+            
+        self.config.read(self.config_file)
+        if 'backup' in self.config:
+            self.backup_auto_var.set(self.config.getboolean('backup', 'enabled', fallback=False))
+            self.backup_folder_entry.insert(0, self.config.get('backup', 'folder', fallback=''))
+
+    def save_backup_settings(self):
+        """Salva as configurações de backup no arquivo config.ini"""
+        if not self.config.has_section('backup'):
+            self.config.add_section('backup')
+            
+        self.config.set('backup', 'enabled', str(self.backup_auto_var.get()))
+        self.config.set('backup', 'folder', self.backup_folder_entry.get())
+        
+        with open(self.config_file, 'w') as configfile:
+            self.config.write(configfile)
+
+    def check_and_execute_backup(self):
+        """Verifica se o backup automático está ativado e executa"""
+        if self.backup_auto_var.get():
+            self.create_omr_backup_threaded()
+
+    def create_omr_backup_threaded(self):
+        """Inicia o backup em uma thread separada"""
+        if not self.backup_folder_entry.get():
+            messagebox.showwarning("Aviso", "Selecione uma pasta para salvar o backup!")
+            return
+        
+        # Desabilita o botão durante o backup
+        self.backup_button.config(state=tk.DISABLED)
+        self.backup_auto_check.config(state=tk.DISABLED)
+        
+        # Cria e inicia a thread
+        backup_thread = threading.Thread(
+            target=self._run_backup_threaded,
+            daemon=True
+        )
+        backup_thread.start()
+
+    def _run_backup_threaded(self):
+        """Método executado pela thread para realizar o backup"""
+        try:
+            # Cria o backup
+            backup_file = self._perform_backup()
+            
+            # Atualiza a interface na thread principal
+            self.top.after(0, lambda: self._on_backup_success(backup_file))
+            
+        except Exception as e:
+            # Atualiza a interface na thread principal em caso de erro
+            self.top.after(0, lambda: self._on_backup_error(e))
+
+    def _perform_backup(self):
+        """Executa a operação real de backup (chamada pela thread)"""
+        backup_folder = self.backup_folder_entry.get()
+        
+        # Verifica se a pasta de backup existe
+        if not os.path.exists(backup_folder):
+            os.makedirs(backup_folder)
+            
+        # Obtém a pasta do programa (subindo um nível)
+        program_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        
+        # Nome do arquivo de backup com data
+        today = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_file = os.path.join(backup_folder, f"backup_omr_{today}.zip")
+        
+        # Cria o arquivo zip
+        with zipfile.ZipFile(backup_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(program_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, start=program_dir)
+                    zipf.write(file_path, arcname)
+        
+        # Mantém apenas os últimos 5 backups
+        backup_files = glob.glob(os.path.join(backup_folder, "backup_omr_*.zip"))
+        backup_files.sort(key=os.path.getmtime)
+        
+        while len(backup_files) > 5:
+            oldest_backup = backup_files.pop(0)
+            os.remove(oldest_backup)
+        
+        return backup_file
+
+    def _on_backup_success(self, backup_file):
+        """Atualiza a interface após backup bem-sucedido"""
+        messagebox.showinfo("Sucesso", f"Backup criado com sucesso em:\n{backup_file}")
+        self.backup_button.config(state=tk.NORMAL)
+        self.backup_auto_check.config(state=tk.NORMAL)
+
+    def _on_backup_error(self, error):
+        """Atualiza a interface em caso de erro no backup"""
+        messagebox.showerror("Erro", f"Falha ao criar backup:\n{error}")
+        self.backup_button.config(state=tk.NORMAL)
+        self.backup_auto_check.config(state=tk.NORMAL)
+
 
 #METODOS PARA DESLIGAMENTO DO PROGRAMA PELO CLIENTE TEMER
     def browse_poweroff_script(self):
