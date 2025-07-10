@@ -48,7 +48,7 @@ if getattr(sys, 'frozen', False):
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.11"
+    return "Beta 95.12"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -240,6 +240,10 @@ class ButtonManager:
         self.claro_online = False # Variavel para definir estado da conexão com a internet
         self.unifique_online = False # Variavel para definir estado da conexão com a internet
         self.iniciar_monitor_status()  # Inicia o servidor de API
+        # Carrega as configurações de backup
+        self.backup_auto_var = tk.BooleanVar()
+        self.backup_folder_entry = tk.Entry()
+        self.load_backup_settings()
         #Variaveis de estado das conexões para o desligamento do programa
         self.omr_vpn_conectado = False
         self.omr_jogo_conectado = False
@@ -309,7 +313,90 @@ class ButtonManager:
         # Inicia a thread do servidor
         threading.Thread(target=server_loop, daemon=True).start()
 
-# FUNÇÃO PARA INICIAR OS VPMS E OMRS AO INICIAR O PROGRAMA COM O WINDOWS
+# FUNÇÃO DE BACKUP DO PROGRAMA
+    def load_backup_settings(self):
+        """Carrega as configurações de backup do arquivo config.ini"""
+        if not os.path.exists(self.config_file):
+            return
+            
+        self.config.read(self.config_file)
+        if 'backup' in self.config:
+            self.backup_auto_var.set(self.config.getboolean('backup', 'enabled', fallback=False))
+            self.backup_folder_entry.insert(0, self.config.get('backup', 'folder', fallback=''))
+
+    def check_and_execute_backup(self):
+        """Verifica se o backup automático está ativado e executa"""
+        if self.backup_auto_var.get():
+            self.create_omr_backup_threaded()
+
+    def create_omr_backup_threaded(self):
+        """Inicia o backup em uma thread separada"""
+        if not self.backup_folder_entry.get():
+            messagebox.showwarning("Aviso", "Selecione uma pasta para salvar o backup!")
+            return
+        
+        # Cria e inicia a thread
+        backup_thread = threading.Thread(
+            target=self._run_backup_threaded,
+            daemon=True
+        )
+        backup_thread.start()
+
+    def _run_backup_threaded(self):
+        """Método executado pela thread para realizar o backup"""
+        try:
+            # Cria o backup
+            backup_file = self._perform_backup()
+            
+            # Atualiza a interface na thread principal
+            self.master.after(0, lambda: self._on_backup_success(backup_file))
+            
+        except Exception as e:
+            # Atualiza a interface na thread principal em caso de erro
+            self.master.after(0, lambda: self._on_backup_error(e))
+
+    def _perform_backup(self):
+        """Executa a operação real de backup (chamada pela thread)"""
+        backup_folder = self.backup_folder_entry.get()
+        
+        # Verifica se a pasta de backup existe
+        if not os.path.exists(backup_folder):
+            os.makedirs(backup_folder)
+            
+        # Obtém a pasta do programa (subindo um nível)
+        program_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        
+        # Nome do arquivo de backup com data
+        today = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_file = os.path.join(backup_folder, f"backup_omr_{today}.zip")
+        
+        # Cria o arquivo zip
+        with zipfile.ZipFile(backup_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(program_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, start=program_dir)
+                    zipf.write(file_path, arcname)
+        
+        # Mantém apenas os últimos 5 backups
+        backup_files = glob.glob(os.path.join(backup_folder, "backup_omr_*.zip"))
+        backup_files.sort(key=os.path.getmtime)
+        
+        while len(backup_files) > 5:
+            oldest_backup = backup_files.pop(0)
+            os.remove(oldest_backup)
+        
+        return backup_file
+
+    def _on_backup_success(self, backup_file):
+        """Atualiza a interface após backup bem-sucedido"""
+        messagebox.showinfo("Sucesso", f"Backup criado com sucesso em:\n{backup_file}")
+
+    def _on_backup_error(self, error):
+        """Atualiza a interface em caso de erro no backup"""
+        messagebox.showerror("Erro", f"Falha ao criar backup:\n{error}")
+
+# FUNÇÃO PARA INICIAR OS VMS E OMRS AO INICIAR O PROGRAMA COM O WINDOWS
     def check_startup_and_run_script(self):
         """Versão mais robusta com verificação adicional"""
         if not ('--startup' in sys.argv or 
@@ -638,7 +725,7 @@ class ButtonManager:
         menu_bar.add_cascade(label="Configurações", menu=config_menu)
         config_menu.add_command(label="Configurações do Gerenciador de VPS", command=self.open_omr_manager)
         config_menu.add_command(label="Configurações de Cores", command=self.open_color_config)
-        #config_menu.add_command(label="MTR VPS", command=self.executar_mtr)
+        #config_menu.add_command(label="Backup", command=self.execute_delayed_backup)
         config_menu.add_command(label="Abrir Terminal SSH", command=self.open_ssh_terminal)
         config_menu.add_command(label="Monitor OMR e Graficos", command=self.execute_mtr_and_plot)
         config_menu.add_command(label="Ajuda", command=self.abrir_arquivo_ajuda)
@@ -1237,6 +1324,9 @@ class ButtonManager:
 
         # Inicia a verificação periódica dos eventos
         self.update_labels_ssh()
+
+        # Agendamento do backup após 1 minuto da inicialização
+        self.master.after(60000, self.check_and_execute_backup)
 
         # Botão para Atualizar Scheduler e CC
         self.botao_atualizar_scheduler = tk.Button(self.frame_atualizar, text="Atualizar Scheduler e CC", command=self.executar_comandos_scheduler)
