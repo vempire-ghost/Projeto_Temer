@@ -40,15 +40,17 @@ from rich.console import Console
 from rich.text import Text
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-# Corrige o diretório de trabalho quando executado como serviço/inicialização
+# Corrige o diretório de trabalho para o local do executável ou script
 if getattr(sys, 'frozen', False):
-    # Se o aplicativo estiver congelado (compilado)
     application_path = os.path.dirname(sys.executable)
-    os.chdir(application_path)
+else:
+    application_path = os.path.dirname(os.path.abspath(__file__))
+
+os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.13"
+    return "Beta 95.14"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -327,6 +329,11 @@ class ButtonManager:
     def check_and_execute_backup(self):
         """Verifica se o backup automático está ativado e executa"""
         if self.backup_auto_var.get():
+            # Verifica se o diretório de backup está configurado
+            if not self.backup_folder_entry.get():
+                messagebox.showwarning("Aviso", "Selecione uma pasta para salvar o backup!")
+                return
+                
             self.create_omr_backup_threaded()
 
     def create_omr_backup_threaded(self):
@@ -363,9 +370,28 @@ class ButtonManager:
         if not os.path.exists(backup_folder):
             os.makedirs(backup_folder)
             
-        # Obtém a pasta do programa e sobe um nível
-        program_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # Obtém a pasta do programa de forma confiável e sobe um nível
+        if getattr(sys, 'frozen', False):
+            # Executável compilado (pyinstaller)
+            program_dir = os.path.dirname(sys.executable)
+        else:
+            # Executando a partir do código fonte
+            program_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        
+        # Sobe um nível na hierarquia de pastas (como no original)
         parent_dir = os.path.dirname(program_dir)
+        
+        # Verificação de segurança - evita pastas do sistema
+        system_dirs = [
+            os.path.expandvars("%SystemRoot%"),
+            os.path.expandvars("%ProgramFiles%"),
+            os.path.expandvars("%ProgramFiles(x86)%"),
+            os.path.expandvars("%AppData%"),
+            os.path.expandvars("%LocalAppData%")
+        ]
+        
+        if any(parent_dir.lower().startswith(sys_dir.lower()) for sys_dir in system_dirs):
+            raise Exception("A pasta alvo do backup é uma pasta do sistema. Operação cancelada.")
         
         # Nome do arquivo de backup com data
         today = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -373,7 +399,11 @@ class ButtonManager:
         
         # Cria o arquivo zip
         with zipfile.ZipFile(backup_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for root, dirs, files in os.walk(parent_dir):  # Agora usando parent_dir
+            for root, dirs, files in os.walk(parent_dir):  # Usando parent_dir como no original
+                # Ignora a pasta de backup se estiver dentro da área de backup
+                if os.path.abspath(backup_folder).startswith(os.path.abspath(root)):
+                    continue
+                    
                 for file in files:
                     file_path = os.path.join(root, file)
                     arcname = os.path.relpath(file_path, start=parent_dir)
@@ -7246,6 +7276,11 @@ class OMRManagerDialog:
     def check_and_execute_backup(self):
         """Verifica se o backup automático está ativado e executa"""
         if self.backup_auto_var.get():
+            # Verifica se o diretório de backup está configurado
+            if not self.backup_folder_entry.get():
+                messagebox.showwarning("Aviso", "Selecione uma pasta para salvar o backup!")
+                return
+                
             self.create_omr_backup_threaded()
 
     def create_omr_backup_threaded(self):
@@ -7286,9 +7321,28 @@ class OMRManagerDialog:
         if not os.path.exists(backup_folder):
             os.makedirs(backup_folder)
             
-        # Obtém a pasta do programa e sobe um nível
-        program_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # Obtém a pasta do programa de forma confiável e sobe um nível
+        if getattr(sys, 'frozen', False):
+            # Executável compilado (pyinstaller)
+            program_dir = os.path.dirname(sys.executable)
+        else:
+            # Executando a partir do código fonte
+            program_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        
+        # Sobe um nível na hierarquia de pastas (como no original)
         parent_dir = os.path.dirname(program_dir)
+        
+        # Verificação de segurança - evita pastas do sistema
+        system_dirs = [
+            os.path.expandvars("%SystemRoot%"),
+            os.path.expandvars("%ProgramFiles%"),
+            os.path.expandvars("%ProgramFiles(x86)%"),
+            os.path.expandvars("%AppData%"),
+            os.path.expandvars("%LocalAppData%")
+        ]
+        
+        if any(parent_dir.lower().startswith(sys_dir.lower()) for sys_dir in system_dirs):
+            raise Exception("A pasta alvo do backup é uma pasta do sistema. Operação cancelada.")
         
         # Nome do arquivo de backup com data
         today = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -7296,7 +7350,11 @@ class OMRManagerDialog:
         
         # Cria o arquivo zip
         with zipfile.ZipFile(backup_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for root, dirs, files in os.walk(parent_dir):  # Agora usando parent_dir
+            for root, dirs, files in os.walk(parent_dir):  # Usando parent_dir como no original
+                # Ignora a pasta de backup se estiver dentro da área de backup
+                if os.path.abspath(backup_folder).startswith(os.path.abspath(root)):
+                    continue
+                    
                 for file in files:
                     file_path = os.path.join(root, file)
                     arcname = os.path.relpath(file_path, start=parent_dir)
