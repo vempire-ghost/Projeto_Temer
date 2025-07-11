@@ -45,7 +45,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.2"
+    return "Beta 3.3"
 
 class ClientApp:
     def __init__(self):
@@ -410,7 +410,7 @@ class ClientApp:
         btn_frame = tk.Frame(content_frame)
         btn_frame.grid(row=6, columnspan=2, pady=(0, 10))
         
-        tk.Button(btn_frame, text="Conectar", command=self.connect).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Conectar", command=self.auto_connect).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Desconectar", command=self.disconnect).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Salvar Config", command=self.save_config).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Sair", command=self.quit_app).pack(side=tk.RIGHT, padx=5)
@@ -763,10 +763,60 @@ class ClientApp:
         """Tenta conectar automaticamente ao servidor"""
         try:
             if not self.connected and self.auto_reconnect:
-                threading.Thread(target=self.connect, daemon=True).start()
+                # Inicia uma thread para verificar o ping antes de conectar
+                threading.Thread(target=self.ping_and_connect, daemon=True).start()
         except Exception as e:
             print(f"Erro em auto_connect: {e}")
             # Agenda nova tentativa
+            self.root.after(5000, self.auto_connect)
+
+    def ping_and_connect(self):
+        """Verifica se o host responde antes de tentar conectar (Windows apenas)"""
+        def silent_ping(host, port, timeout=2):
+            """Testa conectividade usando socket TCP (mais confiável que ICMP no Windows)"""
+            try:
+                # Atualiza ícone para vermelho enquanto tenta conectar
+                self.root.after(0, self.update_tray_icon)
+                self.root.after(0, lambda: self.status_label.config(
+                    text="Status: Desconectado", 
+                    fg="red"))
+                print(f"[DEBUG] Tentando conexão TCP com {host}:{port}...")
+                # Cria um socket TCP
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(timeout)
+                
+                # Tenta conectar
+                s.connect((host, port))
+                s.close()
+                print("[DEBUG] Conexão TCP bem-sucedida (host alcançável)")
+                return True
+            except socket.timeout:
+                print("[DEBUG] Timeout na conexão TCP")
+                return False
+            except socket.error as e:
+                print(f"[DEBUG] Erro na conexão TCP: {e}")
+                return False
+            except Exception as e:
+                print(f"[DEBUG] Erro inesperado: {e}")
+                return False
+
+        print(f"[DEBUG] Iniciando ping_and_connect para {self.server_ip.get()}")
+        while not self.connected and self.auto_reconnect:
+            print(f"[DEBUG] Tentativa de conexão em: {time.strftime('%H:%M:%S')}")
+            
+            # Usa a porta do servidor para o teste (ou 80 se não definida)
+            test_port = self.server_port.get() if hasattr(self, 'server_port') else 80
+            
+            if silent_ping(self.server_ip.get(), test_port):
+                print("[DEBUG] Host alcançável! Tentando conectar...")
+                self.connect()
+                break
+            
+            print("[DEBUG] Host não alcançável. Aguardando 2 segundos...")
+            time.sleep(2)
+        
+        if not self.connected and self.auto_reconnect:
+            print("[DEBUG] Agendando nova tentativa em 5 segundos...")
             self.root.after(5000, self.auto_connect)
 
     def connect(self):
@@ -811,7 +861,8 @@ class ClientApp:
                     fg="orange"))
                 
                 time.sleep(self.reconnect_delay)
-                self.connect()
+                # Chama ping_and_connect em vez de connect diretamente
+                threading.Thread(target=self.ping_and_connect, daemon=True).start()
             else:
                 self.root.after(0, lambda: self.status_label.config(
                     text="Status: Desconectado", 
