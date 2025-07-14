@@ -17,11 +17,14 @@ def encerrar_processo(pid=None, nome_executavel=None):
     try:
         if pid:
             try:
-                processo = psutil.Process(pid)
+                # Convertendo pid para inteiro
+                processo = psutil.Process(int(pid))
                 processo.terminate()
                 processo.wait(timeout=5)
             except psutil.NoSuchProcess:
                 pass
+            except ValueError:
+                logging.warning(f"PID inválido fornecido: {pid}")
         
         if nome_executavel:
             for proc in psutil.process_iter(['pid', 'name']):
