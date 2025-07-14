@@ -1,0 +1,1 @@
+pyinstaller --onefile --noconsole --icon=.\omr_logo.ico "atualizador.py" 

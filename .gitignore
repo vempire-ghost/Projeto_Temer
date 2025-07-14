@@ -33,6 +33,9 @@
 !dist/Gerenciador de VPS.exe
 !dist/proxy socks5 tcp-udp JOGO.exe
 !dist/proxy socks5 tcp-udp VPN.exe
+!atualizador.py
+!Compilar atualizador.ps1
+!dist/atualizador.exe
 
 # Não ignorar diretórios específicos e seus conteúdos
 !diretorio_que_quero_monitorar/

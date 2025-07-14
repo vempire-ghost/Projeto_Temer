@@ -45,7 +45,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.3"
+    return "Beta 3.4"
 
 class ClientApp:
     def __init__(self):
@@ -143,7 +143,6 @@ class ClientApp:
             else:
                 try:
                     if arquivo == "cliente_temer.exe":
-                        # Verificação robusta para o executável
                         data_remota = get_github_file_last_modified(repo, path)
                         
                         if data_remota:
@@ -153,28 +152,13 @@ class ClientApp:
                             if data_remota > data_local:
                                 precisa_baixar = True
                                 logging.info(f"Executável desatualizado. GitHub: {data_remota}, Local: {data_local}")
-                            else:
-                                logging.debug(f"Executável atualizado. GitHub: {data_remota}, Local: {data_local}")
-                        else:
-                            # Fallback para verificação por tamanho
-                            response = requests.head(download_url, timeout=10)
-                            if response.status_code == 200:
-                                tamanho_remoto = int(response.headers.get('Content-Length', 0))
-                                tamanho_local = os.path.getsize(arquivo)
-                                if tamanho_remoto != tamanho_local:
-                                    precisa_baixar = True
-                                    logging.info(f"Executável com tamanho diferente. Remoto: {tamanho_remoto} bytes, Local: {tamanho_local} bytes")
                     else:
-                        # Verificação simplificada para imagens
                         response = requests.head(download_url, timeout=10)
                         if response.status_code == 200:
                             tamanho_remoto = int(response.headers.get('Content-Length', 0))
                             tamanho_local = os.path.getsize(arquivo)
                             if tamanho_remoto != tamanho_local:
                                 precisa_baixar = True
-                                logging.info(f"Imagem {arquivo} com tamanho diferente. Remoto: {tamanho_remoto} bytes, Local: {tamanho_local} bytes")
-                        else:
-                            logging.warning(f"Falha ao verificar imagem {arquivo}. Status code: {response.status_code}")
                 except Exception as e:
                     logging.error(f"Erro ao verificar {arquivo}: {str(e)}", exc_info=True)
                     continue
@@ -185,70 +169,34 @@ class ClientApp:
                     response = requests.get(download_url, timeout=30)
                     if response.status_code == 200:
                         if arquivo == "cliente_temer.exe":
-                            # Nome temporário para o novo executável
                             temp_name = "cliente_temer_new.exe"
                             with open(temp_name, 'wb') as f:
                                 f.write(response.content)
                             
-                            # Cria script de atualização para Windows
-                            if os.name == 'nt':
-                                with open("update.bat", "w") as f:
-                                    f.write(f"""
-    @echo off
-    echo [ATUALIZADOR] Encerrando aplicativo...
-    taskkill /f /im cliente_temer.exe >nul 2>&1
-    timeout /t 2 >nul
-
-    echo [ATUALIZADOR] Atualizando executável...
-    move /y "cliente_temer_new.exe" "cliente_temer.exe" >nul
-    timeout /t 2 >nul
-
-    echo [ATUALIZADOR] Criando script de inicialização...
-    (
-        echo @echo off
-        echo cd /d "%~dp0"
-        echo "cliente_temer.exe"
-        echo del "%%~f0"
-        echo taskkill /F /IM cmd.exe
-        echo exit
-    ) > iniciar.bat
-
-    echo [ATUALIZADOR] Iniciando nova versão...
-    start "" /B cmd /c "cd /d %~dp0 && cliente_temer.exe"
-    timeout /t 2 >nul
-    taskkill /F /IM cmd.exe
-    exit
-    """)
-                                # Executa o script de atualização
-                                os.startfile("update.bat")
-                                executavel_atualizado = True
+                            # Baixa o atualizador somente quando necessário
+                            atualizador_url = "https://raw.githubusercontent.com/vempire-ghost/Projeto_Temer/main/dist/atualizador.exe"
+                            response_atualizador = requests.get(atualizador_url, timeout=30)
+                            
+                            if response_atualizador.status_code == 200:
+                                with open("atualizador.exe", 'wb') as f:
+                                    f.write(response_atualizador.content)
+                                
+                                # Executa o atualizador
+                                import subprocess
+                                subprocess.Popen([
+                                    "atualizador.exe",
+                                    "--original", "cliente_temer.exe",
+                                    "--novo", temp_name,
+                                    "--pid", str(os.getpid())
+                                ], creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
+                                
                                 logging.warning("ATENÇÃO: Executável atualizado. O aplicativo será reiniciado automaticamente.")
                                 sys.exit(0)
                             else:
-                                # Script para Linux/Mac
-                                with open("update.sh", "w") as f:
-                                    f.write(f"""#!/bin/bash
-    echo "[ATUALIZADOR] Aguardando encerramento do aplicativo..."
-    sleep 2
-    pkill -f cliente_temer
-    echo "[ATUALIZADOR] Atualizando executável..."
-    mv -f "{temp_name}" "cliente_temer"
-    chmod +x "cliente_temer"
-    echo "[ATUALIZADOR] Iniciando nova versão..."
-    ./cliente_temer &
-    rm -f update.sh
-    exit
-    """)
-                                os.chmod("update.sh", 0o755)
-                                os.system("./update.sh &")
-                                sys.exit(0)
+                                logging.error("Falha ao baixar o atualizador")
                         else:
-                            # Para arquivos que não são o executável principal
                             with open(arquivo, 'wb') as f:
                                 f.write(response.content)
-                            logging.info(f"Download do arquivo {arquivo} concluído com sucesso")
-                    else:
-                        logging.error(f"Falha no download de {arquivo}. Status code: {response.status_code}")
                 except Exception as e:
                     logging.error(f"Erro durante o download de {arquivo}: {str(e)}", exc_info=True)
         
