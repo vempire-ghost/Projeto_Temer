@@ -45,7 +45,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.4"
+    return "Beta 3.5"
 
 class ClientApp:
     def __init__(self):
