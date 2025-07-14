@@ -45,7 +45,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.5"
+    return "Beta 3.6"
 
 class ClientApp:
     def __init__(self):
@@ -270,7 +270,8 @@ class ClientApp:
                 'port': '5000',
                 'start_with_windows': 'False',
                 'start_minimized': 'False',
-                'notify_provider_changes': 'False'  # Adicionado
+                'notify_provider_changes': 'False',
+                'control_proxifier': 'False'
             }
             self.config['WINDOW'] = {
                 'x': '100',
@@ -278,13 +279,18 @@ class ClientApp:
                 'width': '400',
                 'height': '300'
             }
+            self.config['PROXIFIER'] = {
+                'path': ''
+            }
             with open(self.config_file, 'w') as configfile:
                 self.config.write(configfile)
         else:
             self.config.read(self.config_file)
-            # Carrega a configuração de notificação
-            self.notify_provider_changes.set(self.config.getboolean('DEFAULT', 'notify_provider_changes', fallback=False))
-            self.control_proxifier.set(self.config.getboolean('DEFAULT', 'control_proxifier', fallback=False)) 
+            # Carrega as configurações
+            self.notify_provider_changes.set(
+                self.config.getboolean('DEFAULT', 'notify_provider_changes', fallback=False))
+            self.control_proxifier.set(
+                self.config.getboolean('DEFAULT', 'control_proxifier', fallback=False))
     
     def save_config(self):
         """Salva as configurações atuais no arquivo .ini"""
@@ -395,6 +401,44 @@ class ClientApp:
 
 # FUNÇÃO PARA LOCALIZAR E INICIAR O PROXIFIER.
     def find_proxifier_path(self):
+        """Busca o caminho do Proxifier, primeiro nas configurações salvas, depois no sistema"""
+        # 1. Primeiro verifica nas configurações carregadas
+        try:
+            saved_path = self.config.get('PROXIFIER', 'path', fallback=None)
+            if saved_path and os.path.exists(saved_path):
+                logging.info(f"Usando caminho do Proxifier das configurações: {saved_path}")
+                return os.path.abspath(saved_path)
+            elif saved_path:
+                logging.warning(f"Caminho do Proxifier nas configurações não existe mais: {saved_path}")
+        except Exception as e:
+            logging.warning(f"Erro ao verificar caminho do Proxifier nas configurações: {str(e)}")
+
+        logging.info("Iniciando busca completa pelo Proxifier no sistema...")
+        
+        # 2. Se não encontrou nas configurações, faz a busca normal
+        proxifier_path = self._find_proxifier_path_in_system()
+        
+        # 3. Se encontrou o caminho, salva nas configurações
+        if proxifier_path:
+            try:
+                if 'PROXIFIER' not in self.config:
+                    self.config['PROXIFIER'] = {}
+                
+                self.config['PROXIFIER']['path'] = os.path.normpath(proxifier_path)
+                
+                # Salva as configurações atualizadas
+                with open(self.config_file, 'w') as configfile:
+                    self.config.write(configfile)
+                    
+                logging.info(f"Caminho do Proxifier salvo nas configurações: {proxifier_path}")
+            except Exception as e:
+                logging.error(f"Erro ao salvar caminho do Proxifier: {str(e)}")
+        else:
+            logging.warning("Proxifier não encontrado no sistema")
+        
+        return proxifier_path
+
+    def _find_proxifier_path_in_system(self):
         """Busca abrangente no registro do Windows por qualquer entrada que aponte para proxifier.exe"""
         try:
             # 1. Primeiro verifica nos locais padrão de aplicativos (mais rápido)
