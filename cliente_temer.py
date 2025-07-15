@@ -11,6 +11,9 @@ import configparser
 import os
 import winreg  # Adicionado para manipulação do registro do Windows
 import requests
+import subprocess
+import ctypes
+from ctypes import wintypes
 from packaging import version
 from datetime import datetime
 from datetime import timezone
@@ -48,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.7"
+    return "Beta 3.8"
 
 class ClientApp:
     def __init__(self):
@@ -72,6 +75,9 @@ class ClientApp:
         self.running = True
         self.notify_provider_changes = tk.BooleanVar(value=False)  # Valor padrão True (ativado)
         self.control_proxifier = tk.BooleanVar(value=False)
+        self.user32 = ctypes.windll.user32
+        self.kernel32 = ctypes.windll.kernel32
+        self.virtual_desktop_name = "ProxifierDesktop"
         
         # Variáveis para os checkboxes
         self.start_with_windows = tk.BooleanVar()
@@ -370,6 +376,7 @@ class ClientApp:
         tk.Button(btn_frame, text="Conectar", command=self.auto_connect).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Desconectar", command=self.disconnect).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Salvar Config", command=self.save_config).pack(side=tk.LEFT, padx=5)
+        #tk.Button(btn_frame, text="Abrir Proxifier", command=self.switch_to_virtual_desktop).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Sair", command=self.quit_app).pack(side=tk.RIGHT, padx=5)
         
         # Status
@@ -563,7 +570,7 @@ class ClientApp:
         return None
 
     def start_proxifier(self):
-        """Inicia o Proxifier se não estiver rodando"""
+        """Inicia o Proxifier se não estiver rodando em uma área de trabalho virtual invisível"""
         try:
             # Primeiro verifica se já está rodando
             if self.is_proxifier_running():
@@ -576,12 +583,96 @@ class ClientApp:
             if not proxifier_path:
                 logging.error("Não foi possível localizar o Proxifier no sistema")
                 return False
-
-            # Inicia o Proxifier
-            os.system(f'start "" "{proxifier_path}"')
-            client_logger.info(f"Proxifier iniciado com sucesso a partir de: {proxifier_path}")
-            return True
             
+            # Cria um novo desktop virtual invisível
+            new_desktop = self.user32.CreateDesktopW(
+                self.virtual_desktop_name,  # Nome do desktop
+                None,                       # lpszDevice
+                None,                       # pDevmode
+                0,                          # dwFlags
+                0x000F01FF,                 # dwDesiredAccess (DESKTOP_ALL_ACCESS)
+                None                        # lpsa
+            )
+            
+            if not new_desktop:
+                logging.error("Falha ao criar desktop virtual")
+                return False
+            
+            try:
+                # Estruturas para CreateProcess
+                class STARTUPINFO(ctypes.Structure):
+                    _fields_ = [
+                        ('cb', wintypes.DWORD),
+                        ('lpReserved', wintypes.LPWSTR),
+                        ('lpDesktop', wintypes.LPWSTR),
+                        ('lpTitle', wintypes.LPWSTR),
+                        ('dwX', wintypes.DWORD),
+                        ('dwY', wintypes.DWORD),
+                        ('dwXSize', wintypes.DWORD),
+                        ('dwYSize', wintypes.DWORD),
+                        ('dwXCountChars', wintypes.DWORD),
+                        ('dwYCountChars', wintypes.DWORD),
+                        ('dwFillAttribute', wintypes.DWORD),
+                        ('dwFlags', wintypes.DWORD),
+                        ('wShowWindow', wintypes.WORD),
+                        ('cbReserved2', wintypes.WORD),
+                        ('lpReserved2', ctypes.POINTER(ctypes.c_byte)),
+                        ('hStdInput', wintypes.HANDLE),
+                        ('hStdOutput', wintypes.HANDLE),
+                        ('hStdError', wintypes.HANDLE)
+                    ]
+                
+                class PROCESS_INFORMATION(ctypes.Structure):
+                    _fields_ = [
+                        ('hProcess', wintypes.HANDLE),
+                        ('hThread', wintypes.HANDLE),
+                        ('dwProcessId', wintypes.DWORD),
+                        ('dwThreadId', wintypes.DWORD)
+                    ]
+                
+                # Configura o STARTUPINFO para usar o desktop virtual
+                startup_info = STARTUPINFO()
+                startup_info.cb = ctypes.sizeof(STARTUPINFO)
+                startup_info.lpDesktop = self.virtual_desktop_name
+                startup_info.dwFlags = 0x01  # STARTF_USESHOWWINDOW
+                startup_info.wShowWindow = 1  # SW_SHOWNORMAL (não esconde)
+                
+                process_info = PROCESS_INFORMATION()
+                
+                # Flags para CreateProcess
+                CREATE_NEW_PROCESS_GROUP = 0x00000200
+                creation_flags = CREATE_NEW_PROCESS_GROUP
+                
+                # Cria o processo no desktop virtual
+                result = self.kernel32.CreateProcessW(
+                    proxifier_path,               # lpApplicationName
+                    None,                        # lpCommandLine
+                    None,                        # lpProcessAttributes
+                    None,                        # lpThreadAttributes
+                    False,                       # bInheritHandles
+                    creation_flags,              # dwCreationFlags
+                    None,                        # lpEnvironment
+                    None,                        # lpCurrentDirectory
+                    ctypes.byref(startup_info),  # lpStartupInfo
+                    ctypes.byref(process_info)   # lpProcessInformation
+                )
+                
+                if result:
+                    # Fecha os handles do processo
+                    self.kernel32.CloseHandle(process_info.hProcess)
+                    self.kernel32.CloseHandle(process_info.hThread)
+                    
+                    logging.info(f"Proxifier iniciado em desktop virtual: {proxifier_path}")
+                    return True
+                else:
+                    error_code = self.kernel32.GetLastError()
+                    logging.error(f"Falha ao criar processo no desktop virtual. Código: {error_code}")
+                    return False
+                    
+            finally:
+                # Não fecha o desktop virtual imediatamente
+                pass
+                
         except Exception as e:
             logging.error(f"Erro ao iniciar Proxifier: {str(e)}")
             return False
