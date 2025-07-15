@@ -23,29 +23,32 @@ if getattr(sys, 'frozen', False):
 else:
     application_path = os.path.dirname(os.path.abspath(__file__))
 
-# Cria um diretório para logs se não existir
+# Cria diretório para logs se não existir
 log_dir = os.path.join(application_path, 'logs')
 os.makedirs(log_dir, exist_ok=True)
 
-# Configuração do caminho do arquivo de log
-log_file = os.path.join(log_dir, 'atualizador.log')
-
-# Configuração básica do logging
+# Configuração do logger raiz (só console)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(log_file),
-        logging.StreamHandler()
-    ]
+    handlers=[logging.StreamHandler()]  # Só console, sem arquivo
 )
+
+# Logger do cliente_temer (arquivo próprio + herda o console do root)
+client_logger = logging.getLogger('cliente_temer')
+client_logger.setLevel(logging.INFO)
+
+# Só adiciona o FileHandler (StreamHandler já vem do root)
+file_handler = logging.FileHandler(os.path.join(log_dir, 'cliente_temer.log'))
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+client_logger.addHandler(file_handler)
 
 # Altera o diretório de trabalho para o local do aplicativo
 os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.6"
+    return "Beta 3.7"
 
 class ClientApp:
     def __init__(self):
@@ -406,14 +409,14 @@ class ClientApp:
         try:
             saved_path = self.config.get('PROXIFIER', 'path', fallback=None)
             if saved_path and os.path.exists(saved_path):
-                logging.info(f"Usando caminho do Proxifier das configurações: {saved_path}")
+                client_logger.info(f"Usando caminho do Proxifier das configurações: {saved_path}")
                 return os.path.abspath(saved_path)
             elif saved_path:
                 logging.warning(f"Caminho do Proxifier nas configurações não existe mais: {saved_path}")
         except Exception as e:
             logging.warning(f"Erro ao verificar caminho do Proxifier nas configurações: {str(e)}")
 
-        logging.info("Iniciando busca completa pelo Proxifier no sistema...")
+        client_logger.info("Iniciando busca completa pelo Proxifier no sistema...")
         
         # 2. Se não encontrou nas configurações, faz a busca normal
         proxifier_path = self._find_proxifier_path_in_system()
@@ -430,7 +433,7 @@ class ClientApp:
                 with open(self.config_file, 'w') as configfile:
                     self.config.write(configfile)
                     
-                logging.info(f"Caminho do Proxifier salvo nas configurações: {proxifier_path}")
+                client_logger.info(f"Caminho do Proxifier salvo nas configurações: {proxifier_path}")
             except Exception as e:
                 logging.error(f"Erro ao salvar caminho do Proxifier: {str(e)}")
         else:
@@ -564,7 +567,7 @@ class ClientApp:
         try:
             # Primeiro verifica se já está rodando
             if self.is_proxifier_running():
-                logging.info("Proxifier já está em execução")
+                client_logger.info("Proxifier já está em execução")
                 return True
 
             # Localiza o executável
@@ -576,7 +579,7 @@ class ClientApp:
 
             # Inicia o Proxifier
             os.system(f'start "" "{proxifier_path}"')
-            logging.info(f"Proxifier iniciado com sucesso a partir de: {proxifier_path}")
+            client_logger.info(f"Proxifier iniciado com sucesso a partir de: {proxifier_path}")
             return True
             
         except Exception as e:
@@ -597,7 +600,7 @@ class ClientApp:
         """Encerra o Proxifier se estiver rodando"""
         try:
             os.system('taskkill /f /im proxifier.exe >nul 2>&1')
-            logging.info("Proxifier encerrado com sucesso")
+            client_logger.info("Proxifier encerrado com sucesso")
         except Exception as e:
             logging.error(f"Erro ao encerrar Proxifier: {str(e)}")
 
