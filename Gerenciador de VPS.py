@@ -50,7 +50,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.14"
+    return "Beta 95.15"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -273,10 +273,11 @@ class ButtonManager:
                                 'server_status': self.servidor_conectado,
                                 'coopera_online': self.coopera_online,
                                 'claro_online': self.claro_online,
-                                'unifique_online': self.unifique_online
+                                'unifique_online': self.unifique_online,
+                                'system_time': datetime.now().isoformat()  # Horário no formato ISO (YYYY-MM-DDTHH:MM:SS)
                             }
                             conn.send(json.dumps(response).encode('utf-8'))
-                        elif request.get('action') == 'poweroff':  # No handle_client
+                        elif request.get('action') == 'poweroff':
                             success = self._execute_poweroff_script()
                             conn.send(json.dumps({'success': success}).encode('utf-8'))
                         elif request.get('action') == 'disconnect':

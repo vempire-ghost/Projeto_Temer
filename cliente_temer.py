@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.8"
+    return "Beta 3.9"
 
 class ClientApp:
     def __init__(self):
@@ -75,6 +75,7 @@ class ClientApp:
         self.running = True
         self.notify_provider_changes = tk.BooleanVar(value=False)  # Valor padrão True (ativado)
         self.control_proxifier = tk.BooleanVar(value=False)
+        self.server_time = None
         self.user32 = ctypes.windll.user32
         self.kernel32 = ctypes.windll.kernel32
         self.virtual_desktop_name = "ProxifierDesktop"
@@ -728,6 +729,17 @@ class ClientApp:
         if providers_text:
             full_text += "\n" + "\n".join(providers_text)
         
+        # Adiciona o horário do servidor (se disponível)
+        if hasattr(self, 'server_time'):
+            try:
+                # Converte a string ISO para objeto datetime
+                server_dt = datetime.fromisoformat(self.server_time)
+                # Formata apenas a hora no padrão brasileiro
+                full_text += f"\nHorário do servidor: {server_dt.strftime('%H:%M:%S')}"
+            except (ValueError, TypeError):
+                # Fallback caso haja problema com o formato
+                full_text += f"\nHorário do servidor: {self.server_time}"
+        
         return full_text
 
     def create_tray_icon(self):
@@ -1035,6 +1047,9 @@ class ClientApp:
                         self.server_status = new_status
                         self.root.after(0, self.update_status_ui)
                     
+                    # Armazena o horário do servidor
+                    self.server_time = data.get('system_time', datetime.now().isoformat())
+                    
                     # Atualiza status dos provedores
                     self.root.after(0, lambda: self.update_providers_status(
                         data.get('coopera_online', False),
@@ -1046,14 +1061,13 @@ class ClientApp:
                 self.root.after(0, self.handle_connection_lost)
                 break
             except socket.timeout:
-                # Timeout pode ocorrer se o servidor não responder
-                continue  # Tenta novamente no próximo ciclo
+                continue
             except Exception as e:
                 print(f"Erro na thread de atualização: {e}")
                 self.root.after(0, self.handle_connection_lost)
                 break
                 
-            time.sleep(1)  # Verifica a cada 1 segundo
+            time.sleep(1)
 
     def update_providers_status(self, coopera_status, claro_status, unifique_status):
         """Atualiza os status dos provedores na interface"""
