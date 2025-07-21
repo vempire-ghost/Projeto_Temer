@@ -47,12 +47,13 @@ def substituir_arquivo(original, novo):
     while tentativa < max_tentativas:
         try:
             if os.path.exists(original):
-                os.remove(original)
-            os.rename(novo, original)
+                os.remove(original)  # Deleta o original
+                time.sleep(2)  # Espera 2 segundos antes de renomear
+            os.rename(novo, original)  # Renomeia o novo para o nome do original
             return True
         except Exception as e:
             tentativa += 1
-            time.sleep(2)
+            time.sleep(2)  # Espera antes de tentar novamente
             if tentativa == max_tentativas:
                 logging.error(f"Falha ao substituir arquivo após {max_tentativas} tentativas: {str(e)}")
                 return False
