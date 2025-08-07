@@ -6,6 +6,13 @@ import psutil
 import logging
 from subprocess import Popen
 
+# Determina o caminho base para arquivos do aplicativo
+if getattr(sys, 'frozen', False):
+    # Se o aplicativo estiver congelado (compilado)
+    application_path = os.path.dirname(sys.executable)
+else:
+    application_path = os.path.dirname(os.path.abspath(__file__))
+
 def configurar_log():
     """Configura o sistema de logging com arquivo e console"""
     # Cria diretório de logs se não existir
