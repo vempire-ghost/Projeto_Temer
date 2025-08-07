@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.10"
+    return "Beta 3.11"
 
 class ClientApp:
     def __init__(self):
@@ -139,9 +139,9 @@ class ClientApp:
                         last_modified = commits[0]['commit']['committer']['date']
                         return datetime.strptime(last_modified, '%Y-%m-%dT%H:%M:%SZ')
                 else:
-                    logging.warning(f"Falha ao acessar API GitHub para {path}. Status code: {response.status_code}")
+                    client_logger.warning(f"Falha ao acessar API GitHub para {path}. Status code: {response.status_code}")
             except Exception as e:
-                logging.error(f"Erro ao acessar API GitHub para {path}: {str(e)}", exc_info=True)
+                client_logger.error(f"Erro ao acessar API GitHub para {path}: {str(e)}", exc_info=True)
             return None
         
         for arquivo, (repo, path) in arquivos_necessarios.items():
@@ -150,7 +150,7 @@ class ClientApp:
             
             if not os.path.exists(arquivo):
                 precisa_baixar = True
-                logging.info(f"Arquivo {arquivo} não encontrado localmente. Iniciando download...")
+                client_logger.info(f"Arquivo {arquivo} não encontrado localmente. Iniciando download...")
             else:
                 try:
                     if arquivo == "cliente_temer.exe":
@@ -162,7 +162,7 @@ class ClientApp:
                             
                             if data_remota > data_local:
                                 precisa_baixar = True
-                                logging.info(f"Executável desatualizado. GitHub: {data_remota}, Local: {data_local}")
+                                client_logger.info(f"Executável desatualizado. GitHub: {data_remota}, Local: {data_local}")
                     else:
                         response = requests.head(download_url, timeout=10)
                         if response.status_code == 200:
@@ -171,12 +171,12 @@ class ClientApp:
                             if tamanho_remoto != tamanho_local:
                                 precisa_baixar = True
                 except Exception as e:
-                    logging.error(f"Erro ao verificar {arquivo}: {str(e)}", exc_info=True)
+                    client_logger.error(f"Erro ao verificar {arquivo}: {str(e)}", exc_info=True)
                     continue
             
             if precisa_baixar:
                 try:
-                    logging.info(f"Iniciando download do arquivo {arquivo}...")
+                    client_logger.info(f"Iniciando download do arquivo {arquivo}...")
                     response = requests.get(download_url, timeout=30)
                     if response.status_code == 200:
                         if arquivo == "cliente_temer.exe":
@@ -201,15 +201,15 @@ class ClientApp:
                                     "--pid", str(os.getpid())
                                 ], creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
                                 
-                                logging.warning("ATENÇÃO: Executável atualizado. O aplicativo será reiniciado automaticamente.")
+                                client_logger.warning("ATENÇÃO: Executável atualizado. O aplicativo será reiniciado automaticamente.")
                                 sys.exit(0)
                             else:
-                                logging.error("Falha ao baixar o atualizador")
+                                client_logger.error("Falha ao baixar o atualizador")
                         else:
                             with open(arquivo, 'wb') as f:
                                 f.write(response.content)
                 except Exception as e:
-                    logging.error(f"Erro durante o download de {arquivo}: {str(e)}", exc_info=True)
+                    client_logger.error(f"Erro durante o download de {arquivo}: {str(e)}", exc_info=True)
         
         return executavel_atualizado
 
@@ -421,9 +421,9 @@ class ClientApp:
                 client_logger.info(f"Usando caminho do Proxifier das configurações: {saved_path}")
                 return os.path.abspath(saved_path)
             elif saved_path:
-                logging.warning(f"Caminho do Proxifier nas configurações não existe mais: {saved_path}")
+                client_logger.warning(f"Caminho do Proxifier nas configurações não existe mais: {saved_path}")
         except Exception as e:
-            logging.warning(f"Erro ao verificar caminho do Proxifier nas configurações: {str(e)}")
+            client_logger.warning(f"Erro ao verificar caminho do Proxifier nas configurações: {str(e)}")
 
         client_logger.info("Iniciando busca completa pelo Proxifier no sistema...")
         
@@ -444,9 +444,9 @@ class ClientApp:
                     
                 client_logger.info(f"Caminho do Proxifier salvo nas configurações: {proxifier_path}")
             except Exception as e:
-                logging.error(f"Erro ao salvar caminho do Proxifier: {str(e)}")
+                client_logger.error(f"Erro ao salvar caminho do Proxifier: {str(e)}")
         else:
-            logging.warning("Proxifier não encontrado no sistema")
+            client_logger.warning("Proxifier não encontrado no sistema")
         
         return proxifier_path
 
@@ -544,7 +544,7 @@ class ClientApp:
                 return os.path.abspath(path)
 
         except Exception as e:
-            logging.error(f"Erro ao tentar localizar o Proxifier: {str(e)}")
+            client_logger.error(f"Erro ao tentar localizar o Proxifier: {str(e)}")
         
         return None
 
@@ -583,7 +583,7 @@ class ClientApp:
             proxifier_path = self.find_proxifier_path()
             
             if not proxifier_path:
-                logging.error("Não foi possível localizar o Proxifier no sistema")
+                client_logger.error("Não foi possível localizar o Proxifier no sistema")
                 return False
             
             # Cria um novo desktop virtual invisível
@@ -597,7 +597,7 @@ class ClientApp:
             )
             
             if not new_desktop:
-                logging.error("Falha ao criar desktop virtual")
+                client_logger.error("Falha ao criar desktop virtual")
                 return False
             
             try:
@@ -664,11 +664,11 @@ class ClientApp:
                     self.kernel32.CloseHandle(process_info.hProcess)
                     self.kernel32.CloseHandle(process_info.hThread)
                     
-                    logging.info(f"Proxifier iniciado em desktop virtual: {proxifier_path}")
+                    client_logger.info(f"Proxifier iniciado em desktop virtual: {proxifier_path}")
                     return True
                 else:
                     error_code = self.kernel32.GetLastError()
-                    logging.error(f"Falha ao criar processo no desktop virtual. Código: {error_code}")
+                    client_logger.error(f"Falha ao criar processo no desktop virtual. Código: {error_code}")
                     return False
                     
             finally:
@@ -676,7 +676,7 @@ class ClientApp:
                 pass
                 
         except Exception as e:
-            logging.error(f"Erro ao iniciar Proxifier: {str(e)}")
+            client_logger.error(f"Erro ao iniciar Proxifier: {str(e)}")
             return False
 
     def is_proxifier_running(self):
@@ -686,7 +686,7 @@ class ClientApp:
             output = os.popen('tasklist /FI "IMAGENAME eq Proxifier.exe"').read()
             return "Proxifier.exe" in output
         except Exception as e:
-            logging.error(f"Erro ao verificar se Proxifier está rodando: {str(e)}")
+            client_logger.error(f"Erro ao verificar se Proxifier está rodando: {str(e)}")
             return False
 
     def stop_proxifier(self):
@@ -695,7 +695,7 @@ class ClientApp:
             os.system('taskkill /f /im proxifier.exe >nul 2>&1')
             client_logger.info("Proxifier encerrado com sucesso")
         except Exception as e:
-            logging.error(f"Erro ao encerrar Proxifier: {str(e)}")
+            client_logger.error(f"Erro ao encerrar Proxifier: {str(e)}")
 
     def check_and_control_proxifier(self):
         """Verifica o status e controla o Proxifier conforme necessário"""
