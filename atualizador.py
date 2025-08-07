@@ -6,17 +6,28 @@ import psutil
 import logging
 from subprocess import Popen
 
-# Determina o caminho base para arquivos do aplicativo
 if getattr(sys, 'frozen', False):
-    # Se o aplicativo estiver congelado (compilado)
-    application_path = os.path.dirname(sys.executable)
-else:
-    application_path = os.path.dirname(os.path.abspath(__file__))
+    # Cria a pasta logs se não existir no executável
+    log_dir = os.path.join(os.path.dirname(sys.executable), 'logs')
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
+def get_app_path():
+    """Obtém o caminho correto tanto para script quanto para executável"""
+    if getattr(sys, 'frozen', False):
+        # Executável compilado
+        return os.path.dirname(sys.executable)
+    else:
+        # Script Python
+        return os.path.dirname(os.path.abspath(__file__))
 
 def configurar_log():
     """Configura o sistema de logging com arquivo e console"""
+    # Obtém o caminho base correto
+    app_path = get_app_path()
+    
     # Cria diretório de logs se não existir
-    log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+    log_dir = os.path.join(app_path, 'logs')
     os.makedirs(log_dir, exist_ok=True)
     
     # Configuração detalhada do logging
