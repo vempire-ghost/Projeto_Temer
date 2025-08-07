@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.11"
+    return "Beta 3.12"
 
 class ClientApp:
     def __init__(self):
@@ -123,7 +123,7 @@ class ClientApp:
             "server_status_desligado.png": ("vempire-ghost/Projeto_Temer", "server_status_desligado.png"),
             "server_status_ligado.png": ("vempire-ghost/Projeto_Temer", "server_status_ligado.png"),
             "server_status_operacional.png": ("vempire-ghost/Projeto_Temer", "server_status_operacional.png"),
-            "server_status_amarelow.png": ("vempire-ghost/Projeto_Temer", "server_status_amarelow.png"),  # Novo ícone adicionado
+            "server_status_amarelow.png": ("vempire-ghost/Projeto_Temer", "server_status_amarelow.png"),
             "cliente_temer.exe": ("vempire-ghost/Projeto_Temer", "dist/cliente_temer.exe")
         }
 
@@ -178,38 +178,73 @@ class ClientApp:
                 try:
                     client_logger.info(f"Iniciando download do arquivo {arquivo}...")
                     response = requests.get(download_url, timeout=30)
-                    if response.status_code == 200:
-                        if arquivo == "cliente_temer.exe":
-                            temp_name = "cliente_temer_new.exe"
-                            with open(temp_name, 'wb') as f:
-                                f.write(response.content)
-                            
-                            # Baixa o atualizador somente quando necessário
-                            atualizador_url = "https://raw.githubusercontent.com/vempire-ghost/Projeto_Temer/main/dist/atualizador.exe"
+                    
+                    if response.status_code != 200:
+                        client_logger.error(f"Falha no download. Status code: {response.status_code}")
+                        client_logger.debug(f"Resposta do servidor: {response.text[:200]}...")  # Log parcial do conteúdo
+                        continue
+                    
+                    if arquivo == "cliente_temer.exe":
+                        temp_name = "cliente_temer_new.exe"
+                        with open(temp_name, 'wb') as f:
+                            f.write(response.content)
+                        
+                        # Baixa o atualizador
+                        atualizador_url = "https://raw.githubusercontent.com/vempire-ghost/Projeto_Temer/main/dist/atualizador.exe"
+                        client_logger.info("Iniciando download do atualizador...")
+                        
+                        try:
                             response_atualizador = requests.get(atualizador_url, timeout=30)
                             
-                            if response_atualizador.status_code == 200:
-                                with open("atualizador.exe", 'wb') as f:
-                                    f.write(response_atualizador.content)
+                            if response_atualizador.status_code != 200:
+                                client_logger.error(f"Falha no download do atualizador. Status: {response_atualizador.status_code}")
+                                client_logger.error(f"URL do atualizador: {atualizador_url}")
+                                client_logger.debug(f"Resposta do servidor: {response_atualizador.text[:200]}...")
+                                continue
                                 
-                                # Executa o atualizador
-                                import subprocess
-                                subprocess.Popen([
-                                    "atualizador.exe",
-                                    "--original", "cliente_temer.exe",
-                                    "--novo", temp_name,
-                                    "--pid", str(os.getpid())
-                                ], creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
-                                
-                                client_logger.warning("ATENÇÃO: Executável atualizado. O aplicativo será reiniciado automaticamente.")
-                                sys.exit(0)
-                            else:
-                                client_logger.error("Falha ao baixar o atualizador")
-                        else:
-                            with open(arquivo, 'wb') as f:
-                                f.write(response.content)
+                            with open("atualizador.exe", 'wb') as f:
+                                f.write(response_atualizador.content)
+                            
+                            client_logger.info("Executando atualizador...")
+                            subprocess.Popen([
+                                "atualizador.exe",
+                                "--original", "cliente_temer.exe",
+                                "--novo", temp_name,
+                                "--pid", str(os.getpid())
+                            ], creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
+                            
+                            client_logger.warning("ATENÇÃO: Executável atualizado. O aplicativo será reiniciado automaticamente.")
+                            sys.exit(0)
+                            
+                        except requests.exceptions.RequestException as e:
+                            client_logger.error(f"Erro na requisição do atualizador: {str(e)}", exc_info=True)
+                            client_logger.error(f"Tipo de exceção: {type(e).__name__}")
+                            if hasattr(e, 'response'):
+                                client_logger.error(f"Response status: {e.response.status_code}")
+                        
+                        except Exception as e:
+                            client_logger.error(f"Erro inesperado ao baixar/executar atualizador: {str(e)}", exc_info=True)
+                    
+                    else:
+                        with open(arquivo, 'wb') as f:
+                            f.write(response.content)
+                        client_logger.info(f"Arquivo {arquivo} baixado com sucesso")
+                
+                except requests.exceptions.Timeout:
+                    client_logger.error(f"Timeout ao baixar {arquivo}. Servidor não respondeu em 30 segundos")
+                
+                except requests.exceptions.SSLError:
+                    client_logger.error(f"Erro de SSL ao baixar {arquivo}", exc_info=True)
+                
+                except requests.exceptions.ConnectionError:
+                    client_logger.error(f"Erro de conexão ao baixar {arquivo}. Verifique sua internet")
+                
+                except requests.exceptions.RequestException as e:
+                    client_logger.error(f"Erro na requisição para {arquivo}: {str(e)}", exc_info=True)
+                    client_logger.error(f"Tipo de exceção: {type(e).__name__}")
+                
                 except Exception as e:
-                    client_logger.error(f"Erro durante o download de {arquivo}: {str(e)}", exc_info=True)
+                    client_logger.error(f"Erro inesperado ao baixar {arquivo}: {str(e)}", exc_info=True)
         
         return executavel_atualizado
 
