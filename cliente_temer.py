@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.9"
+    return "Beta 3.10"
 
 class ClientApp:
     def __init__(self):
@@ -123,9 +123,10 @@ class ClientApp:
             "server_status_desligado.png": ("vempire-ghost/Projeto_Temer", "server_status_desligado.png"),
             "server_status_ligado.png": ("vempire-ghost/Projeto_Temer", "server_status_ligado.png"),
             "server_status_operacional.png": ("vempire-ghost/Projeto_Temer", "server_status_operacional.png"),
+            "server_status_amarelow.png": ("vempire-ghost/Projeto_Temer", "server_status_amarelow.png"),  # Novo ícone adicionado
             "cliente_temer.exe": ("vempire-ghost/Projeto_Temer", "dist/cliente_temer.exe")
         }
-        
+
         executavel_atualizado = False
         
         def get_github_file_last_modified(repo, path):
@@ -807,10 +808,36 @@ class ClientApp:
     def update_tray_icon(self):
         """Atualiza o ícone na bandeja com base no status"""
         if not self.connected or self.reconnect_attempts > 0:
+            # Vermelho quando desconectado ou tentando reconectar
             self.tray_icon.icon = self.red_icon
-        elif self.server_status:
-            self.tray_icon.icon = self.green_icon
+        elif self.connected:
+            if (hasattr(self, 'coopera_status') and 
+                hasattr(self, 'claro_status') and 
+                hasattr(self, 'unifique_status')):
+                
+                # Verifica se todos os provedores estão online
+                if self.coopera_status and self.claro_status and self.unifique_status:
+                    # Verde - conectado e todos os provedores online
+                    self.tray_icon.icon = self.green_icon
+                else:
+                    # Amarelo - conectado mas algum provedor offline
+                    try:
+                        # Carrega a imagem amarela se não estiver carregada
+                        if not hasattr(self, 'yellow_icon'):
+                            image_path = "server_status_amarelow.png"
+                            self.yellow_icon = Image.open(image_path).convert("RGBA")
+                            if self.yellow_icon.size != (64, 64):
+                                self.yellow_icon = self.yellow_icon.resize((64, 64), Image.Resampling.LANCZOS)
+                        self.tray_icon.icon = self.yellow_icon
+                    except Exception as e:
+                        print(f"Erro ao carregar ícone amarelo: {e}")
+                        # Fallback para azul se não conseguir carregar o amarelo
+                        self.tray_icon.icon = self.blue_icon
+            else:
+                # Azul - conectado mas sem verificação de provedores
+                self.tray_icon.icon = self.blue_icon
         else:
+            # Azul padrão para outros casos
             self.tray_icon.icon = self.blue_icon
         
         if hasattr(self.tray_icon, '_update_icon'):
@@ -1084,25 +1111,18 @@ class ClientApp:
         self.claro_status = claro_status
         self.unifique_status = unifique_status
         
-        # Coopera
-        if coopera_status:
-            self.coopera_label.config(text="Coopera: Online", fg="green")
-        else:
-            self.coopera_label.config(text="Coopera: Offline", fg="red")
+        # Atualiza labels
+        self.coopera_label.config(text=f"Coopera: {'Online' if coopera_status else 'Offline'}",
+                                fg="green" if coopera_status else "red")
+        self.claro_label.config(text=f"Claro: {'Online' if claro_status else 'Offline'}",
+                              fg="green" if claro_status else "red")
+        self.unifique_label.config(text=f"Unifique: {'Online' if unifique_status else 'Offline'}",
+                                 fg="green" if unifique_status else "red")
         
-        # Claro
-        if claro_status:
-            self.claro_label.config(text="Claro: Online", fg="green")
-        else:
-            self.claro_label.config(text="Claro: Offline", fg="red")
+        # Atualiza o tray icon quando os provedores mudam
+        self.update_tray_icon()
         
-        # Unifique
-        if unifique_status:
-            self.unifique_label.config(text="Unifique: Online", fg="green")
-        else:
-            self.unifique_label.config(text="Unifique: Offline", fg="red")
-        
-        # Atualiza o tooltip do tray icon
+        # Atualiza o tooltip
         if hasattr(self, 'tray_icon'):
             self.tray_icon.title = self.get_tray_tooltip()
             if hasattr(self.tray_icon, '_update_icon'):
