@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.12"
+    return "Beta 3.13"
 
 class ClientApp:
     def __init__(self):
@@ -784,6 +784,7 @@ class ClientApp:
         self.red_icon = self.create_icon_image("red")
         self.blue_icon = self.create_icon_image("blue")
         self.green_icon = self.create_icon_image("green")
+        self.yellow_icon = self.create_icon_image("yellow")
         
         # Menu do tray icon (agora com a opção de desligamento)
         menu = (
@@ -803,78 +804,64 @@ class ClientApp:
         threading.Thread(target=self.tray_icon.run, daemon=True).start()
 
     def create_icon_image(self, color):
-        """Cria uma imagem para o tray icon com a imagem especificada"""
+        """Cria uma imagem para o tray icon com a cor especificada"""
         try:
-            if color == "red":
-                image_path = "server_status_desligado.png"
-            elif color == "blue":
-                image_path = "server_status_ligado.png"
-            elif color == "green":
-                image_path = "server_status_operacional.png"
-            else:
-                # Fallback para uma imagem padrão se a cor não for reconhecida
-                image_path = "server_status_desligado.png"
-            
-            # Carrega a imagem do arquivo
+            image_map = {
+                "red": "server_status_desligado.png",
+                "blue": "server_status_ligado.png",
+                "green": "server_status_operacional.png",
+                "yellow": "server_status_amarelow.png"
+            }
+
+            image_path = image_map.get(color, image_map["red"])
             image = Image.open(image_path).convert("RGBA")
-            
-            # Redimensiona para 64x64 se necessário (opcional)
+
             if image.size != (64, 64):
                 image = image.resize((64, 64), Image.Resampling.LANCZOS)
-                
+
             return image
+
         except Exception as e:
-            print(f"Erro ao carregar imagem do ícone: {e}")
-            # Fallback: cria um ícone sólido se a imagem não puder ser carregada
-            width = 64
-            height = 64
-            image = Image.new('RGB', (width, height), (0, 0, 0, 0))
+            print(f"Erro ao carregar imagem do ícone ({color}): {e}")
+            # Fallback: cria um ícone sólido
+            width, height = 64, 64
+            image = Image.new("RGB", (width, height), (0, 0, 0, 0))
             dc = ImageDraw.Draw(image)
-            
-            if color == "red":
-                dc.rectangle((0, 0, width, height), fill=(255, 0, 0))
-            elif color == "blue":
-                dc.rectangle((0, 0, width, height), fill=(0, 0, 255))
-            elif color == "green":
-                dc.rectangle((0, 0, width, height), fill=(0, 255, 0))
-            
+
+            colors = {
+                "red": (255, 0, 0),
+                "blue": (0, 0, 255),
+                "green": (0, 255, 0),
+                "yellow": (255, 255, 0)
+            }
+            dc.rectangle((0, 0, width, height), fill=colors.get(color, (255, 0, 0)))
+
             return image
+
 
     def update_tray_icon(self):
         """Atualiza o ícone na bandeja com base no status"""
+        # 1️⃣ Vermelho - não conectado ou tentando reconectar
         if not self.connected or self.reconnect_attempts > 0:
-            # Vermelho quando desconectado ou tentando reconectar
             self.tray_icon.icon = self.red_icon
-        elif self.connected:
-            if (hasattr(self, 'coopera_status') and 
-                hasattr(self, 'claro_status') and 
-                hasattr(self, 'unifique_status')):
-                
-                # Verifica se todos os provedores estão online
-                if self.coopera_status and self.claro_status and self.unifique_status:
-                    # Verde - conectado e todos os provedores online
-                    self.tray_icon.icon = self.green_icon
-                else:
-                    # Amarelo - conectado mas algum provedor offline
-                    try:
-                        # Carrega a imagem amarela se não estiver carregada
-                        if not hasattr(self, 'yellow_icon'):
-                            image_path = "server_status_amarelow.png"
-                            self.yellow_icon = Image.open(image_path).convert("RGBA")
-                            if self.yellow_icon.size != (64, 64):
-                                self.yellow_icon = self.yellow_icon.resize((64, 64), Image.Resampling.LANCZOS)
-                        self.tray_icon.icon = self.yellow_icon
-                    except Exception as e:
-                        print(f"Erro ao carregar ícone amarelo: {e}")
-                        # Fallback para azul se não conseguir carregar o amarelo
-                        self.tray_icon.icon = self.blue_icon
+
+        # 2️⃣ Verde ou Amarelo - conectado e self.server_status = True
+        elif self.server_status:
+            coopera = getattr(self, "coopera_status", False)
+            claro = getattr(self, "claro_status", False)
+            unifique = getattr(self, "unifique_status", False)
+
+            # Todos provedores online → verde
+            if coopera and claro and unifique:
+                self.tray_icon.icon = self.green_icon
+            # Algum provedor offline → amarelo
             else:
-                # Azul - conectado mas sem verificação de provedores
-                self.tray_icon.icon = self.blue_icon
+                self.tray_icon.icon = self.yellow_icon
+
+        # 3️⃣ Azul - conectado mas server_status = False
         else:
-            # Azul padrão para outros casos
             self.tray_icon.icon = self.blue_icon
-        
+
         if hasattr(self.tray_icon, '_update_icon'):
             self.tray_icon._update_icon()
 
