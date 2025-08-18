@@ -5,7 +5,7 @@ import json
 import threading
 import time
 import pystray
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageTk
 import sys
 import configparser
 import os
@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.13"
+    return "Beta 3.14"
 
 class ClientApp:
     def __init__(self):
@@ -376,55 +376,90 @@ class ClientApp:
 
 # FUNÇÃO PARA CRIAR A INTERFACE DO PROGRAMA.    
     def setup_ui(self):
-        """Configura a interface do usuário"""
+        """Configura a interface do usuário com ícones de status no canto superior direito"""
         # Frame principal com borda
         main_frame = tk.Frame(self.root, bd=2, relief=tk.GROOVE, padx=5, pady=5)
         main_frame.pack(padx=10, pady=(10, 0), fill=tk.BOTH, expand=True)
         
-        # Frame para o conteúdo
+        # Frame para o conteúdo com grid
         content_frame = tk.Frame(main_frame)
         content_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
+        # Configuração do grid (3 colunas - conteúdo | conteúdo | ícones)
+        content_frame.columnconfigure(0, weight=1)
+        content_frame.columnconfigure(1, weight=1)
+        content_frame.columnconfigure(2, weight=0)  # Coluna dos ícones
+        
+        # Carrega as imagens dos ícones de status (40x40)
+        self.status_images = {
+            "red": self._load_status_image("server_status_desligado.png"),
+            "blue": self._load_status_image("server_status_ligado.png"),
+            "green": self._load_status_image("server_status_operacional.png"),
+            "yellow": self._load_status_image("server_status_amarelow.png")
+        }
+        
+        # Frame para os ícones de status (canto superior direito)
+        self.status_icon_frame = tk.Frame(content_frame)
+        self.status_icon_frame.grid(row=0, column=2, rowspan=4, sticky="ne", padx=5, pady=5)
+        
+        # Label para o ícone de status (inicia com vermelho)
+        self.status_icon_label = tk.Label(self.status_icon_frame, image=self.status_images["red"])
+        self.status_icon_label.pack()
+        
+        # Tooltip para o ícone de status
+        self._create_icon_tooltip()
+        
+        # --- Seção de configurações ---
         # Entrada de IP
-        tk.Label(content_frame, text="IP do Servidor:").grid(row=0, column=0, sticky="w", pady=(0, 5))
-        tk.Entry(content_frame, textvariable=self.server_ip).grid(row=0, column=1, pady=(0, 5))
+        tk.Label(content_frame, text="IP do Servidor:").grid(
+            row=0, column=0, sticky="w", pady=(0, 5))
+        tk.Entry(content_frame, textvariable=self.server_ip).grid(
+            row=0, column=1, pady=(0, 5), sticky="ew")
         
         # Entrada de Porta
-        tk.Label(content_frame, text="Porta:").grid(row=1, column=0, sticky="w", pady=(0, 5))
-        tk.Entry(content_frame, textvariable=self.server_port).grid(row=1, column=1, pady=(0, 5))
+        tk.Label(content_frame, text="Porta:").grid(
+            row=1, column=0, sticky="w", pady=(0, 5))
+        tk.Entry(content_frame, textvariable=self.server_port).grid(
+            row=1, column=1, pady=(0, 5), sticky="ew")
         
         # Checkboxes
-        tk.Checkbutton(content_frame, text="Iniciar com Windows", variable=self.start_with_windows).grid(
+        tk.Checkbutton(content_frame, text="Iniciar com Windows", 
+                      variable=self.start_with_windows).grid(
             row=2, column=0, columnspan=2, sticky="w", pady=(0, 5))
-        tk.Checkbutton(content_frame, text="Iniciar minimizado", variable=self.start_minimized).grid(
+        
+        tk.Checkbutton(content_frame, text="Iniciar minimizado", 
+                      variable=self.start_minimized).grid(
             row=3, column=0, columnspan=2, sticky="w", pady=(0, 5))
-        # Novo checkbox para notificações
-        tk.Checkbutton(content_frame, text="Notificar mudanças nos provedores", variable=self.notify_provider_changes).grid(
+        
+        tk.Checkbutton(content_frame, text="Notificar mudanças nos provedores", 
+                      variable=self.notify_provider_changes).grid(
             row=4, column=0, columnspan=2, sticky="w", pady=(0, 10))
-
+        
         tk.Checkbutton(content_frame, text="Controlar Proxifier automaticamente", 
                       variable=self.control_proxifier).grid(
             row=5, column=0, columnspan=2, sticky="w", pady=(0, 10))
         
-        # Botões
+        # --- Seção de botões ---
         btn_frame = tk.Frame(content_frame)
-        btn_frame.grid(row=6, columnspan=2, pady=(0, 10))
+        btn_frame.grid(row=6, column=0, columnspan=3, pady=(0, 10))
         
-        tk.Button(btn_frame, text="Conectar", command=self.auto_connect).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Desconectar", command=self.disconnect).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Salvar Config", command=self.save_config).pack(side=tk.LEFT, padx=5)
-        #tk.Button(btn_frame, text="Abrir Proxifier", command=self.switch_to_virtual_desktop).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Sair", command=self.quit_app).pack(side=tk.RIGHT, padx=5)
+        tk.Button(btn_frame, text="Conectar", command=self.auto_connect).pack(
+            side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Desconectar", command=self.disconnect).pack(
+            side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Salvar Config", command=self.save_config).pack(
+            side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Sair", command=self.quit_app).pack(
+            side=tk.RIGHT, padx=5)
         
-        # Status
+        # --- Seção de status ---
         self.status_label = tk.Label(content_frame, text="Status: Desconectado", fg="red")
-        self.status_label.grid(row=7, columnspan=2, pady=(0, 5))
+        self.status_label.grid(row=7, column=0, columnspan=3, pady=(0, 5))
         
-        # Frame para status dos provedores
+        # Status dos provedores
         self.providers_frame = tk.Frame(content_frame)
-        self.providers_frame.grid(row=8, columnspan=2, pady=(5, 10), sticky="ew")
+        self.providers_frame.grid(row=8, column=0, columnspan=3, pady=(5, 10), sticky="ew")
         
-        # Labels para status dos provedores
         self.coopera_label = tk.Label(self.providers_frame, text="Coopera: Offline", fg="red")
         self.coopera_label.pack(side=tk.LEFT, padx=5)
         
@@ -434,17 +469,90 @@ class ClientApp:
         self.unifique_label = tk.Label(self.providers_frame, text="Unifique: Offline", fg="red")
         self.unifique_label.pack(side=tk.LEFT, padx=5)
         
-        # Cria o frame para o rodapé da janela
+        # --- Rodapé ---
         self.footer_frame = tk.Frame(self.root, bg='lightgray', borderwidth=1, relief=tk.RAISED)
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
-        # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text=f"Projeto Xandão - ©VempirE_GhosT - Versão: {get_version()}", bg='lightgray', fg='black')
+        self.version_label = tk.Label(
+            self.footer_frame, 
+            text=f"Projeto Xandão - ©VempirE_GhosT - Versão: {get_version()}", 
+            bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
-        # Se estiver minimizado, garante que a janela não será mostrada
+        # Mostra a janela se não estiver configurado para iniciar minimizado
         if not self.start_minimized.get():
-            self.root.deiconify()  # Mostra a janela apenas se não for para iniciar minimizado
+            self.root.deiconify()
+
+    def _load_status_image(self, filename):
+        """Carrega e redimensiona uma imagem para o ícone de status (40x40)"""
+        try:
+            img = Image.open(filename)
+            img = img.resize((40, 40), Image.Resampling.LANCZOS)
+            return ImageTk.PhotoImage(img)
+        except Exception as e:
+            client_logger.error(f"Erro ao carregar imagem {filename}: {e}")
+            # Fallback: cria um círculo colorido
+            img = Image.new("RGBA", (40, 40), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(img)
+            color = (255, 0, 0) if "desligado" in filename else (
+                    (0, 0, 255) if "ligado" in filename else (
+                    (0, 255, 0) if "operacional" in filename else (255, 255, 0)))
+            draw.ellipse((5, 5, 35, 35), fill=color)
+            return ImageTk.PhotoImage(img)
+
+    def update_status_icon(self):
+        """Atualiza o ícone de status na interface principal"""
+        # 1️⃣ Vermelho - não conectado ou tentando reconectar
+        if not self.connected or self.reconnect_attempts > 0:
+            self.status_icon_label.config(image=self.status_images["red"])
+
+        # 2️⃣ Verde ou Amarelo - conectado e self.server_status = True
+        elif self.server_status:
+            coopera = getattr(self, "coopera_status", False)
+            claro = getattr(self, "claro_status", False)
+            unifique = getattr(self, "unifique_status", False)
+
+            # Todos provedores online → verde
+            if coopera and claro and unifique:
+                self.status_icon_label.config(image=self.status_images["green"])
+            # Algum provedor offline → amarelo
+            else:
+                self.status_icon_label.config(image=self.status_images["yellow"])
+
+        # 3️⃣ Azul - conectado mas server_status = False
+        else:
+            self.status_icon_label.config(image=self.status_images["blue"])
+
+    def _create_icon_tooltip(self):
+        """Cria um tooltip para o ícone de status"""
+        self.tooltip = tk.Toplevel(self.root)
+        self.tooltip.withdraw()
+        self.tooltip.overrideredirect(True)
+        self.tooltip_label = tk.Label(
+            self.tooltip, 
+            text="", 
+            bg="lightyellow", 
+            relief="solid", 
+            borderwidth=1,
+            justify='left')
+        self.tooltip_label.pack()
+        
+        # Vincula eventos para mostrar/esconder o tooltip
+        self.status_icon_label.bind("<Enter>", self._show_icon_tooltip)
+        self.status_icon_label.bind("<Leave>", lambda e: self.tooltip.withdraw())
+
+    def _show_icon_tooltip(self, event):
+        """Mostra o tooltip com informações de status"""
+        if hasattr(self, 'get_tray_tooltip'):
+            text = self.get_tray_tooltip()
+            self.tooltip_label.config(text=text)
+            
+            # Posiciona o tooltip próximo ao ícone
+            x = self.root.winfo_rootx() + self.status_icon_frame.winfo_x() + 50
+            y = self.root.winfo_rooty() + self.status_icon_frame.winfo_y() + 20
+            
+            self.tooltip.geometry(f"+{x}+{y}")
+            self.tooltip.deiconify()
 
 # FUNÇÃO PARA LOCALIZAR E INICIAR O PROXIFIER.
     def find_proxifier_path(self):
@@ -924,6 +1032,7 @@ class ClientApp:
             try:
                 # Atualiza ícone para vermelho enquanto tenta conectar
                 self.root.after(0, self.update_tray_icon)
+                self.root.after(0, self.update_status_icon),
                 self.root.after(0, lambda: self.status_label.config(
                     text="Status: Desconectado", 
                     fg="red"))
@@ -974,6 +1083,7 @@ class ClientApp:
         try:
             # Atualiza ícone para vermelho enquanto tenta conectar
             self.root.after(0, self.update_tray_icon)
+            self.root.after(0, self.update_status_icon)
             
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.settimeout(3)
@@ -989,6 +1099,7 @@ class ClientApp:
                 text="Status: Conectado", 
                 fg="blue"))
             self.root.after(0, self.update_tray_icon)
+            self.root.after(0, self.update_status_icon)
             
             # Inicia thread de atualização
             self.running = True
@@ -1000,6 +1111,7 @@ class ClientApp:
             print(f"Erro na conexão: {e}")
             # Atualiza ícone para vermelho
             self.root.after(0, self.update_tray_icon)
+            self.root.after(0, self.update_status_icon)
             
             if self.auto_reconnect and self.reconnect_attempts < self.max_reconnect_attempts:
                 self.reconnect_attempts += 1
@@ -1030,6 +1142,7 @@ class ClientApp:
         
         # Atualiza o tray icon
         self.root.after(0, self.update_tray_icon)
+        self.root.after(0, self.update_status_icon)
         
         # Atualiza o tooltip do tray icon (que será atualizado pelo get_tray_tooltip)
         if hasattr(self, 'tray_icon'):
@@ -1067,6 +1180,7 @@ class ClientApp:
                 text="Status: Desconectado", 
                 fg="red"))
             self.update_tray_icon()
+            self.update_status_icon()
 
     def handle_connection_lost(self):
         """Lida com perda de conexão"""
@@ -1143,6 +1257,7 @@ class ClientApp:
         
         # Atualiza o tray icon quando os provedores mudam
         self.update_tray_icon()
+        self.update_status_icon()
         
         # Atualiza o tooltip
         if hasattr(self, 'tray_icon'):
@@ -1173,6 +1288,7 @@ class ClientApp:
             self.status_label.config(text="Status: Conectado", fg="blue")
         
         self.update_tray_icon()
+        self.update_status_icon()
         self.check_and_control_proxifier()  # Adicione esta linha
         
         # Atualiza o tooltip do tray icon
