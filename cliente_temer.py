@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.14"
+    return "Beta 3.15"
 
 class ClientApp:
     def __init__(self):
@@ -124,6 +124,9 @@ class ClientApp:
             "server_status_ligado.png": ("vempire-ghost/Projeto_Temer", "server_status_ligado.png"),
             "server_status_operacional.png": ("vempire-ghost/Projeto_Temer", "server_status_operacional.png"),
             "server_status_amarelow.png": ("vempire-ghost/Projeto_Temer", "server_status_amarelow.png"),
+            "bom dia.png": ("vempire-ghost/Projeto_Temer", "bom dia.png"),  # ← NOVO
+            "boa tarde.png": ("vempire-ghost/Projeto_Temer", "boa tarde.png"),  # ← NOVO
+            "boa noite.png": ("vempire-ghost/Projeto_Temer", "boa noite.png"),  # ← NOVO
             "cliente_temer.exe": ("vempire-ghost/Projeto_Temer", "dist/cliente_temer.exe")
         }
 
@@ -320,10 +323,10 @@ class ClientApp:
                 'control_proxifier': 'False'
             }
             self.config['WINDOW'] = {
-                'x': '100',
-                'y': '100',
-                'width': '400',
-                'height': '300'
+                'x': '200',
+                'y': '200',
+                'width': '404',
+                'height': '532'
             }
             self.config['PROXIFIER'] = {
                 'path': ''
@@ -376,6 +379,10 @@ class ClientApp:
 
 # FUNÇÃO PARA CRIAR A INTERFACE DO PROGRAMA.    
     def setup_ui(self):
+        """Configura a interface do usuário com ícones de status no canto superior direito"""
+        # DEFINA O TAMANHO DA JANELA AQUI (largura x altura)
+        self.root.minsize(404, 532)    # ← Tamanho mínimo opcional
+        
         """Configura a interface do usuário com ícones de status no canto superior direito"""
         # Frame principal com borda
         main_frame = tk.Frame(self.root, bd=2, relief=tk.GROOVE, padx=5, pady=5)
@@ -469,6 +476,15 @@ class ClientApp:
         self.unifique_label = tk.Label(self.providers_frame, text="Unifique: Offline", fg="red")
         self.unifique_label.pack(side=tk.LEFT, padx=5)
         
+        # --- NOVO: Frame para a imagem de saudação DENTRO do content_frame ---
+        self.saudacao_frame = tk.Frame(content_frame, height=174)
+        self.saudacao_frame.grid(row=9, column=0, columnspan=3, pady=(10, 5), sticky="ew")
+        self.saudacao_frame.grid_propagate(False)  # Mantém a altura fixa
+        
+        # Label para a imagem de saudação (centralizada)
+        self.saudacao_label = tk.Label(self.saudacao_frame, bg='white')
+        self.saudacao_label.pack(expand=True)
+        
         # --- Rodapé ---
         self.footer_frame = tk.Frame(self.root, bg='lightgray', borderwidth=1, relief=tk.RAISED)
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
@@ -479,9 +495,67 @@ class ClientApp:
             bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
+        # Carrega e exibe a imagem de saudação conforme o horário
+        self.atualizar_saudacao()
+
         # Mostra a janela se não estiver configurado para iniciar minimizado
         if not self.start_minimized.get():
             self.root.deiconify()
+
+    def atualizar_saudacao(self):
+        """Atualiza a imagem de saudação conforme o horário do computador"""
+        hora_atual = datetime.now().hour
+        
+        # Determina qual imagem carregar
+        if 6 <= hora_atual < 12:
+            imagem_path = "bom dia.png"
+        elif 12 <= hora_atual < 18:
+            imagem_path = "boa tarde.png"
+        else:
+            imagem_path = "boa noite.png"
+        
+        # Carrega e redimensiona a imagem proporcionalmente
+        try:
+            if os.path.exists(imagem_path):
+                imagem = Image.open(imagem_path)
+                # Redimensiona mantendo proporção (327x174)
+                proporcao = imagem.width / imagem.height
+                nova_altura = 174
+                nova_largura = int(nova_altura * proporcao)
+                
+                # Se a largura for maior que 327, ajusta
+                if nova_largura > 327:
+                    nova_largura = 327
+                    nova_altura = int(nova_largura / proporcao)
+                
+                imagem_redimensionada = imagem.resize((nova_largura, nova_altura), Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(imagem_redimensionada)
+                
+                # Atualiza a label
+                self.saudacao_label.config(image=photo)
+                self.saudacao_label.image = photo  # Mantém referência
+                
+        except Exception as e:
+            print(f"Erro ao carregar imagem de saudação: {e}")
+            # Fallback: texto de saudação
+            if 6 <= hora_atual < 12:
+                texto = "Bom dia!"
+            elif 12 <= hora_atual < 18:
+                texto = "Boa tarde!"
+            else:
+                texto = "Boa noite!"
+            
+            self.saudacao_label.config(text=texto, font=("Arial", 16), fg='black')
+
+    def _load_status_image(self, filename):
+        """Método para carregar imagens (já existente no seu código)"""
+        try:
+            image = Image.open(filename)
+            image = image.resize((40, 40), Image.Resampling.LANCZOS)
+            return ImageTk.PhotoImage(image)
+        except:
+            # Fallback para caso a imagem não exista
+            return None
 
     def _load_status_image(self, filename):
         """Carrega e redimensiona uma imagem para o ícone de status (40x40)"""
