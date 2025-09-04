@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.15"
+    return "Beta 3.16"
 
 class ClientApp:
     def __init__(self):
@@ -127,6 +127,7 @@ class ClientApp:
             "bom dia.png": ("vempire-ghost/Projeto_Temer", "bom dia.png"),  # ← NOVO
             "boa tarde.png": ("vempire-ghost/Projeto_Temer", "boa tarde.png"),  # ← NOVO
             "boa noite.png": ("vempire-ghost/Projeto_Temer", "boa noite.png"),  # ← NOVO
+            "fundo.png": ("vempire-ghost/Projeto_Temer", "fundo.png"),
             "cliente_temer.exe": ("vempire-ghost/Projeto_Temer", "dist/cliente_temer.exe")
         }
 
@@ -383,13 +384,34 @@ class ClientApp:
         # DEFINA O TAMANHO DA JANELA AQUI (largura x altura)
         self.root.minsize(404, 532)    # ← Tamanho mínimo opcional
         
-        """Configura a interface do usuário com ícones de status no canto superior direito"""
+        # Carrega a imagem de fundo
+        try:
+            self.bg_image = tk.PhotoImage(file="fundo.png")
+        except Exception as e:
+            print(f"Erro ao carregar imagem de fundo: {e}")
+            # Fallback para cor de fundo caso a imagem não carregue
+            self.bg_image = None
+        
+        # Função para criar frames com imagem de fundo
+        def create_frame_with_bg(parent, **kwargs):
+            frame = tk.Frame(parent, **kwargs)
+            if self.bg_image:
+                bg_label = tk.Label(frame, image=self.bg_image)
+                bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+            return frame
+        
+        # Label de fundo para a janela principal
+        if self.bg_image:
+            bg_label = tk.Label(self.root, image=self.bg_image)
+            bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+        
         # Frame principal com borda
-        main_frame = tk.Frame(self.root, bd=2, relief=tk.GROOVE, padx=5, pady=5)
+        main_frame = create_frame_with_bg(self.root, bd=2, relief=tk.GROOVE, padx=5, pady=5, 
+                                         highlightbackground="#FFD1C8")
         main_frame.pack(padx=10, pady=(10, 0), fill=tk.BOTH, expand=True)
         
         # Frame para o conteúdo com grid
-        content_frame = tk.Frame(main_frame)
+        content_frame = create_frame_with_bg(main_frame)
         content_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Configuração do grid (3 colunas - conteúdo | conteúdo | ícones)
@@ -406,93 +428,113 @@ class ClientApp:
         }
         
         # Frame para os ícones de status (canto superior direito)
-        self.status_icon_frame = tk.Frame(content_frame)
+        self.status_icon_frame = create_frame_with_bg(content_frame)
         self.status_icon_frame.grid(row=0, column=2, rowspan=4, sticky="ne", padx=5, pady=5)
         
         # Label para o ícone de status (inicia com vermelho)
-        self.status_icon_label = tk.Label(self.status_icon_frame, image=self.status_images["red"])
+        self.status_icon_label = tk.Label(self.status_icon_frame, image=self.status_images["red"], 
+                                         bg=self._get_button_color())
         self.status_icon_label.pack()
         
         # Tooltip para o ícone de status
         self._create_icon_tooltip()
         
         # --- Seção de configurações ---
+        # Função para criar um Checkbutton com borda branca fina
+        def bordered_checkbutton(parent, **kwargs):
+            frame = tk.Frame(parent, highlightbackground="white", highlightthickness=1, bd=0, bg=self._get_button_color())
+            cb = tk.Checkbutton(frame, **kwargs, bg=self._get_button_color(), bd=0, highlightthickness=0)
+            cb.pack(fill="both", expand=True, padx=1, pady=1)  # pequeno padding para não colar na borda
+            return frame
+
         # Entrada de IP
-        tk.Label(content_frame, text="IP do Servidor:").grid(
+        tk.Label(content_frame, text="IP do Servidor:", 
+                 bg=self._get_button_color(),
+                 highlightbackground="white", highlightthickness=1, bd=0).grid(
             row=0, column=0, sticky="w", pady=(0, 5))
-        tk.Entry(content_frame, textvariable=self.server_ip).grid(
+        tk.Entry(content_frame, textvariable=self.server_ip, bg='white').grid(
             row=0, column=1, pady=(0, 5), sticky="ew")
-        
+
         # Entrada de Porta
-        tk.Label(content_frame, text="Porta:").grid(
+        tk.Label(content_frame, text="Porta:", 
+                 bg=self._get_button_color(),
+                 highlightbackground="white", highlightthickness=1, bd=0).grid(
             row=1, column=0, sticky="w", pady=(0, 5))
-        tk.Entry(content_frame, textvariable=self.server_port).grid(
+        tk.Entry(content_frame, textvariable=self.server_port, bg='white').grid(
             row=1, column=1, pady=(0, 5), sticky="ew")
-        
-        # Checkboxes
-        tk.Checkbutton(content_frame, text="Iniciar com Windows", 
-                      variable=self.start_with_windows).grid(
+
+        # Checkboxes com borda branca
+        bordered_checkbutton(content_frame, text="Iniciar com Windows", 
+                             variable=self.start_with_windows).grid(
             row=2, column=0, columnspan=2, sticky="w", pady=(0, 5))
-        
-        tk.Checkbutton(content_frame, text="Iniciar minimizado", 
-                      variable=self.start_minimized).grid(
+
+        bordered_checkbutton(content_frame, text="Iniciar minimizado", 
+                             variable=self.start_minimized).grid(
             row=3, column=0, columnspan=2, sticky="w", pady=(0, 5))
-        
-        tk.Checkbutton(content_frame, text="Notificar mudanças nos provedores", 
-                      variable=self.notify_provider_changes).grid(
+
+        bordered_checkbutton(content_frame, text="Notificar mudanças nos provedores", 
+                             variable=self.notify_provider_changes).grid(
             row=4, column=0, columnspan=2, sticky="w", pady=(0, 10))
-        
-        tk.Checkbutton(content_frame, text="Controlar Proxifier automaticamente", 
-                      variable=self.control_proxifier).grid(
+
+        bordered_checkbutton(content_frame, text="Controlar Proxifier automaticamente", 
+                             variable=self.control_proxifier).grid(
             row=5, column=0, columnspan=2, sticky="w", pady=(0, 10))
         
         # --- Seção de botões ---
-        btn_frame = tk.Frame(content_frame)
+        btn_frame = create_frame_with_bg(content_frame)
         btn_frame.grid(row=6, column=0, columnspan=3, pady=(0, 10))
         
-        tk.Button(btn_frame, text="Conectar", command=self.auto_connect).pack(
-            side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Desconectar", command=self.disconnect).pack(
-            side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Salvar Config", command=self.save_config).pack(
-            side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Sair", command=self.quit_app).pack(
-            side=tk.RIGHT, padx=5)
+        tk.Button(btn_frame, text="Conectar", command=self.auto_connect, 
+                 bg=self._get_button_color()).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Desconectar", command=self.disconnect,
+                 bg=self._get_button_color()).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Salvar Config", command=self.save_config,
+                 bg=self._get_button_color()).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Sair", command=self.quit_app,
+                 bg=self._get_button_color()).pack(side=tk.RIGHT, padx=5)
         
         # --- Seção de status ---
-        self.status_label = tk.Label(content_frame, text="Status: Desconectado", fg="red")
+        self.status_label = tk.Label(content_frame, text="Status: Desconectado", fg="red", 
+                                     bg=self._get_button_color(),
+                                     highlightbackground="white", highlightthickness=1, bd=0)
         self.status_label.grid(row=7, column=0, columnspan=3, pady=(0, 5))
-        
+
         # Status dos provedores
-        self.providers_frame = tk.Frame(content_frame)
+        self.providers_frame = create_frame_with_bg(content_frame)
         self.providers_frame.grid(row=8, column=0, columnspan=3, pady=(5, 10), sticky="ew")
-        
-        self.coopera_label = tk.Label(self.providers_frame, text="Coopera: Offline", fg="red")
+
+        self.coopera_label = tk.Label(self.providers_frame, text="Coopera: Offline", fg="red", 
+                                      bg=self._get_button_color(),
+                                      highlightbackground="white", highlightthickness=1, bd=0)
         self.coopera_label.pack(side=tk.LEFT, padx=5)
-        
-        self.claro_label = tk.Label(self.providers_frame, text="Claro: Offline", fg="red")
+
+        self.claro_label = tk.Label(self.providers_frame, text="Claro: Offline", fg="red", 
+                                    bg=self._get_button_color(),
+                                    highlightbackground="white", highlightthickness=1, bd=0)
         self.claro_label.pack(side=tk.LEFT, padx=5)
-        
-        self.unifique_label = tk.Label(self.providers_frame, text="Unifique: Offline", fg="red")
+
+        self.unifique_label = tk.Label(self.providers_frame, text="Unifique: Offline", fg="red", 
+                                       bg=self._get_button_color(),
+                                       highlightbackground="white", highlightthickness=1, bd=0)
         self.unifique_label.pack(side=tk.LEFT, padx=5)
         
-        # --- NOVO: Frame para a imagem de saudação DENTRO do content_frame ---
-        self.saudacao_frame = tk.Frame(content_frame, height=174)
+        # --- Frame para a imagem de saudação DENTRO do content_frame ---
+        self.saudacao_frame = create_frame_with_bg(content_frame, height=174)
         self.saudacao_frame.grid(row=9, column=0, columnspan=3, pady=(10, 5), sticky="ew")
         self.saudacao_frame.grid_propagate(False)  # Mantém a altura fixa
         
         # Label para a imagem de saudação (centralizada)
-        self.saudacao_label = tk.Label(self.saudacao_frame, bg='white')
+        self.saudacao_label = tk.Label(self.saudacao_frame, bg=self._get_bg_color())
         self.saudacao_label.pack(expand=True)
         
         # --- Rodapé ---
-        self.footer_frame = tk.Frame(self.root, bg='lightgray', borderwidth=1, relief=tk.RAISED)
+        self.footer_frame = create_frame_with_bg(self.root, borderwidth=1, relief=tk.RAISED)
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         self.version_label = tk.Label(
             self.footer_frame, 
             text=f"Projeto Xandão - ©VempirE_GhosT - Versão: {get_version()}", 
-            bg='lightgray', fg='black')
+            bg=self._get_button_color(), fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
         # Carrega e exibe a imagem de saudação conforme o horário
@@ -501,6 +543,15 @@ class ClientApp:
         # Mostra a janela se não estiver configurado para iniciar minimizado
         if not self.start_minimized.get():
             self.root.deiconify()
+
+    # Adicione estas funções auxiliares à sua classe
+    def _get_bg_color(self):
+        """Retorna a cor de fundo apropriada (fallback se não houver imagem)"""
+        return "#FFF5F3" if not self.bg_image else "#FFF5F3"  # Mantém a cor original como fallback
+
+    def _get_button_color(self):
+        """Retorna a cor dos botões"""
+        return "#FFD1C8"  # Cor salmão original para os botões
 
     def atualizar_saudacao(self):
         """Atualiza a imagem de saudação conforme o horário do computador"""
