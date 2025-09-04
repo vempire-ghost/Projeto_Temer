@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.16"
+    return "Beta 3.17"
 
 class ClientApp:
     def __init__(self):
@@ -383,6 +383,7 @@ class ClientApp:
         """Configura a interface do usuário com ícones de status no canto superior direito"""
         # DEFINA O TAMANHO DA JANELA AQUI (largura x altura)
         self.root.minsize(404, 532)    # ← Tamanho mínimo opcional
+        self.root.maxsize(404, 532)    # ← Tamanho mínimo opcional
         
         # Carrega a imagem de fundo
         try:
@@ -497,11 +498,11 @@ class ClientApp:
         self.status_label = tk.Label(content_frame, text="Status: Desconectado", fg="red", 
                                      bg=self._get_button_color(),
                                      highlightbackground="white", highlightthickness=1, bd=0)
-        self.status_label.grid(row=7, column=0, columnspan=3, pady=(0, 5))
+        self.status_label.grid(row=7, column=0, columnspan=3, pady=(0, 0))
 
         # Status dos provedores
         self.providers_frame = create_frame_with_bg(content_frame)
-        self.providers_frame.grid(row=8, column=0, columnspan=3, pady=(5, 10), sticky="ew")
+        self.providers_frame.grid(row=8, column=0, columnspan=3, pady=(5, 10), sticky="s")
 
         self.coopera_label = tk.Label(self.providers_frame, text="Coopera: Offline", fg="red", 
                                       bg=self._get_button_color(),
