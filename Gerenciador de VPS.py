@@ -39,6 +39,11 @@ from datetime import datetime, timedelta
 from rich.console import Console
 from rich.text import Text
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 # Corrige o diretório de trabalho para o local do executável ou script
 if getattr(sys, 'frozen', False):
@@ -50,7 +55,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.15"
+    return "Beta 95.16"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -147,6 +152,14 @@ class ButtonManager:
         self.unifique_fail_count = 0
         self.claro_fail_count = 0
         self.coopera_fail_count = 0
+
+        # Contadores de falhas consecutivas
+        self.unifique_consecutive_fails = 0
+        self.claro_consecutive_fails = 0
+        self.coopera_consecutive_fails = 0
+        
+        # Limite de falhas consecutivas antes de reiniciar
+        self.max_consecutive_fails = 3
 
         # Verifica e cria o arquivo de configuração se não existir
         self.config_file = 'config.ini'
@@ -4531,31 +4544,99 @@ class ButtonManager:
         threading.Thread(target=thread_function).start()
 
     def update_interface_status(self, button, name, is_online):
-        """Atualiza o status da interface e incrementa o contador se offline"""
+        """Atualiza o status da interface e gerencia falhas consecutivas"""
         if is_online:
             button.config(text=f"{name}: Online", bg='green')
-            # Atualiza a variável de status correspondente
+            # Reseta contador de falhas consecutivas quando online
             if name == 'UNIFIQUE':
                 self.unifique_online = True
+                self.unifique_consecutive_fails = 0
             elif name == 'CLARO':
                 self.claro_online = True
+                self.claro_consecutive_fails = 0
             elif name == 'COOPERA':
                 self.coopera_online = True
+                self.coopera_consecutive_fails = 0
         else:
             button.config(text=f"{name}: Offline", bg='red')
-            # Atualiza a variável de status correspondente
+            
             if name == 'UNIFIQUE':
                 self.unifique_online = False
                 self.unifique_fail_count += 1
+                self.unifique_consecutive_fails += 1
                 self.tooltip_fail_unifique.text = f"Quedas desde o início: {self.unifique_fail_count}"
+                
             elif name == 'CLARO':
                 self.claro_online = False
                 self.claro_fail_count += 1
+                self.claro_consecutive_fails += 1
                 self.tooltip_fail_claro.text = f"Quedas desde o início: {self.claro_fail_count}"
+                
+                # Verifica se atingiu o limite de falhas consecutivas
+                if self.claro_consecutive_fails >= self.max_consecutive_fails:
+                    logger_provedor_test.warning(f"Claro offline por {self.claro_consecutive_fails} vezes consecutivas. Reiniciando conexão...")
+                    # Executa o reinício em uma thread separada para não bloquear a UI
+                    threading.Thread(target=self.restart_claro_connection, daemon=True).start()
+                    
             elif name == 'COOPERA':
                 self.coopera_online = False
                 self.coopera_fail_count += 1
+                self.coopera_consecutive_fails += 1
                 self.tooltip_fail_coopera.text = f"Quedas desde o início: {self.coopera_fail_count}"
+
+    # Adicione esta função para reiniciar a conexão Claro
+    def restart_claro_connection(self):
+        """Reinicia a conexão Claro usando Selenium WebDriver"""
+        logger_provedor_test.info("Tentando reiniciar conexão Claro via interface web...")
+        
+        # Configuração do Chrome
+        options = Options()
+        options.headless = True  # Modo headless para execução em background
+        options.page_load_strategy = "eager"
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+
+        driver = None
+        try:
+            driver = webdriver.Chrome(options=options)
+            driver.set_page_load_timeout(60)
+
+            print("[1] Abrindo página do roteador...")
+            driver.get("http://192.168.10.254/index.html?settings-3g")
+
+            # Espera até que o div de configurações 3G esteja visível
+            print("[2] Aguardando div#configuracoes_3g ficar visível...")
+            WebDriverWait(driver, 30).until(
+                EC.visibility_of_element_located((By.ID, "configuracoes_3g"))
+            )
+
+            # Espera até que o botão esteja clicável
+            print("[3] Aguardando botão de aplicar alterações ficar clicável...")
+            btn = WebDriverWait(driver, 30).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR,
+                    "div#configuracoes_3g input#estilo_input.botao_azul_aplicar"))
+            )
+
+            print("[4] Botão encontrado! Clicando...")
+            btn.click()
+            time.sleep(5)  # Espera um pouco mais para a ação completar
+
+            print("[5] Capturando resultado...")
+            body_text = driver.find_element(By.TAG_NAME, "body").text
+            if "sucesso" in body_text.lower():
+                logger_provedor_test.info("[OK] Conexão Claro reiniciada com sucesso!")
+            else:
+                logger_provedor_test.warning("[?] Reinicialização executada, mas sem mensagem de sucesso clara")
+
+        except Exception as e:
+            logger_provedor_test.error(f"Erro ao reiniciar conexão Claro: {e}")
+        
+        finally:
+            if driver:
+                driver.quit()
+            
+            # Reseta o contador de falhas consecutivas após tentativa de reinício
+            self.claro_consecutive_fails = 0
 
     def check_status(self):
         """Verifica o status das interfaces usando as conexões SSH apropriadas."""
