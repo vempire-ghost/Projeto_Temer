@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.17"
+    return "Beta 3.18"
 
 class ClientApp:
     def __init__(self):
@@ -124,9 +124,10 @@ class ClientApp:
             "server_status_ligado.png": ("vempire-ghost/Projeto_Temer", "server_status_ligado.png"),
             "server_status_operacional.png": ("vempire-ghost/Projeto_Temer", "server_status_operacional.png"),
             "server_status_amarelow.png": ("vempire-ghost/Projeto_Temer", "server_status_amarelow.png"),
-            "bom dia.png": ("vempire-ghost/Projeto_Temer", "bom dia.png"),  # ← NOVO
-            "boa tarde.png": ("vempire-ghost/Projeto_Temer", "boa tarde.png"),  # ← NOVO
-            "boa noite.png": ("vempire-ghost/Projeto_Temer", "boa noite.png"),  # ← NOVO
+            "bom dia.png": ("vempire-ghost/Projeto_Temer", "bom dia.png"),
+            "boa tarde.png": ("vempire-ghost/Projeto_Temer", "boa tarde.png"),
+            "boa noite.png": ("vempire-ghost/Projeto_Temer", "boa noite.png"),
+            "feliz_aniver_mimo.png": ("vempire-ghost/Projeto_Temer", "feliz_aniver_mimo.png"),  # ← NOVA IMAGEM ADICIONADA
             "fundo.png": ("vempire-ghost/Projeto_Temer", "fundo.png"),
             "cliente_temer.exe": ("vempire-ghost/Projeto_Temer", "dist/cliente_temer.exe")
         }
@@ -556,15 +557,22 @@ class ClientApp:
 
     def atualizar_saudacao(self):
         """Atualiza a imagem de saudação conforme o horário do computador"""
-        hora_atual = datetime.now().hour
+        agora = datetime.now()
+        dia = agora.day
+        mes = agora.month
+        hora_atual = agora.hour
         
-        # Determina qual imagem carregar
-        if 6 <= hora_atual < 12:
-            imagem_path = "bom dia.png"
-        elif 12 <= hora_atual < 18:
-            imagem_path = "boa tarde.png"
+        # Verifica se é dia 02 de dezembro
+        if dia == 2 and mes == 12:
+            imagem_path = "feliz_aniver_mimo.png"
         else:
-            imagem_path = "boa noite.png"
+            # Determina qual imagem carregar baseado no horário
+            if 6 <= hora_atual < 12:
+                imagem_path = "bom dia.png"
+            elif 12 <= hora_atual < 18:
+                imagem_path = "boa tarde.png"
+            else:
+                imagem_path = "boa noite.png"
         
         # Carrega e redimensiona a imagem proporcionalmente
         try:
@@ -590,7 +598,9 @@ class ClientApp:
         except Exception as e:
             print(f"Erro ao carregar imagem de saudação: {e}")
             # Fallback: texto de saudação
-            if 6 <= hora_atual < 12:
+            if dia == 2 and mes == 12:
+                texto = "Feliz Aniversário Mimo!"
+            elif 6 <= hora_atual < 12:
                 texto = "Bom dia!"
             elif 12 <= hora_atual < 18:
                 texto = "Boa tarde!"

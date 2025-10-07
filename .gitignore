@@ -40,6 +40,7 @@
 !boa tarde.png
 !bom dia.png
 !fundo.png
+!feliz_aniver_mimo.png
 
 # Não ignorar diretórios específicos e seus conteúdos
 !diretorio_que_quero_monitorar/
@@ -54,3 +55,4 @@
 # Ignorar arquivo específico dentro de Scripts Locais
 Scripts Locais/teste.bat
 old_beta/server_status_*.png
+/build
