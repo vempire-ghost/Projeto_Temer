@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.18"
+    return "Beta 3.19"
 
 class ClientApp:
     def __init__(self):
@@ -79,6 +79,7 @@ class ClientApp:
         self.user32 = ctypes.windll.user32
         self.kernel32 = ctypes.windll.kernel32
         self.virtual_desktop_name = "ProxifierDesktop"
+        self.saudacao_ativa = True  # Flag para controlar o loop
         
         # Variáveis para os checkboxes
         self.start_with_windows = tk.BooleanVar()
@@ -542,6 +543,9 @@ class ClientApp:
         # Carrega e exibe a imagem de saudação conforme o horário
         self.atualizar_saudacao()
 
+        # Inicia a atualização periódica da saudação (a cada 1 minuto)
+        self.iniciar_atualizacao_periodica_saudacao()
+
         # Mostra a janela se não estiver configurado para iniciar minimizado
         if not self.start_minimized.get():
             self.root.deiconify()
@@ -554,6 +558,19 @@ class ClientApp:
     def _get_button_color(self):
         """Retorna a cor dos botões"""
         return "#FFD1C8"  # Cor salmão original para os botões
+
+    def iniciar_atualizacao_periodica_saudacao(self):
+        """Inicia a atualização periódica da imagem de saudação"""
+        def atualizar_periodicamente():
+            print(f"[DEBUG] Iniciando atualização periódica da saudação - {datetime.now()}")
+            self.atualizar_saudacao()
+            # Agenda a próxima atualização em 1 minuto (60000 ms)
+            print(f"[DEBUG] Agendando próxima atualização em 1 minuto - {datetime.now()}")
+            self.root.after(60000, atualizar_periodicamente)
+        
+        # Inicia o loop de atualização
+        print(f"[DEBUG] Iniciando loop de atualização periódica - {datetime.now()}")
+        atualizar_periodicamente()
 
     def atualizar_saudacao(self):
         """Atualiza a imagem de saudação conforme o horário do computador"""
@@ -1445,6 +1462,9 @@ class ClientApp:
     
     def quit_app(self):
         """Encerra o aplicativo completamente"""
+        # Para o loop de atualização da saudação
+        self.saudacao_ativa = False
+        
         # Salva a posição atual da janela antes de sair
         self.save_window_position()
         self.save_config()
@@ -1464,15 +1484,13 @@ class ClientApp:
             except:
                 pass
         
-        # Destroi a janela principal
+        # Destroi a janela principal (isso automaticamente cancela todos os after())
         if hasattr(self, 'root'):
             try:
-                self.root.destroy()
+                self.root.quit()  # Primeiro para o mainloop
+                self.root.destroy()  # Depois destrói a janela
             except:
                 pass
-        
-        # Encerra o processo completamente
-        os._exit(0)
     
     def run(self):
         """Executa o aplicativo"""
