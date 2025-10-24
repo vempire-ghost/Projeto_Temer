@@ -55,7 +55,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.16"
+    return "Beta 95.17"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -287,11 +287,16 @@ class ButtonManager:
                                 'coopera_online': self.coopera_online,
                                 'claro_online': self.claro_online,
                                 'unifique_online': self.unifique_online,
+                                'vps_vpn_conectado': self.vps_vpn_conectado,
+                                'vps_jogo_conectado': self.vps_jogo_conectado,
                                 'system_time': datetime.now().isoformat()  # Horário no formato ISO (YYYY-MM-DDTHH:MM:SS)
                             }
                             conn.send(json.dumps(response).encode('utf-8'))
                         elif request.get('action') == 'poweroff':
                             success = self._execute_poweroff_script()
+                            conn.send(json.dumps({'success': success}).encode('utf-8'))
+                        elif request.get('action') == 'poweroff2':
+                            success = self._execute_poweroff_script2()
                             conn.send(json.dumps({'success': success}).encode('utf-8'))
                         elif request.get('action') == 'disconnect':
                             break
@@ -491,6 +496,22 @@ class ButtonManager:
             messagebox.showwarning("Aviso", f"Script de desligamento não encontrado:\n{script_path}")
             return False
 
+    def _get_poweroff_script_path2(self):
+        """Obtém o caminho do segundo script de poweroff do arquivo de configuração"""
+        config = configparser.ConfigParser()
+        config.read(self.config_file)
+        return config.get('poweroff', 'poweroff_script2', fallback='') if 'poweroff' in config else ''
+
+    def _execute_poweroff_script2(self):
+        """Executa o segundo script de poweroff com verificações e privilégios de admin"""
+        script_path = self._get_poweroff_script_path2()
+        if os.path.isfile(script_path):
+            self.run_as_admin(script_path)
+            return True
+        else:
+            messagebox.showwarning("Aviso", f"Segundo script de desligamento não encontrado:\n{script_path}")
+            return False
+
     def monitorar_e_desligar(self):
         """Monitora as variáveis de conexão e desliga o Windows se todas estiverem False"""
         while True:
@@ -510,6 +531,27 @@ class ButtonManager:
         """Inicia a thread de monitoramento para desligamento automático"""
         thread = threading.Thread(
             target=self.monitorar_e_desligar,
+            daemon=True  # Thread será encerrada quando o programa principal terminar
+        )
+        thread.start()
+
+    def monitorar_e_desligar2(self):
+        """Monitora as variáveis de conexão e desliga o Windows se todas estiverem False"""
+        while True:
+            # Verifica se todas as variáveis são False
+            if (not self.omr_vpn_conectado and 
+                not self.omr_jogo_conectado:
+                
+                print("Todas as conexões estão desativadas - desligando o sistema...")
+                os.system("shutdown /s /t 1")  # Desliga o Windows em 1 segundo
+                break  # Sai do loop após enviar o comando de desligamento
+            
+            time.sleep(10)  # Verifica a cada 10 segundos
+
+    def iniciar_monitoramento_auto_desligamento2(self):
+        """Inicia a thread de monitoramento para desligamento automático"""
+        thread = threading.Thread(
+            target=self.monitorar_e_desligar2,
             daemon=True  # Thread será encerrada quando o programa principal terminar
         )
         thread.start()
@@ -6446,6 +6488,9 @@ class ButtonManager:
                             if "DESLIGAR WINDOWS" in line:
                                 self.iniciar_monitoramento_auto_desligamento()
 
+                            if "DESLIGAR WINDOWS_2" in line:
+                                self.iniciar_monitoramento_auto_desligamento2()
+
                             if "DESLIGAMENTO CONCLUIDO" in line:
                                 self.verificar_vm = False
 
@@ -6958,7 +7003,7 @@ class OMRManagerDialog:
         script_poweroff_frame = tk.Frame(poweroff_frame)
         script_poweroff_frame.pack(side=tk.TOP, anchor='w', fill=tk.X, padx=5, pady=5)
 
-        tk.Label(script_poweroff_frame, text="Script para executar no desligamento:").pack(side=tk.LEFT)
+        tk.Label(script_poweroff_frame, text="Desligar VPS e OMR com Windows:").pack(side=tk.LEFT)
         self.poweroff_script_entry = tk.Entry(script_poweroff_frame, width=40)
         self.poweroff_script_entry.pack(side=tk.LEFT, padx=5)
 
@@ -6968,6 +7013,21 @@ class OMRManagerDialog:
             command=self.browse_poweroff_script
         )
         browse_poweroff_button.pack(side=tk.LEFT)
+
+        # Frame para o segundo script de poweroff
+        script_poweroff_frame2 = tk.Frame(poweroff_frame)
+        script_poweroff_frame2.pack(side=tk.TOP, anchor='w', fill=tk.X, padx=5, pady=5)
+
+        tk.Label(script_poweroff_frame2, text="Desligar apenas os OMR com Windows:").pack(side=tk.LEFT)
+        self.poweroff_script_entry2 = tk.Entry(script_poweroff_frame2, width=40)
+        self.poweroff_script_entry2.pack(side=tk.LEFT, padx=5)
+
+        browse_poweroff_button2 = tk.Button(
+            script_poweroff_frame2, 
+            text="Procurar", 
+            command=self.browse_poweroff_script2
+        )
+        browse_poweroff_button2.pack(side=tk.LEFT)
 
         # Carrega as configurações de desligamento
         self.load_poweroff_settings()
@@ -7477,14 +7537,31 @@ class OMRManagerDialog:
             self.poweroff_script_entry.insert(0, file_path)
             self.save_poweroff_settings()
 
+    def browse_poweroff_script2(self):
+        """Abre diálogo para selecionar o segundo script de desligamento"""
+        file_path = filedialog.askopenfilename(
+            title="Selecione o script adicional para executar no desligamento",
+            filetypes=[("Arquivos Batch", "*.bat"), ("Todos os arquivos", "*.*")]
+        )
+        if file_path:
+            self.poweroff_script_entry2.delete(0, tk.END)
+            self.poweroff_script_entry2.insert(0, file_path)
+            self.save_poweroff_settings()
+
     def load_poweroff_settings(self):
         """Carrega as configurações de desligamento"""
         try:
             self.config.read(self.config_file)
             if 'poweroff' in self.config:
+                # Carrega o primeiro script de poweroff
                 script_path = self.config.get('poweroff', 'poweroff_script', fallback='')
                 self.poweroff_script_entry.delete(0, tk.END)
                 self.poweroff_script_entry.insert(0, script_path)
+                
+                # Carrega o segundo script de poweroff
+                script_path2 = self.config.get('poweroff', 'poweroff_script2', fallback='')
+                self.poweroff_script_entry2.delete(0, tk.END)
+                self.poweroff_script_entry2.insert(0, script_path2)
         except Exception as e:
             print(f"Erro ao carregar configurações de desligamento: {str(e)}")
 
@@ -7494,7 +7571,9 @@ class OMRManagerDialog:
             if 'poweroff' not in self.config:
                 self.config.add_section('poweroff')
             
+            # Salva ambos os scripts
             self.config.set('poweroff', 'poweroff_script', self.poweroff_script_entry.get())
+            self.config.set('poweroff', 'poweroff_script2', self.poweroff_script_entry2.get())
             
             with open(self.config_file, 'w') as configfile:
                 self.config.write(configfile)
