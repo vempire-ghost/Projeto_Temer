@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.21"
+    return "Beta 3.22"
 
 class ClientApp:
     def __init__(self):
@@ -1033,18 +1033,18 @@ class ClientApp:
         # Adiciona status dos provedores
         providers_text = []
         if hasattr(self, 'coopera_status'):
-            providers_text.append(f"Coopera: {'Online' if self.coopera_status else 'Offline'}")
+            providers_text.append(f"Coopera: {'On' if self.coopera_status else 'Off'}")
         if hasattr(self, 'claro_status'):
-            providers_text.append(f"Claro: {'Online' if self.claro_status else 'Offline'}")
+            providers_text.append(f"Claro: {'On' if self.claro_status else 'Off'}")
         if hasattr(self, 'unifique_status'):
-            providers_text.append(f"Unifique: {'Online' if self.unifique_status else 'Offline'}")
+            providers_text.append(f"Unifique: {'On' if self.unifique_status else 'Off'}")
         
         # Adiciona status das VPS
         vps_text = []
         if hasattr(self, 'vps_vpn_conectado'):
-            vps_text.append(f"VPS VPN: {'Conectado' if self.vps_vpn_conectado else 'Desconectado'}")
+            vps_text.append(f"VPS VPN: {'On' if self.vps_vpn_conectado else 'Off'}")
         if hasattr(self, 'vps_jogo_conectado'):
-            vps_text.append(f"VPS Jogo: {'Conectado' if self.vps_jogo_conectado else 'Desconectado'}")
+            vps_text.append(f"VPS Jogo: {'On' if self.vps_jogo_conectado else 'Off'}")
         
         full_text = f"{base_text}\n{status_text}"
         if providers_text:
