@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.19"
+    return "Beta 3.20"
 
 class ClientApp:
     def __init__(self):
@@ -1047,10 +1047,11 @@ class ClientApp:
         self.green_icon = self.create_icon_image("green")
         self.yellow_icon = self.create_icon_image("yellow")
         
-        # Menu do tray icon (agora com a opção de desligamento)
+        # Menu do tray icon (agora com duas opções de desligamento)
         menu = (
             pystray.MenuItem("Abrir", self.restore_from_tray),
-            pystray.MenuItem("Desligar Servidor", self.send_poweroff_command),
+            pystray.MenuItem("Desligar Servidor e VPS", self.send_poweroff_command),
+            pystray.MenuItem("Desligar Servidor APENAS", self.send_poweroff_command2),
             pystray.MenuItem("Sair", self.quit_app)
         )
         
@@ -1162,6 +1163,44 @@ class ClientApp:
                         messagebox.showinfo("Sucesso", "Comando de desligamento enviado com sucesso")
                     else:
                         messagebox.showerror("Erro", "Falha ao executar desligamento no servidor")
+        
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha ao enviar comando: {str(e)}")
+
+    def send_poweroff_command2(self):
+        """Envia comando para executar o segundo script de desligamento no servidor após confirmação"""
+        if not self.connected:
+            messagebox.showwarning("Aviso", "Não conectado ao servidor")
+            return
+        
+        # Janela de confirmação
+        confirm = messagebox.askyesno(
+            "Confirmar Execução",
+            "Tem certeza que deseja executar o segundo script de desligamento?\nEsta ação não pode ser desfeita.",
+            icon='warning'
+        )
+        
+        if not confirm:
+            return  # Usuário cancelou a ação
+        
+        try:
+            # Cria um socket temporário para enviar o comando
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(3)
+                s.connect((self.server_ip.get(), self.server_port.get()))
+                
+                # Envia o comando de desligamento do segundo script
+                request = json.dumps({'action': 'poweroff2'})
+                s.send(request.encode('utf-8'))
+                
+                # Aguarda resposta
+                response = s.recv(1024)
+                if response:
+                    data = json.loads(response.decode('utf-8'))
+                    if data.get('success', False):
+                        messagebox.showinfo("Sucesso", "Segundo script de desligamento executado com sucesso")
+                    else:
+                        messagebox.showerror("Erro", "Falha ao executar o segundo script no servidor")
         
         except Exception as e:
             messagebox.showerror("Erro", f"Falha ao enviar comando: {str(e)}")
