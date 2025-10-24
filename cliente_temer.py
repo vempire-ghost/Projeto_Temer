@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.20"
+    return "Beta 3.21"
 
 class ClientApp:
     def __init__(self):
@@ -102,6 +102,9 @@ class ClientApp:
         self.connected = False
         self.server_status = False
         self.tray_icon = None
+
+        self.vps_vpn_conectado = False
+        self.vps_jogo_conectado = False
         
         self.setup_ui()
         self.create_tray_icon()
@@ -384,8 +387,8 @@ class ClientApp:
     def setup_ui(self):
         """Configura a interface do usuário com ícones de status no canto superior direito"""
         # DEFINA O TAMANHO DA JANELA AQUI (largura x altura)
-        self.root.minsize(404, 532)    # ← Tamanho mínimo opcional
-        self.root.maxsize(404, 532)    # ← Tamanho mínimo opcional
+        self.root.minsize(404, 540)    # ← Tamanho mínimo opcional
+        self.root.maxsize(404, 540)    # ← Tamanho mínimo opcional
         
         # Carrega a imagem de fundo
         try:
@@ -520,10 +523,24 @@ class ClientApp:
                                        bg=self._get_button_color(),
                                        highlightbackground="white", highlightthickness=1, bd=0)
         self.unifique_label.pack(side=tk.LEFT, padx=5)
-        
+
+        # NOVO: Frame para status das VPS
+        self.vps_frame = create_frame_with_bg(content_frame)
+        self.vps_frame.grid(row=9, column=0, columnspan=3, pady=(5, 10), sticky="s")
+
+        self.vps_vpn_label = tk.Label(self.vps_frame, text="VPS VPN: Desconectado", fg="red", 
+                                      bg=self._get_button_color(),
+                                      highlightbackground="white", highlightthickness=1, bd=0)
+        self.vps_vpn_label.pack(side=tk.LEFT, padx=5)
+
+        self.vps_jogo_label = tk.Label(self.vps_frame, text="VPS JOGO: Desconectado", fg="red", 
+                                       bg=self._get_button_color(),
+                                       highlightbackground="white", highlightthickness=1, bd=0)
+        self.vps_jogo_label.pack(side=tk.LEFT, padx=5)
+
         # --- Frame para a imagem de saudação DENTRO do content_frame ---
         self.saudacao_frame = create_frame_with_bg(content_frame, height=174)
-        self.saudacao_frame.grid(row=9, column=0, columnspan=3, pady=(10, 5), sticky="ew")
+        self.saudacao_frame.grid(row=10, column=0, columnspan=3, pady=(10, 5), sticky="ew")  # Mudei row para 10
         self.saudacao_frame.grid_propagate(False)  # Mantém a altura fixa
         
         # Label para a imagem de saudação (centralizada)
@@ -1022,9 +1039,18 @@ class ClientApp:
         if hasattr(self, 'unifique_status'):
             providers_text.append(f"Unifique: {'Online' if self.unifique_status else 'Offline'}")
         
+        # Adiciona status das VPS
+        vps_text = []
+        if hasattr(self, 'vps_vpn_conectado'):
+            vps_text.append(f"VPS VPN: {'Conectado' if self.vps_vpn_conectado else 'Desconectado'}")
+        if hasattr(self, 'vps_jogo_conectado'):
+            vps_text.append(f"VPS Jogo: {'Conectado' if self.vps_jogo_conectado else 'Desconectado'}")
+        
         full_text = f"{base_text}\n{status_text}"
         if providers_text:
             full_text += "\n" + "\n".join(providers_text)
+        if vps_text:
+            full_text += "\n" + "\n".join(vps_text)
         
         # Adiciona o horário do servidor (se disponível)
         if hasattr(self, 'server_time'):
@@ -1405,11 +1431,13 @@ class ClientApp:
                     # Armazena o horário do servidor
                     self.server_time = data.get('system_time', datetime.now().isoformat())
                     
-                    # Atualiza status dos provedores
+                    # Atualiza status dos provedores e VPS
                     self.root.after(0, lambda: self.update_providers_status(
                         data.get('coopera_online', False),
                         data.get('claro_online', False),
-                        data.get('unifique_online', False)
+                        data.get('unifique_online', False),
+                        data.get('vps_vpn_conectado', False),
+                        data.get('vps_jogo_conectado', False)
                     ))
                 
             except ConnectionResetError:
@@ -1424,8 +1452,8 @@ class ClientApp:
                 
             time.sleep(1)
 
-    def update_providers_status(self, coopera_status, claro_status, unifique_status):
-        """Atualiza os status dos provedores na interface"""
+    def update_providers_status(self, coopera_status, claro_status, unifique_status, vps_vpn_status=None, vps_jogo_status=None):
+        """Atualiza os status dos provedores e VPS na interface"""
         # Verifica mudanças nos status para notificação
         if hasattr(self, 'coopera_status') and coopera_status != self.coopera_status:
             self.show_provider_notification("Coopera", coopera_status)
@@ -1439,7 +1467,13 @@ class ClientApp:
         self.claro_status = claro_status
         self.unifique_status = unifique_status
         
-        # Atualiza labels
+        # Armazena status das VPS se fornecidos
+        if vps_vpn_status is not None:
+            self.vps_vpn_conectado = vps_vpn_status
+        if vps_jogo_status is not None:
+            self.vps_jogo_conectado = vps_jogo_status
+        
+        # Atualiza labels dos provedores
         self.coopera_label.config(text=f"Coopera: {'Online' if coopera_status else 'Offline'}",
                                 fg="green" if coopera_status else "red")
         self.claro_label.config(text=f"Claro: {'Online' if claro_status else 'Offline'}",
@@ -1447,7 +1481,15 @@ class ClientApp:
         self.unifique_label.config(text=f"Unifique: {'Online' if unifique_status else 'Offline'}",
                                  fg="green" if unifique_status else "red")
         
-        # Atualiza o tray icon quando os provedores mudam
+        # Atualiza labels das VPS (se os widgets existirem)
+        if hasattr(self, 'vps_vpn_label'):
+            self.vps_vpn_label.config(text=f"VPS VPN: {'Conectado' if self.vps_vpn_conectado else 'Desconectado'}",
+                                    fg="green" if self.vps_vpn_conectado else "red")
+        if hasattr(self, 'vps_jogo_label'):
+            self.vps_jogo_label.config(text=f"VPS Jogo: {'Conectado' if self.vps_jogo_conectado else 'Desconectado'}",
+                                     fg="green" if self.vps_jogo_conectado else "red")
+        
+        # Atualiza o tray icon quando os status mudam
         self.update_tray_icon()
         self.update_status_icon()
         
