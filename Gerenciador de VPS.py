@@ -540,7 +540,7 @@ class ButtonManager:
         while True:
             # Verifica se todas as variáveis são False
             if (not self.omr_vpn_conectado and 
-                not self.omr_jogo_conectado:
+                not self.omr_jogo_conectado):
                 
                 print("Todas as conexões estão desativadas - desligando o sistema...")
                 os.system("shutdown /s /t 1")  # Desliga o Windows em 1 segundo
