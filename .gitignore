@@ -51,6 +51,8 @@
 !Scripts Locais/**
 !Sobre/
 !Sobre/**
+!.github/
+!.github/**
 
 # Ignorar arquivo específico dentro de Scripts Locais
 Scripts Locais/teste.bat

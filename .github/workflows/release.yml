@@ -1,0 +1,40 @@
+name: Criar Release Automático
+
+on:
+  push:
+    branches:
+      - main  # executa toda vez que fizer push na branch principal
+    paths:
+      - "dist/**"
+      - "*.png"  # roda também se as imagens da raiz forem atualizadas
+
+permissions:
+  contents: write  # permite criar releases e enviar arquivos
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checar repositório
+        uses: actions/checkout@v4
+
+      # Gera uma tag de versão automática baseada na data e hora
+      - name: Definir versão
+        id: version
+        run: echo "VERSION=v$(date +'%Y.%m.%d.%H%M%S')" >> $GITHUB_ENV
+
+      - name: Criar Release e enviar arquivos
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: "Versão ${{ env.VERSION }}"
+          body: "Release automático gerado pelo GitHub Actions."
+          draft: false
+          prerelease: false
+          files: |
+            dist/cliente_temer.exe
+            dist/atualizador.exe
+            *.png
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
