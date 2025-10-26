@@ -3,13 +3,14 @@ name: Criar Release Automático
 on:
   push:
     branches:
-      - main  # executa toda vez que fizer push na branch principal
-    paths:
+      - main
+    paths:          # <- paths válido somente aqui
       - "dist/**"
-      - "*.png"  # roda também se as imagens da raiz forem atualizadas
+      - "*.png"
+  workflow_dispatch:   # <- disparo manual, paths não é usado aqui
 
 permissions:
-  contents: write  # permite criar releases e enviar arquivos
+  contents: write
 
 jobs:
   release:
@@ -19,7 +20,6 @@ jobs:
       - name: Checar repositório
         uses: actions/checkout@v4
 
-      # Gera uma tag de versão automática baseada na data e hora
       - name: Definir versão
         id: version
         run: echo "VERSION=v$(date +'%Y.%m.%d.%H%M%S')" >> $GITHUB_ENV
