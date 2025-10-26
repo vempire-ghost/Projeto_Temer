@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.22"
+    return "Beta 3.23"
 
 class ClientApp:
     def __init__(self):
@@ -124,136 +124,170 @@ class ClientApp:
 # FUNÇÃO PARA DOWNLOAD E ATUALIZAÇÃO DO PROGRAMA.
     def verificar_e_atualizar_arquivos(self):
         arquivos_necessarios = {
-            "server_status_desligado.png": ("vempire-ghost/Projeto_Temer", "server_status_desligado.png"),
-            "server_status_ligado.png": ("vempire-ghost/Projeto_Temer", "server_status_ligado.png"),
-            "server_status_operacional.png": ("vempire-ghost/Projeto_Temer", "server_status_operacional.png"),
-            "server_status_amarelow.png": ("vempire-ghost/Projeto_Temer", "server_status_amarelow.png"),
-            "bom dia.png": ("vempire-ghost/Projeto_Temer", "bom dia.png"),
-            "boa tarde.png": ("vempire-ghost/Projeto_Temer", "boa tarde.png"),
-            "boa noite.png": ("vempire-ghost/Projeto_Temer", "boa noite.png"),
-            "feliz_aniver_mimo.png": ("vempire-ghost/Projeto_Temer", "feliz_aniver_mimo.png"),  # ← NOVA IMAGEM ADICIONADA
-            "fundo.png": ("vempire-ghost/Projeto_Temer", "fundo.png"),
-            "cliente_temer.exe": ("vempire-ghost/Projeto_Temer", "dist/cliente_temer.exe")
+            "server_status_desligado.png": "server_status_desligado.png",
+            "server_status_ligado.png": "server_status_ligado.png",
+            "server_status_operacional.png": "server_status_operacional.png",
+            "server_status_amarelow.png": "server_status_amarelow.png",
+            "bom_dia.png": "bom_dia.png",
+            "boa_tarde.png": "boa_tarde.png",
+            "boa_noite.png": "boa_noite.png",
+            "feliz_aniver_mimo.png": "feliz_aniver_mimo.png",
+            "fundo.png": "fundo.png",
+            "cliente_temer.exe": "cliente_temer.exe"
         }
 
         executavel_atualizado = False
         
-        def get_github_file_last_modified(repo, path):
-            api_url = f"https://api.github.com/repos/{repo}/commits?path={path}&page=1&per_page=1"
+        def get_latest_release_info():
+            """Obtém informações do último release"""
+            api_url = "https://api.github.com/repos/vempire-ghost/Projeto_Temer/releases/latest"
             try:
                 response = requests.get(api_url, timeout=10)
                 if response.status_code == 200:
-                    commits = response.json()
-                    if commits:
-                        last_modified = commits[0]['commit']['committer']['date']
-                        return datetime.strptime(last_modified, '%Y-%m-%dT%H:%M:%SZ')
+                    release_info = response.json()
+                    return release_info
                 else:
-                    client_logger.warning(f"Falha ao acessar API GitHub para {path}. Status code: {response.status_code}")
+                    client_logger.warning(f"Falha ao acessar API GitHub para releases. Status code: {response.status_code}")
             except Exception as e:
-                client_logger.error(f"Erro ao acessar API GitHub para {path}: {str(e)}", exc_info=True)
+                client_logger.error(f"Erro ao acessar API GitHub para releases: {str(e)}", exc_info=True)
             return None
         
-        for arquivo, (repo, path) in arquivos_necessarios.items():
+        def get_asset_download_url(release_info, asset_name):
+            """Obtém a URL de download de um asset específico"""
+            if release_info and 'assets' in release_info:
+                for asset in release_info['assets']:
+                    if asset['name'] == asset_name:
+                        return asset['browser_download_url']
+            return None
+        
+        def get_asset_last_modified(release_info, asset_name):
+            """Obtém a data da última modificação de um asset"""
+            if release_info and 'assets' in release_info:
+                for asset in release_info['assets']:
+                    if asset['name'] == asset_name:
+                        last_modified = asset['updated_at']
+                        return datetime.strptime(last_modified, '%Y-%m-%dT%H:%M:%SZ')
+            return None
+
+        # Obtém informações do último release
+        release_info = get_latest_release_info()
+        if not release_info:
+            client_logger.error("Não foi possível obter informações do último release. Verificando com arquivos locais...")
+            # Continua com os arquivos locais existentes
+            return False
+
+        client_logger.info(f"Usando release: {release_info.get('tag_name', 'Unknown')} - {release_info.get('name', 'Unknown')}")
+
+        for arquivo_local, asset_name in arquivos_necessarios.items():
             precisa_baixar = False
-            download_url = f"https://raw.githubusercontent.com/{repo}/main/{path}"
+            download_url = get_asset_download_url(release_info, asset_name)
             
-            if not os.path.exists(arquivo):
+            if not download_url:
+                client_logger.warning(f"Asset {asset_name} não encontrado no release {release_info.get('tag_name', 'latest')}")
+                continue
+                
+            if not os.path.exists(arquivo_local):
                 precisa_baixar = True
-                client_logger.info(f"Arquivo {arquivo} não encontrado localmente. Iniciando download...")
+                client_logger.info(f"Arquivo {arquivo_local} não encontrado localmente. Iniciando download...")
             else:
                 try:
-                    if arquivo == "cliente_temer.exe":
-                        data_remota = get_github_file_last_modified(repo, path)
+                    if arquivo_local == "cliente_temer.exe":
+                        data_remota = get_asset_last_modified(release_info, asset_name)
                         
                         if data_remota:
-                            data_local = datetime.fromtimestamp(os.path.getmtime(arquivo)).astimezone(timezone.utc)
+                            data_local = datetime.fromtimestamp(os.path.getmtime(arquivo_local)).astimezone(timezone.utc)
                             data_remota = data_remota.replace(tzinfo=timezone.utc)
                             
                             if data_remota > data_local:
                                 precisa_baixar = True
-                                client_logger.info(f"Executável desatualizado. GitHub: {data_remota}, Local: {data_local}")
+                                client_logger.info(f"Executável desatualizado. Release: {data_remota}, Local: {data_local}")
                     else:
-                        response = requests.head(download_url, timeout=10)
-                        if response.status_code == 200:
-                            tamanho_remoto = int(response.headers.get('Content-Length', 0))
-                            tamanho_local = os.path.getsize(arquivo)
-                            if tamanho_remoto != tamanho_local:
+                        # Para outros arquivos, verifica pelo tamanho ou data
+                        data_remota = get_asset_last_modified(release_info, asset_name)
+                        if data_remota:
+                            data_local = datetime.fromtimestamp(os.path.getmtime(arquivo_local)).astimezone(timezone.utc)
+                            data_remota = data_remota.replace(tzinfo=timezone.utc)
+                            
+                            if data_remota > data_local:
                                 precisa_baixar = True
+                                client_logger.info(f"Arquivo {arquivo_local} desatualizado. Release: {data_remota}, Local: {data_local}")
                 except Exception as e:
-                    client_logger.error(f"Erro ao verificar {arquivo}: {str(e)}", exc_info=True)
+                    client_logger.error(f"Erro ao verificar {arquivo_local}: {str(e)}", exc_info=True)
                     continue
             
             if precisa_baixar:
                 try:
-                    client_logger.info(f"Iniciando download do arquivo {arquivo}...")
+                    client_logger.info(f"Iniciando download do arquivo {arquivo_local} do release...")
                     response = requests.get(download_url, timeout=30)
                     
                     if response.status_code != 200:
                         client_logger.error(f"Falha no download. Status code: {response.status_code}")
-                        client_logger.debug(f"Resposta do servidor: {response.text[:200]}...")  # Log parcial do conteúdo
+                        client_logger.debug(f"URL: {download_url}")
                         continue
                     
-                    if arquivo == "cliente_temer.exe":
+                    if arquivo_local == "cliente_temer.exe":
                         temp_name = "cliente_temer_new.exe"
                         with open(temp_name, 'wb') as f:
                             f.write(response.content)
                         
-                        # Baixa o atualizador
-                        atualizador_url = "https://raw.githubusercontent.com/vempire-ghost/Projeto_Temer/main/dist/atualizador.exe"
-                        client_logger.info("Iniciando download do atualizador...")
-                        
-                        try:
-                            response_atualizador = requests.get(atualizador_url, timeout=30)
+                        # Procura pelo atualizador nos assets do release
+                        atualizador_url = get_asset_download_url(release_info, "atualizador.exe")
+                        if atualizador_url:
+                            client_logger.info("Iniciando download do atualizador do release...")
                             
-                            if response_atualizador.status_code != 200:
-                                client_logger.error(f"Falha no download do atualizador. Status: {response_atualizador.status_code}")
-                                client_logger.error(f"URL do atualizador: {atualizador_url}")
-                                client_logger.debug(f"Resposta do servidor: {response_atualizador.text[:200]}...")
-                                continue
+                            try:
+                                response_atualizador = requests.get(atualizador_url, timeout=30)
                                 
-                            with open("atualizador.exe", 'wb') as f:
-                                f.write(response_atualizador.content)
+                                if response_atualizador.status_code != 200:
+                                    client_logger.error(f"Falha no download do atualizador. Status: {response_atualizador.status_code}")
+                                    client_logger.error(f"URL do atualizador: {atualizador_url}")
+                                    continue
+                                    
+                                with open("atualizador.exe", 'wb') as f:
+                                    f.write(response_atualizador.content)
+                                
+                                client_logger.info("Executando atualizador...")
+                                subprocess.Popen([
+                                    "atualizador.exe",
+                                    "--original", "cliente_temer.exe",
+                                    "--novo", temp_name,
+                                    "--pid", str(os.getpid())
+                                ], creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
+                                
+                                client_logger.warning("ATENÇÃO: Executável atualizado. O aplicativo será reiniciado automaticamente.")
+                                sys.exit(0)
+                                
+                            except requests.exceptions.RequestException as e:
+                                client_logger.error(f"Erro na requisição do atualizador: {str(e)}", exc_info=True)
+                                client_logger.error(f"Tipo de exceção: {type(e).__name__}")
+                                if hasattr(e, 'response'):
+                                    client_logger.error(f"Response status: {e.response.status_code}")
                             
-                            client_logger.info("Executando atualizador...")
-                            subprocess.Popen([
-                                "atualizador.exe",
-                                "--original", "cliente_temer.exe",
-                                "--novo", temp_name,
-                                "--pid", str(os.getpid())
-                            ], creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
-                            
-                            client_logger.warning("ATENÇÃO: Executável atualizado. O aplicativo será reiniciado automaticamente.")
-                            sys.exit(0)
-                            
-                        except requests.exceptions.RequestException as e:
-                            client_logger.error(f"Erro na requisição do atualizador: {str(e)}", exc_info=True)
-                            client_logger.error(f"Tipo de exceção: {type(e).__name__}")
-                            if hasattr(e, 'response'):
-                                client_logger.error(f"Response status: {e.response.status_code}")
-                        
-                        except Exception as e:
-                            client_logger.error(f"Erro inesperado ao baixar/executar atualizador: {str(e)}", exc_info=True)
+                            except Exception as e:
+                                client_logger.error(f"Erro inesperado ao baixar/executar atualizador: {str(e)}", exc_info=True)
+                        else:
+                            client_logger.warning("Atualizador não encontrado no release. Continuando sem atualização automática.")
                     
                     else:
-                        with open(arquivo, 'wb') as f:
+                        with open(arquivo_local, 'wb') as f:
                             f.write(response.content)
-                        client_logger.info(f"Arquivo {arquivo} baixado com sucesso")
+                        client_logger.info(f"Arquivo {arquivo_local} baixado com sucesso do release")
                 
                 except requests.exceptions.Timeout:
-                    client_logger.error(f"Timeout ao baixar {arquivo}. Servidor não respondeu em 30 segundos")
+                    client_logger.error(f"Timeout ao baixar {arquivo_local}. Servidor não respondeu em 30 segundos")
                 
                 except requests.exceptions.SSLError:
-                    client_logger.error(f"Erro de SSL ao baixar {arquivo}", exc_info=True)
+                    client_logger.error(f"Erro de SSL ao baixar {arquivo_local}", exc_info=True)
                 
                 except requests.exceptions.ConnectionError:
-                    client_logger.error(f"Erro de conexão ao baixar {arquivo}. Verifique sua internet")
+                    client_logger.error(f"Erro de conexão ao baixar {arquivo_local}. Verifique sua internet")
                 
                 except requests.exceptions.RequestException as e:
-                    client_logger.error(f"Erro na requisição para {arquivo}: {str(e)}", exc_info=True)
+                    client_logger.error(f"Erro na requisição para {arquivo_local}: {str(e)}", exc_info=True)
                     client_logger.error(f"Tipo de exceção: {type(e).__name__}")
                 
                 except Exception as e:
-                    client_logger.error(f"Erro inesperado ao baixar {arquivo}: {str(e)}", exc_info=True)
+                    client_logger.error(f"Erro inesperado ao baixar {arquivo_local}: {str(e)}", exc_info=True)
         
         return executavel_atualizado
 
@@ -602,11 +636,11 @@ class ClientApp:
         else:
             # Determina qual imagem carregar baseado no horário
             if 6 <= hora_atual < 12:
-                imagem_path = "bom dia.png"
+                imagem_path = "bom_dia.png"
             elif 12 <= hora_atual < 18:
-                imagem_path = "boa tarde.png"
+                imagem_path = "boa_tarde.png"
             else:
-                imagem_path = "boa noite.png"
+                imagem_path = "boa_noite.png"
         
         # Carrega e redimensiona a imagem proporcionalmente
         try:
