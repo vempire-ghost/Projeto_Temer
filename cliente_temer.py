@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.23"
+    return "Beta 3.24"
 
 class ClientApp:
     def __init__(self):
@@ -160,8 +160,16 @@ class ClientApp:
                         return asset['browser_download_url']
             return None
         
+        def get_asset_size(release_info, asset_name):
+            """Obtém o tamanho do asset em bytes"""
+            if release_info and 'assets' in release_info:
+                for asset in release_info['assets']:
+                    if asset['name'] == asset_name:
+                        return asset['size']
+            return None
+        
         def get_asset_last_modified(release_info, asset_name):
-            """Obtém a data da última modificação de um asset"""
+            """Obtém a data da última modificação de um asset (apenas para executável)"""
             if release_info and 'assets' in release_info:
                 for asset in release_info['assets']:
                     if asset['name'] == asset_name:
@@ -173,7 +181,6 @@ class ClientApp:
         release_info = get_latest_release_info()
         if not release_info:
             client_logger.error("Não foi possível obter informações do último release. Verificando com arquivos locais...")
-            # Continua com os arquivos locais existentes
             return False
 
         client_logger.info(f"Usando release: {release_info.get('tag_name', 'Unknown')} - {release_info.get('name', 'Unknown')}")
@@ -192,6 +199,7 @@ class ClientApp:
             else:
                 try:
                     if arquivo_local == "cliente_temer.exe":
+                        # Para executável: usa data de modificação
                         data_remota = get_asset_last_modified(release_info, asset_name)
                         
                         if data_remota:
@@ -202,15 +210,15 @@ class ClientApp:
                                 precisa_baixar = True
                                 client_logger.info(f"Executável desatualizado. Release: {data_remota}, Local: {data_local}")
                     else:
-                        # Para outros arquivos, verifica pelo tamanho ou data
-                        data_remota = get_asset_last_modified(release_info, asset_name)
-                        if data_remota:
-                            data_local = datetime.fromtimestamp(os.path.getmtime(arquivo_local)).astimezone(timezone.utc)
-                            data_remota = data_remota.replace(tzinfo=timezone.utc)
+                        # Para imagens: usa tamanho do arquivo
+                        tamanho_remoto = get_asset_size(release_info, asset_name)
+                        
+                        if tamanho_remoto:
+                            tamanho_local = os.path.getsize(arquivo_local)
                             
-                            if data_remota > data_local:
+                            if tamanho_remoto != tamanho_local:
                                 precisa_baixar = True
-                                client_logger.info(f"Arquivo {arquivo_local} desatualizado. Release: {data_remota}, Local: {data_local}")
+                                client_logger.info(f"Imagem desatualizada. {arquivo_local} - Remoto: {tamanho_remoto} bytes, Local: {tamanho_local} bytes")
                 except Exception as e:
                     client_logger.error(f"Erro ao verificar {arquivo_local}: {str(e)}", exc_info=True)
                     continue
