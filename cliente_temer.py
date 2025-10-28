@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.24"
+    return "Beta 3.25"
 
 class ClientApp:
     def __init__(self):
@@ -429,8 +429,8 @@ class ClientApp:
     def setup_ui(self):
         """Configura a interface do usuário com ícones de status no canto superior direito"""
         # DEFINA O TAMANHO DA JANELA AQUI (largura x altura)
-        self.root.minsize(404, 540)    # ← Tamanho mínimo opcional
-        self.root.maxsize(404, 540)    # ← Tamanho mínimo opcional
+        self.root.minsize(404, 580)    # ← Tamanho mínimo opcional
+        self.root.maxsize(404, 580)    # ← Tamanho mínimo opcional
         
         # Carrega a imagem de fundo
         try:
@@ -528,10 +528,10 @@ class ClientApp:
                              variable=self.control_proxifier).grid(
             row=5, column=0, columnspan=2, sticky="w", pady=(0, 10))
         
-        # --- Seção de botões ---
+        # --- Seção de botões principais ---
         btn_frame = create_frame_with_bg(content_frame)
-        btn_frame.grid(row=6, column=0, columnspan=3, pady=(0, 10))
-        
+        btn_frame.grid(row=6, column=0, columnspan=3, pady=(0, 5))  # Reduzi o pady
+
         tk.Button(btn_frame, text="Conectar", command=self.auto_connect, 
                  bg=self._get_button_color()).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Desconectar", command=self.disconnect,
@@ -540,16 +540,40 @@ class ClientApp:
                  bg=self._get_button_color()).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Sair", command=self.quit_app,
                  bg=self._get_button_color()).pack(side=tk.RIGHT, padx=5)
+
+        # --- NOVA SEÇÃO: Botões de reinício do VPS ---
+        vps_buttons_frame = create_frame_with_bg(content_frame)
+        vps_buttons_frame.grid(row=7, column=0, columnspan=3, pady=(0, 10))  # Nova linha
+
+        # Botão para reiniciar VPS VPN
+        self.reiniciar_vpn_btn = tk.Button(
+            vps_buttons_frame, 
+            text="Reiniciar VPS VPN", 
+            command=self.reiniciar_vps_vpn,
+            bg=self._get_button_color(),
+            state=tk.DISABLED  # Inicia desabilitado até ter conexão
+        )
+        self.reiniciar_vpn_btn.pack(side=tk.LEFT, padx=5)
+
+        # Botão para reiniciar VPS Jogo
+        self.reiniciar_jogo_btn = tk.Button(
+            vps_buttons_frame, 
+            text="Reiniciar VPS Jogo", 
+            command=self.reiniciar_vps_jogo,
+            bg=self._get_button_color(),
+            state=tk.DISABLED  # Inicia desabilitado até ter conexão
+        )
+        self.reiniciar_jogo_btn.pack(side=tk.LEFT, padx=5)
         
         # --- Seção de status ---
         self.status_label = tk.Label(content_frame, text="Status: Desconectado", fg="red", 
                                      bg=self._get_button_color(),
                                      highlightbackground="white", highlightthickness=1, bd=0)
-        self.status_label.grid(row=7, column=0, columnspan=3, pady=(0, 0))
+        self.status_label.grid(row=8, column=0, columnspan=3, pady=(0, 0))
 
         # Status dos provedores
         self.providers_frame = create_frame_with_bg(content_frame)
-        self.providers_frame.grid(row=8, column=0, columnspan=3, pady=(5, 10), sticky="s")
+        self.providers_frame.grid(row=9, column=0, columnspan=3, pady=(5, 10), sticky="s")
 
         self.coopera_label = tk.Label(self.providers_frame, text="Coopera: Offline", fg="red", 
                                       bg=self._get_button_color(),
@@ -568,7 +592,7 @@ class ClientApp:
 
         # NOVO: Frame para status das VPS
         self.vps_frame = create_frame_with_bg(content_frame)
-        self.vps_frame.grid(row=9, column=0, columnspan=3, pady=(5, 10), sticky="s")
+        self.vps_frame.grid(row=10, column=0, columnspan=3, pady=(5, 10), sticky="s")
 
         self.vps_vpn_label = tk.Label(self.vps_frame, text="VPS VPN: Desconectado", fg="red", 
                                       bg=self._get_button_color(),
@@ -582,7 +606,7 @@ class ClientApp:
 
         # --- Frame para a imagem de saudação DENTRO do content_frame ---
         self.saudacao_frame = create_frame_with_bg(content_frame, height=174)
-        self.saudacao_frame.grid(row=10, column=0, columnspan=3, pady=(10, 5), sticky="ew")  # Mudei row para 10
+        self.saudacao_frame.grid(row=11, column=0, columnspan=3, pady=(10, 5), sticky="ew")  # Mudei row para 10
         self.saudacao_frame.grid_propagate(False)  # Mantém a altura fixa
         
         # Label para a imagem de saudação (centralizada)
@@ -609,6 +633,96 @@ class ClientApp:
         if not self.start_minimized.get():
             self.root.deiconify()
 
+# METODO PARA REINICIO DOS VPS NO SERVIDOR
+    def reiniciar_vps_vpn(self):
+        """Envia comando para reiniciar o VPS VPN do servidor conectado"""
+        if not self.connected:
+            messagebox.showwarning("Aviso", "Não conectado ao servidor")
+            return
+        
+        # Confirmação antes de reiniciar
+        confirm = messagebox.askyesno(
+            "Confirmar Reinício",
+            "Tem certeza que deseja reiniciar o VPS VPN?\nIsso pode causar interrupção temporária na conexão.",
+            icon='warning'
+        )
+        
+        if not confirm:
+            return
+        
+        try:
+            # Cria um socket temporário para enviar o comando
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(5)
+                s.connect((self.server_ip.get(), self.server_port.get()))
+                
+                # Envia o comando de reinício do VPS VPN
+                request = json.dumps({'action': 'reiniciar_vps_vpn'})
+                s.send(request.encode('utf-8'))
+                
+                # Aguarda resposta
+                response = s.recv(1024)
+                if response:
+                    data = json.loads(response.decode('utf-8'))
+                    if data.get('success', False):
+                        messagebox.showinfo("Sucesso", "Comando de reinício do VPS VPN enviado com sucesso")
+                        client_logger.info("Comando de reinício do VPS VPN enviado com sucesso")
+                    else:
+                        messagebox.showerror("Erro", "Falha ao executar reinício do VPS VPN no servidor")
+                        client_logger.error("Falha ao executar reinício do VPS VPN")
+        
+        except socket.timeout:
+            messagebox.showerror("Erro", "Timeout ao aguardar resposta do servidor")
+            client_logger.error("Timeout no comando de reinício do VPS VPN")
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha ao enviar comando: {str(e)}")
+            client_logger.error(f"Erro no comando de reinício do VPS VPN: {str(e)}")
+
+    def reiniciar_vps_jogo(self):
+        """Envia comando para reiniciar o VPS Jogo do servidor conectado"""
+        if not self.connected:
+            messagebox.showwarning("Aviso", "Não conectado ao servidor")
+            return
+        
+        # Confirmação antes de reiniciar
+        confirm = messagebox.askyesno(
+            "Confirmar Reinício",
+            "Tem certeza que deseja reiniciar o VPS Jogo?\nIsso pode causar interrupção temporária no jogo.",
+            icon='warning'
+        )
+        
+        if not confirm:
+            return
+        
+        try:
+            # Cria um socket temporário para enviar o comando
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(5)
+                s.connect((self.server_ip.get(), self.server_port.get()))
+                
+                # Envia o comando de reinício do VPS Jogo
+                request = json.dumps({'action': 'reiniciar_vps_jogo'})
+                s.send(request.encode('utf-8'))
+                
+                # Aguarda resposta
+                response = s.recv(1024)
+                if response:
+                    data = json.loads(response.decode('utf-8'))
+                    if data.get('success', False):
+                        messagebox.showinfo("Sucesso", "Comando de reinício do VPS Jogo enviado com sucesso")
+                        client_logger.info("Comando de reinício do VPS Jogo enviado com sucesso")
+                    else:
+                        messagebox.showerror("Erro", "Falha ao executar reinício do VPS Jogo no servidor")
+                        client_logger.error("Falha ao executar reinício do VPS Jogo")
+        
+        except socket.timeout:
+            messagebox.showerror("Erro", "Timeout ao aguardar resposta do servidor")
+            client_logger.error("Timeout no comando de reinício do VPS Jogo")
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha ao enviar comando: {str(e)}")
+            client_logger.error(f"Erro no comando de reinício do VPS Jogo: {str(e)}")
+
+# METODO DE ATUALIZAÇÃO DA SAUDAÇÃO EM IMAGENS
     # Adicione estas funções auxiliares à sua classe
     def _get_bg_color(self):
         """Retorna a cor de fundo apropriada (fallback se não houver imagem)"""
@@ -1392,6 +1506,11 @@ class ClientApp:
         """Lida com perda de conexão"""
         self.disconnect(silent=True)
         
+        # Desabilita botões de reinício
+        if hasattr(self, 'reiniciar_vpn_btn') and hasattr(self, 'reiniciar_jogo_btn'):
+            self.reiniciar_vpn_btn.config(state=tk.DISABLED)
+            self.reiniciar_jogo_btn.config(state=tk.DISABLED)
+        
         # Atualiza todos os provedores para Offline
         self.root.after(0, lambda: self.update_providers_status(False, False, False))
         
@@ -1404,7 +1523,7 @@ class ClientApp:
         self.root.after(0, self.update_tray_icon)
         self.root.after(0, self.update_status_icon)
         
-        # Atualiza o tooltip do tray icon (que será atualizado pelo get_tray_tooltip)
+        # Atualiza o tooltip do tray icon
         if hasattr(self, 'tray_icon'):
             self.tray_icon.title = self.get_tray_tooltip()
             if hasattr(self.tray_icon, '_update_icon'):
@@ -1563,9 +1682,18 @@ class ClientApp:
         else:
             self.status_label.config(text="Status: Conectado", fg="blue")
         
+        # Habilita/desabilita botões de reinício baseado na conexão
+        if hasattr(self, 'reiniciar_vpn_btn') and hasattr(self, 'reiniciar_jogo_btn'):
+            if self.connected:
+                self.reiniciar_vpn_btn.config(state=tk.NORMAL)
+                self.reiniciar_jogo_btn.config(state=tk.NORMAL)
+            else:
+                self.reiniciar_vpn_btn.config(state=tk.DISABLED)
+                self.reiniciar_jogo_btn.config(state=tk.DISABLED)
+        
         self.update_tray_icon()
         self.update_status_icon()
-        self.check_and_control_proxifier()  # Adicione esta linha
+        self.check_and_control_proxifier()
         
         # Atualiza o tooltip do tray icon
         if hasattr(self, 'tray_icon'):

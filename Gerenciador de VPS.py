@@ -27,6 +27,7 @@ import win32api
 import win32con
 import win32gui
 import glob
+import difflib
 from datetime import datetime
 from ctypes import wintypes
 from pystray import Icon, MenuItem, Menu as TrayMenu
@@ -55,7 +56,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.17"
+    return "Beta 95.18"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -270,8 +271,9 @@ class ButtonManager:
         """
         Método da classe ButtonManager que inicia o servidor de monitoramento
         """
-        def handle_client(conn, addr):
-            """Lida com uma conexão de cliente individual"""
+        def handle_client(conn, addr):  # REMOVA O 'self' DAQUI
+            """Lida com uma conexão de cliente individual - ATUALIZADA"""
+            print(f"Cliente conectado: {addr}")
             try:
                 while True:
                     data = conn.recv(1024)
@@ -280,32 +282,48 @@ class ButtonManager:
                         
                     try:
                         request = json.loads(data.decode('utf-8'))
+                        
                         if request.get('action') == 'get_status':
+                            nome_servidor = self.get_servidor_conectado()  # 'self' aqui se refere à classe externa
                             response = {
                                 'connected': True,
                                 'server_status': self.servidor_conectado,
+                                'servidor_conectado': nome_servidor,  # Nome do servidor atual
                                 'coopera_online': self.coopera_online,
                                 'claro_online': self.claro_online,
                                 'unifique_online': self.unifique_online,
                                 'vps_vpn_conectado': self.vps_vpn_conectado,
                                 'vps_jogo_conectado': self.vps_jogo_conectado,
-                                'system_time': datetime.now().isoformat()  # Horário no formato ISO (YYYY-MM-DDTHH:MM:SS)
+                                'system_time': datetime.now().isoformat()
                             }
                             conn.send(json.dumps(response).encode('utf-8'))
+                        
                         elif request.get('action') == 'poweroff':
                             success = self._execute_poweroff_script()
                             conn.send(json.dumps({'success': success}).encode('utf-8'))
+                        
                         elif request.get('action') == 'poweroff2':
                             success = self._execute_poweroff_script2()
                             conn.send(json.dumps({'success': success}).encode('utf-8'))
+                        
+                        # NOVAS AÇÕES ADICIONADAS
+                        elif request.get('action') == 'reiniciar_vps_vpn':
+                            success = self.reiniciar_vps_vpn()
+                            conn.send(json.dumps({'success': success}).encode('utf-8'))
+                        
+                        elif request.get('action') == 'reiniciar_vps_jogo':
+                            success = self.reiniciar_vps_jogo()
+                            conn.send(json.dumps({'success': success}).encode('utf-8'))
+                        
                         elif request.get('action') == 'disconnect':
-                            break
-                    except (json.JSONDecodeError, UnicodeDecodeError):
-                        pass
-            except (ConnectionResetError, BrokenPipeError):
-                pass
+                            break           
+                    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                        print(f"Erro ao decodificar JSON: {e}")
+            except (ConnectionResetError, BrokenPipeError) as e:
+                print(f"Cliente desconectado: {e}")
             finally:
                 conn.close()
+                print(f"Conexão com {addr} fechada")
 
         def server_loop():
             """Loop principal do servidor de monitoramento"""
@@ -812,7 +830,7 @@ class ButtonManager:
         menu_bar.add_cascade(label="Configurações", menu=config_menu)
         config_menu.add_command(label="Configurações do Gerenciador de VPS", command=self.open_omr_manager)
         config_menu.add_command(label="Configurações de Cores", command=self.open_color_config)
-        #config_menu.add_command(label="Backup", command=self.execute_delayed_backup)
+        #config_menu.add_command(label="Encontrar", command=self.testar_matching)
         config_menu.add_command(label="Abrir Terminal SSH", command=self.open_ssh_terminal)
         config_menu.add_command(label="Monitor OMR e Graficos", command=self.execute_mtr_and_plot)
         config_menu.add_command(label="Ajuda", command=self.abrir_arquivo_ajuda)
@@ -1454,6 +1472,111 @@ class ButtonManager:
         # Adiciona o label de versão ao rodapé
         self.version_label = tk.Label(self.footer_frame, text=f"Projeto Temer - ©VempirE_GhosT - Versão: {get_version()}", bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
+
+# METODO PARA UTILIZAR REINICIO DE VPS VPN E VPS JOGO NO CLIENTE TEMER.
+# FUNÇÕES DE LEITURA DO ARQUIVO DE CONEXÃO
+# =============================================
+
+    def get_servidor_conectado(self):
+        """Lê o arquivo conection_status.txt e retorna o nome do servidor conectado"""
+        try:
+            if os.path.exists("conection_status.txt"):
+                with open("conection_status.txt", "r", encoding='utf-8') as f:
+                    linhas = f.readlines()
+                    # Procura pela linha "Conectado a [Nome]"
+                    for linha in linhas:
+                        if linha.startswith("Conectado a"):
+                            return linha.replace("Conectado a", "").strip()
+            return None
+        except Exception as e:
+            print(f"Erro ao ler arquivo de conexão: {e}")
+            return None
+
+    # =============================================
+    # FUNÇÃO PRINCIPAL DE MATCHING
+    # =============================================
+
+    def encontrar_botao_por_nome(self, nome_servidor, tab=1):
+        """Encontra o botão que contém TODAS as palavras do nome do servidor"""
+        try:
+            if not os.path.exists('buttons.json'):
+                print("❌ Arquivo buttons.json não encontrado")
+                return None
+            
+            with open('buttons.json', 'r', encoding='utf-8') as f:
+                buttons_data = json.load(f)
+            
+            botoes_tab = [botao for botao in buttons_data if botao.get('tab', 1) == tab]
+            
+            if not botoes_tab:
+                print(f"❌ Nenhum botão encontrado na tab {tab} do JSON")
+                return None
+            
+            # Pega todas as palavras do nome do servidor
+            palavras_servidor = set(nome_servidor.lower().split())
+            
+            print(f"🔍 Buscando botão com palavras: {palavras_servidor}")
+            
+            # Procura por botões que contenham TODAS as palavras
+            for botao_data in botoes_tab:
+                texto_botao = botao_data['text'].lower()
+                palavras_botao = set(texto_botao.split())
+                
+                # Verifica se o botão tem TODAS as palavras do servidor
+                if palavras_servidor.issubset(palavras_botao):
+                    print(f"✅ Match EXATO: '{nome_servidor}' -> '{botao_data['text']}'")
+                    return botao_data
+            
+            print(f"❌ Nenhum botão contém TODAS as palavras: {palavras_servidor}")
+            return None
+                
+        except Exception as e:
+            print(f"❌ Erro ao encontrar botão no JSON: {e}")
+            return None
+
+    # =============================================
+    # FUNÇÕES DE REINÍCIO VIA API
+    # =============================================
+
+    def reiniciar_vps_vpn(self):
+        """Reinicia o VPS VPN do servidor atualmente conectado"""
+        try:
+            nome_servidor = self.get_servidor_conectado()
+            if not nome_servidor:
+                print("❌ Nenhum servidor conectado encontrado")
+                return False
+            
+            botao_data = self.encontrar_botao_por_nome(nome_servidor, tab=1)
+            if botao_data and botao_data.get('vpn_link'):
+                print(f"🔄 Reiniciando VPS VPN para: {botao_data['text']}")
+                self.run_as_admin(botao_data['vpn_link'])
+                return True
+            else:
+                print(f"❌ Botão não encontrado ou sem link VPN para: {nome_servidor}")
+                return False
+        except Exception as e:
+            print(f"❌ Erro ao reiniciar VPS VPN: {e}")
+            return False
+
+    def reiniciar_vps_jogo(self):
+        """Reinicia o VPS Jogo do servidor atualmente conectado"""
+        try:
+            nome_servidor = self.get_servidor_conectado()
+            if not nome_servidor:
+                print("❌ Nenhum servidor conectado encontrado")
+                return False
+            
+            botao_data = self.encontrar_botao_por_nome(nome_servidor, tab=1)
+            if botao_data and botao_data.get('game_link'):
+                print(f"🔄 Reiniciando VPS Jogo para: {botao_data['text']}")
+                self.run_as_admin(botao_data['game_link'])
+                return True
+            else:
+                print(f"❌ Botão não encontrado ou sem link Game para: {nome_servidor}")
+                return False
+        except Exception as e:
+            print(f"❌ Erro ao reiniciar VPS Jogo: {e}")
+            return False
 
 # METODO PARA CHECAR E INSTALAR O MTR NO OMR VPN E NO VPS JOGO
     # Método para abrir uma janela de instalação do MTR na conexão OMR VPN
