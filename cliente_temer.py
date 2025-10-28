@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.25"
+    return "Beta 3.26"
 
 class ClientApp:
     def __init__(self):
@@ -880,6 +880,29 @@ class ClientApp:
             self.tooltip.geometry(f"+{x}+{y}")
             self.tooltip.deiconify()
 
+    def update_vps_status(self, vps_vpn_status=False, vps_jogo_status=False):
+        """Atualiza o status das VPS na interface"""
+        # Armazena status das VPS
+        self.vps_vpn_conectado = vps_vpn_status
+        self.vps_jogo_conectado = vps_jogo_status
+        
+        # Atualiza labels das VPS
+        if hasattr(self, 'vps_vpn_label'):
+            self.vps_vpn_label.config(text=f"VPS VPN: {'Conectado' if vps_vpn_status else 'Desconectado'}",
+                                    fg="green" if vps_vpn_status else "red")
+        if hasattr(self, 'vps_jogo_label'):
+            self.vps_jogo_label.config(text=f"VPS Jogo: {'Conectado' if vps_jogo_status else 'Desconectado'}",
+                                     fg="green" if vps_jogo_status else "red")
+        
+        # Atualiza estado dos botões
+        if hasattr(self, 'reiniciar_vpn_btn') and hasattr(self, 'reiniciar_jogo_btn'):
+            if self.connected:
+                self.reiniciar_vpn_btn.config(state=tk.NORMAL)
+                self.reiniciar_jogo_btn.config(state=tk.NORMAL)
+            else:
+                self.reiniciar_vpn_btn.config(state=tk.DISABLED)
+                self.reiniciar_jogo_btn.config(state=tk.DISABLED)
+
 # FUNÇÃO PARA LOCALIZAR E INICIAR O PROXIFIER.
     def find_proxifier_path(self):
         """Busca o caminho do Proxifier, primeiro nas configurações salvas, depois no sistema"""
@@ -1503,16 +1526,14 @@ class ClientApp:
                 self.root.after(10000, self.auto_connect)
 
     def handle_connection_lost(self):
-        """Lida com perda de conexão"""
+        """Lida com perda de conexão - MÉTODO CORRIGIDO"""
         self.disconnect(silent=True)
-        
-        # Desabilita botões de reinício
-        if hasattr(self, 'reiniciar_vpn_btn') and hasattr(self, 'reiniciar_jogo_btn'):
-            self.reiniciar_vpn_btn.config(state=tk.DISABLED)
-            self.reiniciar_jogo_btn.config(state=tk.DISABLED)
         
         # Atualiza todos os provedores para Offline
         self.root.after(0, lambda: self.update_providers_status(False, False, False))
+        
+        # Atualiza status das VPS para desconectado
+        self.root.after(0, lambda: self.update_vps_status(False, False))
         
         # Atualiza o status da interface
         self.root.after(0, lambda: self.status_label.config(
@@ -1533,7 +1554,7 @@ class ClientApp:
             self.auto_connect()
 
     def disconnect(self, silent=False):
-        """Desconecta do servidor"""
+        """Desconecta do servidor - MÉTODO CORRIGIDO"""
         self.running = False
         
         try:
@@ -1554,18 +1575,20 @@ class ClientApp:
         # Atualiza todos os provedores para Offline
         self.root.after(0, lambda: self.update_providers_status(False, False, False))
         
+        # Atualiza status das VPS para desconectado
+        self.root.after(0, lambda: self.update_vps_status(False, False))
+        
+        # Desabilita botões de reinício
+        if hasattr(self, 'reiniciar_vpn_btn') and hasattr(self, 'reiniciar_jogo_btn'):
+            self.reiniciar_vpn_btn.config(state=tk.DISABLED)
+            self.reiniciar_jogo_btn.config(state=tk.DISABLED)
+        
         if not silent:
             self.root.after(0, lambda: self.status_label.config(
                 text="Status: Desconectado", 
                 fg="red"))
             self.update_tray_icon()
             self.update_status_icon()
-
-    def handle_connection_lost(self):
-        """Lida com perda de conexão"""
-        self.disconnect(silent=True)
-        if self.auto_reconnect:
-            self.auto_connect()
 
 # FUNÇÃO PARA VERIFICAR O ESTADO DOS PROVEDORES NO SERVIDOR
     def update_status_loop(self):
