@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.26"
+    return "Beta 3.27"
 
 class ClientApp:
     def __init__(self):
@@ -599,7 +599,7 @@ class ClientApp:
                                       highlightbackground="white", highlightthickness=1, bd=0)
         self.vps_vpn_label.pack(side=tk.LEFT, padx=5)
 
-        self.vps_jogo_label = tk.Label(self.vps_frame, text="VPS JOGO: Desconectado", fg="red", 
+        self.vps_jogo_label = tk.Label(self.vps_frame, text="VPS Jogo: Desconectado", fg="red", 
                                        bg=self._get_button_color(),
                                        highlightbackground="white", highlightthickness=1, bd=0)
         self.vps_jogo_label.pack(side=tk.LEFT, padx=5)
@@ -894,9 +894,9 @@ class ClientApp:
             self.vps_jogo_label.config(text=f"VPS Jogo: {'Conectado' if vps_jogo_status else 'Desconectado'}",
                                      fg="green" if vps_jogo_status else "red")
         
-        # Atualiza estado dos botões
+        # Atualiza estado dos botões - AGORA COM VERIFICAÇÃO DE SEGURANÇA
         if hasattr(self, 'reiniciar_vpn_btn') and hasattr(self, 'reiniciar_jogo_btn'):
-            if self.connected:
+            if self.connected and self.is_secure_server_ip():  # ← AQUI A VERIFICAÇÃO
                 self.reiniciar_vpn_btn.config(state=tk.NORMAL)
                 self.reiniciar_jogo_btn.config(state=tk.NORMAL)
             else:
@@ -1252,7 +1252,7 @@ class ClientApp:
         self.green_icon = self.create_icon_image("green")
         self.yellow_icon = self.create_icon_image("yellow")
         
-        # Menu do tray icon (agora com duas opções de desligamento)
+        # Menu do tray icon - VOLTAR AO ORIGINAL
         menu = (
             pystray.MenuItem("Abrir", self.restore_from_tray),
             pystray.MenuItem("Desligar Servidor e VPS", self.send_poweroff_command),
@@ -1307,7 +1307,7 @@ class ClientApp:
 
 
     def update_tray_icon(self):
-        """Atualiza o ícone na bandeja com base no status"""
+        """Atualiza o ícone na bandeja com base no status - VOLTAR AO ORIGINAL"""
         # 1️⃣ Vermelho - não conectado ou tentando reconectar
         if not self.connected or self.reconnect_attempts > 0:
             self.tray_icon.icon = self.red_icon
@@ -1339,10 +1339,15 @@ class ClientApp:
             messagebox.showwarning("Aviso", "Não conectado ao servidor")
             return
         
+        # VERIFICAÇÃO DE SEGURANÇA
+        if not self.is_secure_server_ip():
+            messagebox.showwarning("Segurança", "Mimo safado não pode desligar o servidor!")
+            return
+        
         # Janela de confirmação
         confirm = messagebox.askyesno(
             "Confirmar Desligamento",
-            "Tem certeza que deseja desligar o servidor?\nEsta ação não pode ser desfeita.",
+            "Tem certeza que deseja desligar o servidor e os VPS?\nEsta ação não pode ser desfeita.",
             icon='warning'
         )
         
@@ -1378,10 +1383,15 @@ class ClientApp:
             messagebox.showwarning("Aviso", "Não conectado ao servidor")
             return
         
+        # VERIFICAÇÃO DE SEGURANÇA
+        if not self.is_secure_server_ip():
+            messagebox.showwarning("Segurança", "Mimo safado não pode desligar o servidor!")
+            return
+        
         # Janela de confirmação
         confirm = messagebox.askyesno(
             "Confirmar Execução",
-            "Tem certeza que deseja executar o segundo script de desligamento?\nEsta ação não pode ser desfeita.",
+            "Tem certeza que deseja desligar o servidor sem desligar os VPS?\nEsta ação não pode ser desfeita.",
             icon='warning'
         )
         
@@ -1578,7 +1588,7 @@ class ClientApp:
         # Atualiza status das VPS para desconectado
         self.root.after(0, lambda: self.update_vps_status(False, False))
         
-        # Desabilita botões de reinício
+        # Desabilita botões de reinício (independente da segurança quando desconectado)
         if hasattr(self, 'reiniciar_vpn_btn') and hasattr(self, 'reiniciar_jogo_btn'):
             self.reiniciar_vpn_btn.config(state=tk.DISABLED)
             self.reiniciar_jogo_btn.config(state=tk.DISABLED)
@@ -1589,6 +1599,11 @@ class ClientApp:
                 fg="red"))
             self.update_tray_icon()
             self.update_status_icon()
+
+    def is_secure_server_ip(self):
+        """Verifica se o IP do servidor começa com 192.168.0 para habilitar funções sensíveis"""
+        server_ip = self.server_ip.get()
+        return server_ip.startswith('192.168.0')
 
 # FUNÇÃO PARA VERIFICAR O ESTADO DOS PROVEDORES NO SERVIDOR
     def update_status_loop(self):
@@ -1705,16 +1720,16 @@ class ClientApp:
         else:
             self.status_label.config(text="Status: Conectado", fg="blue")
         
-        # Habilita/desabilita botões de reinício baseado na conexão
+        # Habilita/desabilita botões de reinício baseado na conexão E SEGURANÇA
         if hasattr(self, 'reiniciar_vpn_btn') and hasattr(self, 'reiniciar_jogo_btn'):
-            if self.connected:
+            if self.connected and self.is_secure_server_ip():
                 self.reiniciar_vpn_btn.config(state=tk.NORMAL)
                 self.reiniciar_jogo_btn.config(state=tk.NORMAL)
             else:
                 self.reiniciar_vpn_btn.config(state=tk.DISABLED)
                 self.reiniciar_jogo_btn.config(state=tk.DISABLED)
         
-        self.update_tray_icon()
+        self.update_tray_icon()  # Isso agora também atualiza o menu
         self.update_status_icon()
         self.check_and_control_proxifier()
         
