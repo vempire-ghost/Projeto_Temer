@@ -51,7 +51,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.27"
+    return "Beta 3.28"
 
 class ClientApp:
     def __init__(self):
@@ -1507,6 +1507,7 @@ class ClientApp:
                 fg="blue"))
             self.root.after(0, self.update_tray_icon)
             self.root.after(0, self.update_status_icon)
+            self.root.after(0, self.update_status_ui)
             
             # Inicia thread de atualização
             self.running = True
