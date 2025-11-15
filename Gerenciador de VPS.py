@@ -56,7 +56,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.18"
+    return "Beta 95.19"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -255,7 +255,7 @@ class ButtonManager:
         self.coopera_online = False # Variavel para definir estado da conexão com a internet
         self.claro_online = False # Variavel para definir estado da conexão com a internet
         self.unifique_online = False # Variavel para definir estado da conexão com a internet
-        self.iniciar_monitor_status()  # Inicia o servidor de API
+        self.iniciar_servicos()  # Inicia o servidor de API
         # Carrega as configurações de backup
         self.backup_auto_var = tk.BooleanVar()
         self.backup_folder_entry = tk.Entry()
@@ -265,6 +265,8 @@ class ButtonManager:
         self.omr_jogo_conectado = False
         self.vps_vpn_conectado = False
         self.vps_jogo_conectado = False
+        # Inicializa o chat handler
+        self.chat_handler = None
 
 #FUNÇÃO PARA INICIAR SERVIDOR DE API
     def iniciar_monitor_status(self, host='0.0.0.0', port=5000):
@@ -351,6 +353,29 @@ class ButtonManager:
 
         # Inicia a thread do servidor
         threading.Thread(target=server_loop, daemon=True).start()
+
+    def iniciar_servicos(self):
+        """Inicia todos os serviços do servidor"""
+        # Serviço existente
+        self.iniciar_monitor_status()
+        
+        # Novo serviço de chat
+        self.iniciar_servico_chat()
+        
+    def iniciar_servico_chat(self):
+        """Inicia o serviço de chat"""
+        try:
+            self.chat_handler = ChatHandler(self, host='0.0.0.0', port=5001)
+            self.chat_handler.start()
+            print("Serviço de chat iniciado na porta 5001")
+        except Exception as e:
+            print(f"Erro ao iniciar serviço de chat: {e}")
+            
+    def parar_servicos(self):
+        """Para todos os serviços"""
+        if self.chat_handler:
+            self.chat_handler.stop()
+        print("Todos os serviços parados")
 
 # FUNÇÃO DE BACKUP DO PROGRAMA
     def load_backup_settings(self):
@@ -993,6 +1018,7 @@ class ButtonManager:
         self.suicidar_temer()
         plt.close('all')  # Fecha todos os gráficos
         self.save_color_map()  # Salva o mapeamento de cores
+        self.parar_servicos()
 
         # Aguardar 900ms antes de destruir o widget
         self.master.after(900, self.destroy_widget)
@@ -8268,6 +8294,312 @@ class OMRManagerDialog:
         self.top.grab_release()
         self.save_window_position()
         self.top.destroy()
+
+# CLASSE PARA CHAT ENTRE CLIENTES
+class ChatHandler:
+    def __init__(self, button_manager, host='0.0.0.0', port=5001):
+        self.button_manager = button_manager
+        self.host = host
+        self.port = port
+        self.clients = []
+        self.client_usernames = {}
+        self.client_info = {}  # Novo: armazena mais informações sobre cada cliente
+        self.running = False
+        
+    def start(self):
+        """Inicia o servidor de chat"""
+        self.running = True
+        try:
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.socket.bind((self.host, self.port))
+            self.socket.listen(5)
+            self.socket.settimeout(1.0)
+            
+            print(f"Servidor de chat iniciado em {self.host}:{self.port}")
+            
+            thread = threading.Thread(target=self.accept_clients, daemon=True)
+            thread.start()
+            
+        except Exception as e:
+            print(f"Erro ao iniciar servidor de chat: {e}")
+            
+    def accept_clients(self):
+        """Aceita novas conexões de clientes"""
+        while self.running:
+            try:
+                client_socket, address = self.socket.accept()
+                print(f"Novo cliente de chat conectado: {address}")
+                
+                # Adiciona à lista de clientes
+                self.clients.append(client_socket)
+                
+                # ⚠️ NÃO define username ainda - espera a primeira mensagem do cliente
+                # Inicializa com None, será definido quando o cliente enviar sua primeira mensagem
+                self.client_info[client_socket] = {
+                    'username': None,  # ⚠️ Será definido pela primeira mensagem
+                    'address': address,
+                    'connected_at': time.time()
+                }
+                
+                # Envia mensagem de boas-vindas genérica (sem username específico)
+                welcome_msg = {
+                    'username': 'Temer',
+                    'message': 'Bem-vindo ao chat! Aguardando sua identificação...',
+                    'timestamp': time.time(),
+                    'type': 'system'
+                }
+                client_socket.send(json.dumps(welcome_msg).encode('utf-8'))
+                
+                # Inicia thread para este cliente
+                thread = threading.Thread(target=self.handle_client, args=(client_socket,))
+                thread.daemon = True
+                thread.start()
+                
+            except socket.timeout:
+                continue
+            except Exception as e:
+                if self.running:
+                    print(f"Erro ao aceitar cliente de chat: {e}")
+                break
+                
+    def handle_client(self, client_socket):
+        """Lida com mensagens de um cliente específico"""
+        while self.running:
+            try:
+                ready = select.select([client_socket], [], [], 1.0)
+                if ready[0]:
+                    data = client_socket.recv(1024)
+                    if not data:
+                        break
+                        
+                    try:
+                        message_data = json.loads(data.decode('utf-8'))
+                        self.process_client_message(client_socket, message_data)
+                        
+                    except json.JSONDecodeError:
+                        # ⚠️ Só envia erro se o cliente já estiver identificado
+                        client_info = self.client_info.get(client_socket, {})
+                        if client_info.get('username') is not None:
+                            error_msg = {
+                                'username': 'Temer',
+                                'message': 'Erro: Mensagem inválida',
+                                'timestamp': time.time(),
+                                'type': 'error'
+                            }
+                            client_socket.send(json.dumps(error_msg).encode('utf-8'))
+                    except UnicodeDecodeError:
+                        client_info = self.client_info.get(client_socket, {})
+                        username = client_info.get('username', 'Cliente')
+                        print(f"Erro de decodificação de {username}")
+                        
+            except (ConnectionResetError, BrokenPipeError):
+                break
+            except Exception as e:
+                if self.running:
+                    client_info = self.client_info.get(client_socket, {})
+                    username = client_info.get('username', 'Cliente')
+                    print(f"Erro ao lidar com cliente {username}: {e}")
+                break
+                
+        self.remove_client(client_socket)
+        
+    def process_client_message(self, client_socket, message_data):
+        """Processa uma mensagem recebida do cliente"""
+        client_info = self.client_info.get(client_socket, {})
+        
+        # ⚠️ Se é a primeira mensagem, define o username
+        if client_info.get('username') is None:
+            username = message_data.get('username', f"User_{client_info.get('address', ('0.0.0.0',))[0].replace('.', '_')}")
+            client_info['username'] = username
+            self.client_usernames[client_socket] = username
+            
+            # Envia mensagem de boas-vindas personalizada
+            welcome_msg = {
+                'username': 'Temer',
+                'message': f'Bem-vindo ao chat, {username}! Use /nome <novo_nome> para mudar seu nome.',
+                'timestamp': time.time(),
+                'type': 'system'
+            }
+            client_socket.send(json.dumps(welcome_msg).encode('utf-8'))
+            
+            # Notifica outros usuários
+            self.broadcast_system_message(f"{username} entrou no chat", exclude_socket=client_socket)
+            
+            # Envia lista de usuários online para o novo cliente
+            self.send_user_list(client_socket)
+            
+            # Se a mensagem era só para se identificar, para aqui
+            if message_data.get('message') == '/connect':
+                return
+        
+        current_username = client_info.get('username', 'Usuário')
+        message = message_data.get('message', '').strip()
+        
+        if not message:
+            return
+        
+        # ⚠️ ADICIONE ESTE BLOCO PARA PROCESSAR /nome
+        # Comando para mudar nome
+        if message.startswith('/nome ') or message.startswith('/name '):
+            new_username = message.split(' ', 1)[1].strip()[:20]  # Limita a 20 caracteres
+            if new_username and new_username != current_username:
+                old_username = current_username
+                client_info['username'] = new_username
+                self.client_usernames[client_socket] = new_username
+                
+                # Confirmação para o usuário que mudou o nome
+                confirm_msg = {
+                    'username': 'Temer',
+                    'message': f'Seu nome foi alterado para: {new_username}',
+                    'timestamp': time.time(),
+                    'type': 'system'
+                }
+                client_socket.send(json.dumps(confirm_msg).encode('utf-8'))
+                
+                # Notifica todos os outros usuários
+                self.broadcast_system_message(f"{old_username} agora é {new_username}")
+                
+                # Atualiza lista de usuários para todos
+                self.broadcast_user_list()
+            else:
+                # Se o nome é inválido ou igual ao atual
+                error_msg = {
+                    'username': 'Temer',
+                    'message': 'Nome inválido ou igual ao atual',
+                    'timestamp': time.time(),
+                    'type': 'error'
+                }
+                client_socket.send(json.dumps(error_msg).encode('utf-8'))
+            return
+        
+        # Comando para ver usuários online
+        elif message in ['/usuarios', '/users', '/online']:
+            self.send_user_list(client_socket)
+            return
+            
+        # Comando de ajuda
+        elif message in ['/ajuda', '/help', '/?']:
+            help_msg = {
+                'username': 'Temer',
+                'message': 'Comandos disponíveis:\n/nome <novo_nome> - Muda seu nome\n/usuarios - Lista usuários online\n/ajuda - Mostra esta ajuda',
+                'timestamp': time.time(),
+                'type': 'system'
+            }
+            client_socket.send(json.dumps(help_msg).encode('utf-8'))
+            return
+        
+        # Mensagem normal
+        broadcast_data = {
+            'username': current_username,
+            'message': message,
+            'timestamp': time.time(),
+            'type': 'message'
+        }
+        
+        print(f"Chat: {current_username} -> {message}")
+        self.broadcast(broadcast_data, exclude_socket=client_socket)
+        
+    def send_user_list(self, client_socket):
+        """Envia lista de usuários online para um cliente específico"""
+        online_users = [info['username'] for info in self.client_info.values()]
+        user_list_msg = {
+            'username': 'Temer',
+            'message': f'Usuários online ({len(online_users)}): {", ".join(online_users)}',
+            'timestamp': time.time(),
+            'type': 'system'
+        }
+        client_socket.send(json.dumps(user_list_msg).encode('utf-8'))
+        
+    def broadcast_user_list(self):
+        """Envia lista atualizada de usuários para todos"""
+        online_users = [info['username'] for info in self.client_info.values()]
+        user_list_msg = {
+            'username': 'Temer',
+            'message': f'Usuários online ({len(online_users)}): {", ".join(online_users)}',
+            'timestamp': time.time(),
+            'type': 'system'
+        }
+        self.broadcast(user_list_msg)
+        
+    def broadcast(self, message_data, exclude_socket=None):
+        """Envia mensagem para todos os clientes, exceto o especificado"""
+        message_json = json.dumps(message_data)
+        disconnected_clients = []
+        
+        for client in self.clients:
+            if client != exclude_socket:
+                try:
+                    client.send(message_json.encode('utf-8'))
+                except (ConnectionResetError, BrokenPipeError, OSError):
+                    disconnected_clients.append(client)
+        
+        for client in disconnected_clients:
+            self.remove_client(client)
+            
+    def broadcast_system_message(self, message, exclude_socket=None):
+        """Envia mensagem do sistema para todos os clientes"""
+        system_data = {
+            'username': 'Temer',
+            'message': message,
+            'timestamp': time.time(),
+            'type': 'system'
+        }
+        self.broadcast(system_data, exclude_socket)
+        
+    def remove_client(self, client_socket):
+        """Remove um cliente da lista e notifica os outros"""
+        if client_socket in self.client_info:
+            username = self.client_info[client_socket]['username']
+            
+            # Remove das listas
+            if client_socket in self.clients:
+                self.clients.remove(client_socket)
+            del self.client_info[client_socket]
+            if client_socket in self.client_usernames:
+                del self.client_usernames[client_socket]
+            
+            try:
+                client_socket.close()
+            except:
+                pass
+            
+            print(f"Cliente de chat desconectado: {username}")
+            
+            # Notifica outros usuários
+            if self.running:
+                self.broadcast_system_message(f"{username} saiu do chat")
+                self.broadcast_user_list()
+        
+    def stop(self):
+        """Para o servidor de chat"""
+        self.running = False
+        
+        # Notifica todos os clientes
+        if hasattr(self, 'clients'):
+            for client in self.clients[:]:
+                try:
+                    shutdown_msg = {
+                        'username': 'Temer',
+                        'message': 'Servidor de chat está sendo desligado',
+                        'timestamp': time.time(),
+                        'type': 'system'
+                    }
+                    client.send(json.dumps(shutdown_msg).encode('utf-8'))
+                    client.close()
+                except:
+                    pass
+                    
+        self.clients.clear()
+        self.client_info.clear()
+        self.client_usernames.clear()
+        
+        try:
+            self.socket.close()
+        except:
+            pass
+            
+        print("Servidor de chat parado")
 
 #JANELA PARA ADICIONAR SERVIDOR/OMR AS ABAS 1 E 2.
 class AddButtonDialog:

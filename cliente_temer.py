@@ -13,6 +13,8 @@ import winreg  # Adicionado para manipulação do registro do Windows
 import requests
 import subprocess
 import ctypes
+import queue
+import select
 from ctypes import wintypes
 from packaging import version
 from datetime import datetime
@@ -51,7 +53,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 3.28"
+    return "Beta 4.00"
 
 class ClientApp:
     def __init__(self):
@@ -105,6 +107,15 @@ class ClientApp:
 
         self.vps_vpn_conectado = False
         self.vps_jogo_conectado = False
+
+        # Variáveis para o chat
+        self.chat_messages = []
+        self.chat_socket = None
+        self.chat_running = False
+        self.chat_thread = None
+        self.message_queue = queue.Queue()
+        self.chat_port = 5001
+        self.user_list = []  # Lista de usuários online
         
         self.setup_ui()
         self.create_tray_icon()
@@ -379,10 +390,28 @@ class ClientApp:
             self.config['PROXIFIER'] = {
                 'path': ''
             }
+            self.config['CHAT'] = {
+                'username': f"User_{socket.gethostname()}"
+            }
             with open(self.config_file, 'w') as configfile:
                 self.config.write(configfile)
+            
+            self.my_username = f"User_{socket.gethostname()}"
+            print(f"DEBUG load_config: Arquivo criado, username = {self.my_username}")
         else:
             self.config.read(self.config_file)
+            print(f"DEBUG load_config: Arquivo carregado, seções: {self.config.sections()}")
+            
+            # Verifica o que tem na seção CHAT
+            if 'CHAT' in self.config:
+                print(f"DEBUG: Seção CHAT encontrada: {dict(self.config['CHAT'])}")
+                self.my_username = self.config.get('CHAT', 'username', fallback=f"User_{socket.gethostname()}")
+            else:
+                print("DEBUG: Seção CHAT NÃO encontrada")
+                self.my_username = f"User_{socket.gethostname()}"
+                self.config['CHAT'] = {'username': self.my_username}
+            
+            print(f"DEBUG load_config: Username final = {self.my_username}")
             # Carrega as configurações
             self.notify_provider_changes.set(
                 self.config.getboolean('DEFAULT', 'notify_provider_changes', fallback=False))
@@ -392,13 +421,15 @@ class ClientApp:
     def save_config(self):
         """Salva as configurações atuais no arquivo .ini"""
         if hasattr(self, 'server_ip') and hasattr(self, 'server_port'):
+            print(f"DEBUG save_config: my_username = {getattr(self, 'my_username', 'NÃO DEFINIDO')}")
+            
             self.config['DEFAULT'] = {
                 'host': self.server_ip.get(),
                 'port': str(self.server_port.get()),
                 'start_with_windows': str(self.start_with_windows.get()),
                 'start_minimized': str(self.start_minimized.get()),
                 'notify_provider_changes': str(self.notify_provider_changes.get()),
-                'control_proxifier': str(self.control_proxifier.get())  # Adicione esta linha
+                'control_proxifier': str(self.control_proxifier.get())
             }
             
             # Salva também a posição atual da janela
@@ -417,8 +448,23 @@ class ClientApp:
                             'height': height
                         }
             
+            # Salva o username do chat
+            if hasattr(self, 'my_username'):
+                if 'CHAT' not in self.config:
+                    self.config['CHAT'] = {}
+                self.config['CHAT']['username'] = self.my_username
+                print(f"DEBUG: Salvando username '{self.my_username}' na seção CHAT")
+            
+            # DEBUG: Mostra o que será salvo
+            print("DEBUG: Config completo antes de salvar:")
+            for section in self.config.sections():
+                print(f"  [{section}]")
+                for key, value in self.config[section].items():
+                    print(f"  {key} = {value}")
+            
             with open(self.config_file, 'w') as configfile:
                 self.config.write(configfile)
+                print("DEBUG: Arquivo salvo com sucesso")
             
             # Configura inicialização com Windows
             self.configure_start_with_windows()
@@ -429,8 +475,8 @@ class ClientApp:
     def setup_ui(self):
         """Configura a interface do usuário com ícones de status no canto superior direito"""
         # DEFINA O TAMANHO DA JANELA AQUI (largura x altura)
-        self.root.minsize(404, 580)    # ← Tamanho mínimo opcional
-        self.root.maxsize(404, 580)    # ← Tamanho mínimo opcional
+        self.root.minsize(404, 866)    # ← Tamanho mínimo opcional
+        self.root.maxsize(404, 866)    # ← Tamanho mínimo opcional
         
         # Carrega a imagem de fundo
         try:
@@ -612,6 +658,40 @@ class ClientApp:
         # Label para a imagem de saudação (centralizada)
         self.saudacao_label = tk.Label(self.saudacao_frame, bg=self._get_bg_color())
         self.saudacao_label.pack(expand=True)
+
+        # --- SEÇÃO DO CHAT ---
+        chat_frame = tk.Frame(self.root, bg=self._get_bg_color(), bd=2, relief=tk.GROOVE)
+        chat_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
+        # Título simples
+        chat_title = tk.Label(chat_frame, text=f"Chat do Projeto Temer", 
+                             bg=self._get_button_color(), fg="black",
+                             font=("Arial", 10, "bold"))
+        chat_title.pack(fill=tk.X, padx=1, pady=1)
+        
+        # Área de mensagens
+        text_frame = tk.Frame(chat_frame, bd=1, relief=tk.SUNKEN)
+        text_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        self.chat_text = tk.Text(text_frame, height=6, state=tk.DISABLED, wrap=tk.WORD)
+        scrollbar = tk.Scrollbar(text_frame, command=self.chat_text.yview)
+        self.chat_text.configure(yscrollcommand=scrollbar.set)
+        
+        self.chat_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Entrada de mensagem simples
+        input_frame = tk.Frame(chat_frame, bg=self._get_bg_color())
+        input_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=5)
+        
+        self.message_entry = tk.Entry(input_frame)
+        self.message_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.message_entry.bind('<Return>', self.send_chat_message)
+        
+        tk.Button(input_frame, text="Enviar", command=self.send_chat_message,
+                 bg=self._get_button_color(), width=8).pack(side=tk.RIGHT)
+        
+        self.setup_chat_colors()
         
         # --- Rodapé ---
         self.footer_frame = create_frame_with_bg(self.root, borderwidth=1, relief=tk.RAISED)
@@ -629,9 +709,187 @@ class ClientApp:
         # Inicia a atualização periódica da saudação (a cada 1 minuto)
         self.iniciar_atualizacao_periodica_saudacao()
 
+        self.setup_chat_colors()
+
         # Mostra a janela se não estiver configurado para iniciar minimizado
         if not self.start_minimized.get():
             self.root.deiconify()
+
+# METODO PARA O CHAT
+    def change_username(self):
+        """Muda o nome de usuário"""
+        new_username = self.username_entry.get().strip()
+        if new_username and new_username != self.my_username:
+            old_username = self.my_username
+            self.my_username = new_username
+            
+            # Atualiza o título
+            for widget in self.root.winfo_children():
+                if isinstance(widget, tk.Frame):
+                    for child in widget.winfo_children():
+                        if isinstance(child, tk.Label) and "Chat - Você é:" in child.cget('text'):
+                            child.config(text=f"Chat - Você é: {self.my_username}")
+            
+            # Envia comando para mudar nome no servidor
+            if self.chat_running:
+                change_cmd = f"/nome {new_username}"
+                try:
+                    message_data = {
+                        'username': self.my_username,
+                        'message': change_cmd,
+                        'timestamp': time.time()
+                    }
+                    self.chat_socket.send(json.dumps(message_data).encode('utf-8'))
+                except:
+                    pass
+
+    def start_chat(self):
+        """Inicia a conexão do chat"""
+        if self.chat_running:
+            return
+            
+        try:
+            self.chat_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.chat_socket.connect((self.server_ip.get(), self.chat_port))
+            self.chat_running = True
+            
+            # ⚠️ ENVIA O USERNAME CORRETO AO CONECTAR
+            try:
+                welcome_data = {
+                    'username': self.my_username,  # ⚠️ USA O NOME DO CONFIG
+                    'message': '/connect',  # Comando especial para identificar
+                    'timestamp': time.time()
+                }
+                self.chat_socket.send(json.dumps(welcome_data).encode('utf-8'))
+            except:
+                pass
+            
+            # Inicia thread para receber mensagens
+            self.chat_thread = threading.Thread(target=self.chat_receive_loop)
+            self.chat_thread.daemon = True
+            self.chat_thread.start()
+            
+        except Exception as e:
+            self.add_chat_message("Erro", f"Falha ao conectar no chat: {str(e)}", "error")
+
+    def chat_receive_loop(self):
+        """Loop para receber mensagens do chat"""
+        while self.chat_running and self.chat_socket:
+            try:
+                ready = select.select([self.chat_socket], [], [], 1.0)
+                if ready[0]:
+                    data = self.chat_socket.recv(1024).decode('utf-8')
+                    if data:
+                        try:
+                            message_data = json.loads(data)
+                            self.message_queue.put(message_data)
+                            self.root.after(0, self.process_received_message)
+                        except json.JSONDecodeError:
+                            pass
+            except:
+                break
+
+    def process_received_message(self):
+        """Processa mensagens recebidas da fila"""
+        try:
+            while not self.message_queue.empty():
+                message_data = self.message_queue.get_nowait()
+                username = message_data.get('username', 'Usuário')
+                message = message_data.get('message', '')
+                msg_type = message_data.get('type', 'message')
+                
+                self.add_chat_message(username, message, msg_type)
+        except:
+            pass
+
+    def send_chat_message(self, event=None):
+        """Envia mensagem no chat"""
+        message = self.message_entry.get().strip()
+        if message and self.chat_running:
+            try:
+                # Se for comando /nome, salva no config MAS NÃO ENVIA PARA O CHAT
+                if message.startswith('/nome ') or message.startswith('/name '):
+                    new_username = message.split(' ', 1)[1].strip()
+                    if new_username:
+                        self.my_username = new_username
+                        self.save_config()
+                        
+                        # ⚠️ ENVIA APENAS O COMANDO PARA O SERVIDOR (sem mostrar no chat local)
+                        message_data = {
+                            'username': self.my_username,
+                            'message': message,
+                            'timestamp': time.time()
+                        }
+                        self.chat_socket.send(json.dumps(message_data).encode('utf-8'))
+                        
+                        # ⚠️ NÃO mostra no chat local - o servidor vai enviar confirmação
+                        self.message_entry.delete(0, tk.END)
+                        return  # ⚠️ PARA AQUI para não processar como mensagem normal
+                
+                # Mensagem normal
+                message_data = {
+                    'username': self.my_username,
+                    'message': message,
+                    'timestamp': time.time()
+                }
+                self.chat_socket.send(json.dumps(message_data).encode('utf-8'))
+                
+                # Mostra no chat local
+                self.add_chat_message("Você", message, "you")
+                
+                self.message_entry.delete(0, tk.END)
+            except Exception as e:
+                self.add_chat_message("Erro", f"Falha ao enviar mensagem: {str(e)}", "error")
+
+    def add_chat_message(self, username, message, msg_type="message"):
+        """Adiciona mensagem na área de chat"""
+        self.chat_text.config(state=tk.NORMAL)
+        
+        timestamp = time.strftime("%H:%M:%S")
+        
+        # Aplica formatação baseada no tipo
+        if msg_type == "you":
+            self.chat_text.insert(tk.END, f"[{timestamp}] ", "timestamp")
+            self.chat_text.insert(tk.END, f"{username}: ", "you")
+            self.chat_text.insert(tk.END, f"{message}\n")
+        elif msg_type == "system":
+            self.chat_text.insert(tk.END, f"[{timestamp}] ", "timestamp")
+            self.chat_text.insert(tk.END, f"{username}: ", "system")
+            self.chat_text.insert(tk.END, f"{message}\n")
+        elif msg_type == "error":
+            self.chat_text.insert(tk.END, f"[{timestamp}] ", "timestamp")
+            self.chat_text.insert(tk.END, f"{username}: ", "error")
+            self.chat_text.insert(tk.END, f"{message}\n")
+        else:
+            self.chat_text.insert(tk.END, f"[{timestamp}] ", "timestamp")
+            self.chat_text.insert(tk.END, f"{username}: ", "other")
+            self.chat_text.insert(tk.END, f"{message}\n")
+        
+        self.chat_text.see(tk.END)
+        self.chat_text.config(state=tk.DISABLED)
+        
+        # Limita o histórico
+        lines = int(self.chat_text.index('end-1c').split('.')[0])
+        if lines > 500:
+            self.chat_text.delete('1.0', '100.0')
+
+    def setup_chat_colors(self):
+        """Configura as cores para o chat"""
+        self.chat_text.tag_configure("timestamp", foreground="gray", font=("Arial", 8))
+        self.chat_text.tag_configure("you", foreground="blue", font=("Arial", 9, "bold"))
+        self.chat_text.tag_configure("system", foreground="green", font=("Arial", 9))
+        self.chat_text.tag_configure("error", foreground="red", font=("Arial", 9))
+        self.chat_text.tag_configure("other", foreground="black", font=("Arial", 9))
+
+    def stop_chat(self):
+        """Para a conexão do chat"""
+        self.chat_running = False
+        if self.chat_socket:
+            try:
+                self.chat_socket.close()
+            except:
+                pass
+        self.chat_socket = None
 
 # METODO PARA REINICIO DOS VPS NO SERVIDOR
     def reiniciar_vps_vpn(self):
@@ -1514,6 +1772,8 @@ class ClientApp:
             self.update_thread = threading.Thread(target=self.update_status_loop)
             self.update_thread.daemon = True
             self.update_thread.start()
+            # Inicia o chat após conectar
+            self.root.after(1000, self.start_chat)  # Pequeno delay para estabilizar
             
         except Exception as e:
             print(f"Erro na conexão: {e}")
@@ -1566,6 +1826,8 @@ class ClientApp:
 
     def disconnect(self, silent=False):
         """Desconecta do servidor - MÉTODO CORRIGIDO"""
+        # Para o chat primeiro
+        self.stop_chat()
         self.running = False
         
         try:
