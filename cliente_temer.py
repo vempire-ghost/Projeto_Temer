@@ -53,7 +53,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 4.00"
+    return "Beta 4.01"
 
 class ClientApp:
     def __init__(self):
@@ -86,6 +86,7 @@ class ClientApp:
         # Variáveis para os checkboxes
         self.start_with_windows = tk.BooleanVar()
         self.start_minimized = tk.BooleanVar()
+        self.notify_chat_messages = tk.BooleanVar()
         
         # Carrega configurações do arquivo .ini
         self.config = configparser.ConfigParser()
@@ -97,7 +98,8 @@ class ClientApp:
         self.server_port.set(self.config.getint('DEFAULT', 'port', fallback=5000))
         self.start_with_windows.set(self.config.getboolean('DEFAULT', 'start_with_windows', fallback=False))
         self.start_minimized.set(self.config.getboolean('DEFAULT', 'start_minimized', fallback=False))
-        
+        self.notify_chat_messages.set(self.config.getboolean('DEFAULT', 'notify_chat_messages', fallback=True))
+
         # Configura inicialização com Windows
         self.configure_start_with_windows()
         
@@ -379,7 +381,8 @@ class ClientApp:
                 'start_with_windows': 'False',
                 'start_minimized': 'False',
                 'notify_provider_changes': 'False',
-                'control_proxifier': 'False'
+                'control_proxifier': 'False',
+                'notify_chat_messages': 'True'
             }
             self.config['WINDOW'] = {
                 'x': '200',
@@ -417,6 +420,8 @@ class ClientApp:
                 self.config.getboolean('DEFAULT', 'notify_provider_changes', fallback=False))
             self.control_proxifier.set(
                 self.config.getboolean('DEFAULT', 'control_proxifier', fallback=False))
+            self.notify_chat_messages.set(
+                self.config.getboolean('DEFAULT', 'notify_chat_messages', fallback=True))
     
     def save_config(self):
         """Salva as configurações atuais no arquivo .ini"""
@@ -429,7 +434,8 @@ class ClientApp:
                 'start_with_windows': str(self.start_with_windows.get()),
                 'start_minimized': str(self.start_minimized.get()),
                 'notify_provider_changes': str(self.notify_provider_changes.get()),
-                'control_proxifier': str(self.control_proxifier.get())
+                'control_proxifier': str(self.control_proxifier.get()),
+                'notify_chat_messages': str(self.notify_chat_messages.get())
             }
             
             # Salva também a posição atual da janela
@@ -475,8 +481,8 @@ class ClientApp:
     def setup_ui(self):
         """Configura a interface do usuário com ícones de status no canto superior direito"""
         # DEFINA O TAMANHO DA JANELA AQUI (largura x altura)
-        self.root.minsize(404, 866)    # ← Tamanho mínimo opcional
-        self.root.maxsize(404, 866)    # ← Tamanho mínimo opcional
+        self.root.minsize(404, 795)    # ← Tamanho mínimo opcional
+        self.root.maxsize(404, 795)    # ← Tamanho mínimo opcional
         
         # Carrega a imagem de fundo
         try:
@@ -573,10 +579,13 @@ class ClientApp:
         bordered_checkbutton(content_frame, text="Controlar Proxifier automaticamente", 
                              variable=self.control_proxifier).grid(
             row=5, column=0, columnspan=2, sticky="w", pady=(0, 10))
-        
+        bordered_checkbutton(content_frame, text="Notificar mensagens do chat no tray", 
+                             variable=self.notify_chat_messages).grid(
+            row=6, column=0, columnspan=2, sticky="w", pady=(0, 10))  # ← ADICIONE ESTA LINHA
+
         # --- Seção de botões principais ---
         btn_frame = create_frame_with_bg(content_frame)
-        btn_frame.grid(row=6, column=0, columnspan=3, pady=(0, 5))  # Reduzi o pady
+        btn_frame.grid(row=7, column=0, columnspan=3, pady=(0, 5))  # Reduzi o pady
 
         tk.Button(btn_frame, text="Conectar", command=self.auto_connect, 
                  bg=self._get_button_color()).pack(side=tk.LEFT, padx=5)
@@ -589,7 +598,7 @@ class ClientApp:
 
         # --- NOVA SEÇÃO: Botões de reinício do VPS ---
         vps_buttons_frame = create_frame_with_bg(content_frame)
-        vps_buttons_frame.grid(row=7, column=0, columnspan=3, pady=(0, 10))  # Nova linha
+        vps_buttons_frame.grid(row=8, column=0, columnspan=3, pady=(0, 10))  # Nova linha
 
         # Botão para reiniciar VPS VPN
         self.reiniciar_vpn_btn = tk.Button(
@@ -615,11 +624,11 @@ class ClientApp:
         self.status_label = tk.Label(content_frame, text="Status: Desconectado", fg="red", 
                                      bg=self._get_button_color(),
                                      highlightbackground="white", highlightthickness=1, bd=0)
-        self.status_label.grid(row=8, column=0, columnspan=3, pady=(0, 0))
+        self.status_label.grid(row=9, column=0, columnspan=3, pady=(0, 0))
 
         # Status dos provedores
         self.providers_frame = create_frame_with_bg(content_frame)
-        self.providers_frame.grid(row=9, column=0, columnspan=3, pady=(5, 10), sticky="s")
+        self.providers_frame.grid(row=10, column=0, columnspan=3, pady=(5, 10), sticky="s")
 
         self.coopera_label = tk.Label(self.providers_frame, text="Coopera: Offline", fg="red", 
                                       bg=self._get_button_color(),
@@ -638,7 +647,7 @@ class ClientApp:
 
         # NOVO: Frame para status das VPS
         self.vps_frame = create_frame_with_bg(content_frame)
-        self.vps_frame.grid(row=10, column=0, columnspan=3, pady=(5, 10), sticky="s")
+        self.vps_frame.grid(row=11, column=0, columnspan=3, pady=(5, 10), sticky="s")
 
         self.vps_vpn_label = tk.Label(self.vps_frame, text="VPS VPN: Desconectado", fg="red", 
                                       bg=self._get_button_color(),
@@ -652,7 +661,7 @@ class ClientApp:
 
         # --- Frame para a imagem de saudação DENTRO do content_frame ---
         self.saudacao_frame = create_frame_with_bg(content_frame, height=174)
-        self.saudacao_frame.grid(row=11, column=0, columnspan=3, pady=(10, 5), sticky="ew")  # Mudei row para 10
+        self.saudacao_frame.grid(row=12, column=0, columnspan=3, pady=(10, 5), sticky="ew")  # Mudei row para 10
         self.saudacao_frame.grid_propagate(False)  # Mantém a altura fixa
         
         # Label para a imagem de saudação (centralizada)
@@ -798,6 +807,10 @@ class ClientApp:
                 message = message_data.get('message', '')
                 msg_type = message_data.get('type', 'message')
                 
+                # Se for uma mensagem de sistema de conexão/desconexão, trata como system
+                if message.startswith('Conectou-se') or message.startswith('Desconectou-se'):
+                    msg_type = 'system'
+                
                 self.add_chat_message(username, message, msg_type)
         except:
             pass
@@ -864,6 +877,10 @@ class ClientApp:
             self.chat_text.insert(tk.END, f"[{timestamp}] ", "timestamp")
             self.chat_text.insert(tk.END, f"{username}: ", "other")
             self.chat_text.insert(tk.END, f"{message}\n")
+            
+            # MOSTRA NOTIFICAÇÃO APENAS PARA MENSAGENS DE OUTROS USUÁRIOS
+            if msg_type == "message" and username != "Você" and username != "Sistema":
+                self.show_chat_notification(username, message)
         
         self.chat_text.see(tk.END)
         self.chat_text.config(state=tk.DISABLED)
@@ -890,6 +907,23 @@ class ClientApp:
             except:
                 pass
         self.chat_socket = None
+
+    def show_chat_notification(self, username, message):
+        """Mostra uma notificação no tray para mensagens do chat"""
+        if not self.notify_chat_messages.get():
+            return
+        
+        # Limita o tamanho da mensagem para a notificação
+        if len(message) > 100:
+            message = message[:100] + "..."
+        
+        notification_message = f"{username}: {message}"
+        
+        if hasattr(self, 'tray_icon') and self.tray_icon:
+            try:
+                self.tray_icon.notify(notification_message, "Nova safadesa do Mimo")
+            except Exception as e:
+                print(f"Erro ao mostrar notificação do chat: {e}")
 
 # METODO PARA REINICIO DOS VPS NO SERVIDOR
     def reiniciar_vps_vpn(self):
