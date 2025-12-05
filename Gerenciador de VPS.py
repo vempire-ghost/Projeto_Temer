@@ -56,7 +56,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.19"
+    return "Beta 95.20"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -1774,6 +1774,16 @@ class ButtonManager:
         )
         jogo_button.pack(pady=10)
 
+        # Aguarda um pequeno delay para garantir que a interface esteja carregada
+        def iniciar_automaticamente():
+            # Inicia monitoramento VPN
+            self.start_monitoring_in_frame(vpn_frame, "Trafego OMR VPN", self.ssh_vpn_client)
+            # Inicia monitoramento Jogo
+            self.start_monitoring_in_frame(jogo_frame, "Trafego OMR JOGO", self.ssh_jogo_client)
+        
+        # Agenda para executar após 500ms (tempo para a interface carregar)
+        main_window.after(500, iniciar_automaticamente)
+
     def start_monitoring_in_frame(self, parent_frame, title, ssh_client):
         """Inicia o monitoramento no frame fornecido, sem abrir uma nova janela."""
         
@@ -2668,6 +2678,42 @@ class ButtonManager:
         for i in range(3):
             logger_main.debug(f"Criando seção de teste de latência {i +1}")
             criar_secao_teste(i)
+
+        # *** NOVO CÓDIGO: Função para iniciar todos os testes automaticamente ***
+        def iniciar_todos_testes_automaticamente():
+            # Aguarda um pouco para garantir que a interface esteja completamente carregada
+            time.sleep(0.5)
+            
+            # Itera pelas três seções de teste e inicia cada uma
+            for i in range(3):
+                try:
+                    # Encontra os widgets da seção i e inicia o teste
+                    # Nota: Você precisará ajustar esta parte para encontrar os widgets corretos
+                    # Vou assumir que você pode acessar as variáveis das seções
+                    
+                    # Primeiro, precisa esperar um pouco entre cada inicialização
+                    tab.update_idletasks()
+                    time.sleep(0.2)
+                    
+                    # Chama iniciar_teste para cada seção
+                    # Isso depende de como sua estrutura está organizada
+                    # Você pode precisar armazenar referências às funções iniciar_teste
+                    
+                    # Solução alternativa: Simular clique nos botões
+                    # Encontra todos os botões "Iniciar" no tab
+                    for widget in tab.winfo_children():
+                        if isinstance(widget, tk.Frame):
+                            for child in widget.winfo_children():
+                                if isinstance(child, tk.Button) and child.cget("text") == "Iniciar":
+                                    # Simula clique no botão
+                                    child.invoke()
+                                    break
+                    
+                except Exception as e:
+                    logger_main.error(f"Erro ao iniciar teste {i+1} automaticamente: {str(e)}")
+        
+        # Agenda a execução automática após um pequeno delay
+        main_window.after(1000, iniciar_todos_testes_automaticamente)
 
         # Função para fechar a janela corretamente
         def aba_on_closing():
