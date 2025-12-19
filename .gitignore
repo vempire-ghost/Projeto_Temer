@@ -41,6 +41,8 @@
 !bom_dia.png
 !fundo.png
 !feliz_aniver_mimo.png
+!cliente_temer_android.py
+!buildozer.spec
 
 # Não ignorar diretórios específicos e seus conteúdos
 !diretorio_que_quero_monitorar/
