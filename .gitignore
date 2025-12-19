@@ -43,6 +43,8 @@
 !feliz_aniver_mimo.png
 !cliente_temer_android.py
 !buildozer.spec
+!build_android.sh
+!Compilar cliente_temer_android.txt
 
 # Não ignorar diretórios específicos e seus conteúdos
 !diretorio_que_quero_monitorar/

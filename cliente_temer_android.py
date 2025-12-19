@@ -5,6 +5,7 @@ Funcionalidades:
 - Exibir status do servidor e provedores
 - Botões para reiniciar VPS
 - Opções de desligar servidor no menu
+- Versão 4.02
 """
 
 import kivy
@@ -13,21 +14,14 @@ kivy.require('2.3.0')
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
-from kivy.uix.stacklayout import StackLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
-from kivy.uix.togglebutton import ToggleButton
-from kivy.uix.popup import Popup
-from kivy.uix.scrollview import ScrollView
-from kivy.uix.dropdown import DropDown
-from kivy.uix.spinner import Spinner
 from kivy.core.window import Window
 from kivy.clock import Clock
-from kivy.graphics import Color, Rectangle
-from kivy.properties import BooleanProperty, StringProperty, NumericProperty
-from kivy.uix.modalview import ModalView
-from kivy.uix.progressbar import ProgressBar
+from kivy.graphics import Color, Rectangle, RoundedRectangle, Line
+from kivy.properties import ListProperty, BooleanProperty
+from kivy.uix.popup import Popup
 
 import socket
 import json
@@ -37,7 +31,84 @@ from datetime import datetime
 
 # Configuração da janela para Android
 #Window.size = (350, 600)
-Window.clearcolor = (1, 0, 0, 1)
+Window.clearcolor = (0.92, 0.94, 0.96, 1)
+
+class RoundedButton(Button):
+    """Botão com cantos arredondados simples"""
+    
+    def __init__(self, **kwargs):
+        # Extrai a cor personalizada antes de chamar super()
+        self._bg_color = kwargs.pop('bg_color', [0.3, 0.6, 0.9, 1])
+        self._disabled_color = kwargs.pop('disabled_color', [0.7, 0.7, 0.7, 1])
+        
+        super().__init__(**kwargs)
+        
+        # Configurações para botão sem fundo nativo
+        self.background_normal = ''
+        self.background_down = ''
+        self.background_color = (0, 0, 0, 0)  # Transparente
+        self.color = (1, 1, 1, 1)
+        self.font_size = '14sp'
+        self.bold = True
+        
+        # Monitora mudanças no estado disabled
+        self.bind(disabled=self._on_disabled_changed)
+        
+        # Adiciona canvas personalizado
+        self.bind(pos=self._update_canvas, size=self._update_canvas)
+        Clock.schedule_once(lambda dt: self._update_canvas(), 0.1)
+    
+    def _on_disabled_changed(self, instance, value):
+        """Atualiza o canvas quando o estado disabled muda"""
+        self._update_canvas()
+    
+    def _update_canvas(self, *args):
+        self.canvas.before.clear()
+        with self.canvas.before:
+            # Fundo arredondado
+            if not self.disabled:
+                Color(*self._bg_color)
+            else:
+                Color(*self._disabled_color)
+            RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[20]
+            )
+
+class FramedLabel(Label):
+    """Label com frame arredondado"""
+    
+    def __init__(self, **kwargs):
+        # Extrai a cor do frame antes de chamar super()
+        self._frame_color = kwargs.pop('frame_color', [0.8, 0.2, 0.2, 0.3])
+        
+        super().__init__(**kwargs)
+        
+        self.halign = 'center'
+        self.valign = 'middle'
+        self.bind(size=self.setter('text_size'))
+        self.bind(pos=self._update_canvas, size=self._update_canvas)
+        Clock.schedule_once(lambda dt: self._update_canvas(), 0.1)
+    
+    def _update_canvas(self, *args):
+        self.canvas.before.clear()
+        with self.canvas.before:
+            # Fundo branco
+            Color(1, 1, 1, 1)
+            RoundedRectangle(
+                pos=self.pos,
+                size=self.size,
+                radius=[12]
+            )
+            
+            # Borda colorida
+            Color(*self._frame_color)
+            Line(
+                rounded_rectangle=(self.pos[0], self.pos[1], 
+                                 self.size[0], self.size[1], 12),
+                width=1.5
+            )
 
 class TemerAndroidApp(App):
     """Aplicativo principal Android"""
@@ -64,11 +135,11 @@ class TemerAndroidApp(App):
         self.update_thread = None
         
         # Layout principal
-        self.main_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        self.main_layout = BoxLayout(orientation='vertical', padding=15, spacing=15)
         
-        # Adiciona cor de fundo
+        # Fundo
         with self.main_layout.canvas.before:
-            Color(0.9, 0.95, 1, 1)
+            Color(0.92, 0.94, 0.96, 1)
             self.rect = Rectangle(size=self.main_layout.size, pos=self.main_layout.pos)
         
         self.main_layout.bind(size=self._update_rect, pos=self._update_rect)
@@ -89,39 +160,57 @@ class TemerAndroidApp(App):
         """Cria todos os elementos da interface"""
         
         # ========== CABEÇALHO ==========
-        header = BoxLayout(size_hint=(1, 0.1))
+        header = BoxLayout(size_hint=(1, 0.12))
+        with header.canvas.before:
+            Color(0.2, 0.5, 0.8, 1)
+            Rectangle(pos=header.pos, size=header.size)
+        
         title = Label(
-            text="Projeto Temer",
-            font_size='24sp',
+            text="PROJETO TEMER",
+            font_size='22sp',
             bold=True,
-            color=(0.2, 0.2, 0.2, 1)
+            color=(0.15, 0.15, 0.15, 1)
         )
         header.add_widget(title)
         self.main_layout.add_widget(header)
         
         # ========== CONEXÃO ==========
-        conn_box = BoxLayout(size_hint=(1, 0.15), spacing=10)
+        conn_box = BoxLayout(size_hint=(1, 0.18), spacing=15)
         
         # IP
         ip_box = BoxLayout(orientation='vertical', size_hint=(0.6, 1))
-        ip_box.add_widget(Label(text="IP do Servidor:", color=(0.2, 0.2, 0.2, 1), size_hint=(1, 0.4)))
+        ip_box.add_widget(Label(text="IP do Servidor:", 
+                               color=(0.3, 0.3, 0.3, 1), 
+                               font_size='12sp',
+                               size_hint=(1, 0.4)))
         self.ip_input = TextInput(
             text=self.server_ip,
             multiline=False,
             size_hint=(1, 0.6),
-            background_color=(1, 1, 1, 1)
+            background_color=(1, 1, 1, 1),
+            foreground_color=(0.2, 0.2, 0.2, 1),
+            padding=(12, 8),
+            background_normal='',
+            background_active=''
         )
         ip_box.add_widget(self.ip_input)
         conn_box.add_widget(ip_box)
         
         # Porta
         port_box = BoxLayout(orientation='vertical', size_hint=(0.4, 1))
-        port_box.add_widget(Label(text="Porta:", color=(0.2, 0.2, 0.2, 1), size_hint=(1, 0.4)))
+        port_box.add_widget(Label(text="Porta:", 
+                                 color=(0.3, 0.3, 0.3, 1), 
+                                 font_size='12sp',
+                                 size_hint=(1, 0.4)))
         self.port_input = TextInput(
             text=str(self.server_port),
             multiline=False,
             size_hint=(1, 0.6),
-            background_color=(1, 1, 1, 1)
+            background_color=(1, 1, 1, 1),
+            foreground_color=(0.2, 0.2, 0.2, 1),
+            padding=(12, 8),
+            background_normal='',
+            background_active=''
         )
         port_box.add_widget(self.port_input)
         conn_box.add_widget(port_box)
@@ -129,36 +218,53 @@ class TemerAndroidApp(App):
         self.main_layout.add_widget(conn_box)
         
         # ========== BOTÕES DE CONEXÃO ==========
-        btn_box = BoxLayout(size_hint=(1, 0.1), spacing=10)
+        btn_box = BoxLayout(size_hint=(1, 0.12), spacing=15)
         
-        self.connect_btn = Button(
+        # Botão CONECTAR
+        self.connect_btn = RoundedButton(
             text="CONECTAR",
-            background_color=(0.3, 0.6, 0.3, 1),
+            bg_color=[0.3, 0.7, 0.3, 1],
+            disabled_color=[0.5, 0.8, 0.5, 0.7],  # Verde mais claro quando desabilitado
             size_hint=(0.5, 1)
         )
         self.connect_btn.bind(on_press=self.connect_to_server)
         btn_box.add_widget(self.connect_btn)
         
-        self.disconnect_btn = Button(
+        # Botão DESCONECTAR
+        self.disconnect_btn = RoundedButton(
             text="DESCONECTAR",
-            background_color=(0.8, 0.3, 0.3, 1),
-            size_hint=(0.5, 1),
-            disabled=True
+            bg_color=[0.9, 0.3, 0.3, 1],
+            disabled_color=[0.8, 0.5, 0.5, 0.7],  # Vermelho mais claro quando desabilitado
+            size_hint=(0.5, 1)
         )
+        self.disconnect_btn.disabled = True
         self.disconnect_btn.bind(on_press=self.disconnect_from_server)
         btn_box.add_widget(self.disconnect_btn)
         
         self.main_layout.add_widget(btn_box)
         
         # ========== STATUS PRINCIPAL ==========
-        status_box = BoxLayout(orientation='vertical', size_hint=(1, 0.2), spacing=5)
+        status_box = BoxLayout(orientation='vertical', 
+                              size_hint=(1, 0.2), 
+                              spacing=5,
+                              padding=(0, 5))
+        
+        # Frame ao redor do status
+        with status_box.canvas.before:
+            Color(0.2, 0.5, 0.8, 0.15)
+            RoundedRectangle(
+                pos=(status_box.pos[0], status_box.pos[1]),
+                size=status_box.size,
+                radius=[12]
+            )
         
         # Status do servidor
         self.status_label = Label(
             text="Status: DESCONECTADO",
             font_size='18sp',
-            color=(0.8, 0.2, 0.2, 1),
-            bold=True
+            color=(0.9, 0.3, 0.3, 1),
+            bold=True,
+            size_hint=(1, 0.5)
         )
         status_box.add_widget(self.status_label)
         
@@ -166,7 +272,8 @@ class TemerAndroidApp(App):
         self.time_label = Label(
             text="Hora do servidor: --:--:--",
             font_size='14sp',
-            color=(0.4, 0.4, 0.4, 1)
+            color=(0.5, 0.5, 0.5, 1),
+            size_hint=(1, 0.5)
         )
         status_box.add_widget(self.time_label)
         
@@ -177,17 +284,35 @@ class TemerAndroidApp(App):
             text="STATUS DOS PROVEDORES",
             font_size='16sp',
             bold=True,
-            color=(0.3, 0.3, 0.3, 1),
-            size_hint=(1, 0.05)
+            color=(0.4, 0.4, 0.4, 1),
+            size_hint=(1, 0.06)
         )
         self.main_layout.add_widget(prov_title)
         
         # Grid para provedores
-        prov_grid = GridLayout(cols=3, size_hint=(1, 0.15), spacing=10)
+        prov_grid = GridLayout(cols=3, size_hint=(1, 0.16), spacing=10, padding=(5, 5))
         
-        self.coopera_label = self._create_status_label("Coopera", "red")
-        self.claro_label = self._create_status_label("Claro", "red")
-        self.unifique_label = self._create_status_label("Unifique", "red")
+        # Frame ao redor do grid
+        with prov_grid.canvas.before:
+            Color(0.2, 0.5, 0.8, 0.15)
+            RoundedRectangle(
+                pos=(prov_grid.pos[0], prov_grid.pos[1]),
+                size=prov_grid.size,
+                radius=[12]
+            )
+        
+        self.coopera_label = FramedLabel(text="Coopera: OFF", 
+                                        color=(0.9, 0.3, 0.3, 1),
+                                        font_size='14sp',
+                                        frame_color=[0.9, 0.3, 0.3, 0.3])
+        self.claro_label = FramedLabel(text="Claro: OFF", 
+                                      color=(0.9, 0.3, 0.3, 1),
+                                      font_size='14sp',
+                                      frame_color=[0.9, 0.3, 0.3, 0.3])
+        self.unifique_label = FramedLabel(text="Unifique: OFF", 
+                                         color=(0.9, 0.3, 0.3, 1),
+                                         font_size='14sp',
+                                         frame_color=[0.9, 0.3, 0.3, 0.3])
         
         prov_grid.add_widget(self.coopera_label)
         prov_grid.add_widget(self.claro_label)
@@ -200,15 +325,30 @@ class TemerAndroidApp(App):
             text="STATUS DAS VPS",
             font_size='16sp',
             bold=True,
-            color=(0.3, 0.3, 0.3, 1),
-            size_hint=(1, 0.05)
+            color=(0.4, 0.4, 0.4, 1),
+            size_hint=(1, 0.06)
         )
         self.main_layout.add_widget(vps_title)
         
-        vps_grid = GridLayout(cols=2, size_hint=(1, 0.15), spacing=10)
+        vps_grid = GridLayout(cols=2, size_hint=(1, 0.16), spacing=10, padding=(5, 5))
         
-        self.vps_vpn_label = self._create_status_label("VPS VPN", "red")
-        self.vps_jogo_label = self._create_status_label("VPS Jogo", "red")
+        # Frame ao redor do grid
+        with vps_grid.canvas.before:
+            Color(0.2, 0.5, 0.8, 0.15)
+            RoundedRectangle(
+                pos=(vps_grid.pos[0], vps_grid.pos[1]),
+                size=vps_grid.size,
+                radius=[12]
+            )
+        
+        self.vps_vpn_label = FramedLabel(text="VPS VPN: OFF", 
+                                        color=(0.9, 0.3, 0.3, 1),
+                                        font_size='14sp',
+                                        frame_color=[0.9, 0.3, 0.3, 0.3])
+        self.vps_jogo_label = FramedLabel(text="VPS Jogo: OFF", 
+                                         color=(0.9, 0.3, 0.3, 1),
+                                         font_size='14sp',
+                                         frame_color=[0.9, 0.3, 0.3, 0.3])
         
         vps_grid.add_widget(self.vps_vpn_label)
         vps_grid.add_widget(self.vps_jogo_label)
@@ -220,25 +360,27 @@ class TemerAndroidApp(App):
             text="REINICIAR VPS",
             font_size='16sp',
             bold=True,
-            color=(0.3, 0.3, 0.3, 1),
-            size_hint=(1, 0.05)
+            color=(0.4, 0.4, 0.4, 1),
+            size_hint=(1, 0.06)
         )
         self.main_layout.add_widget(reboot_title)
         
-        reboot_grid = GridLayout(cols=2, size_hint=(1, 0.15), spacing=10)
+        reboot_grid = GridLayout(cols=2, size_hint=(1, 0.16), spacing=15)
         
-        self.reboot_vpn_btn = Button(
+        self.reboot_vpn_btn = RoundedButton(
             text="Reiniciar VPN",
-            background_color=(0.2, 0.5, 0.8, 1),
-            disabled=True
+            bg_color=[0.2, 0.6, 0.9, 1],
+            disabled_color=[0.5, 0.7, 0.9, 0.7]  # Azul mais claro quando desabilitado
         )
+        self.reboot_vpn_btn.disabled = True
         self.reboot_vpn_btn.bind(on_press=self.reboot_vps_vpn)
         
-        self.reboot_jogo_btn = Button(
+        self.reboot_jogo_btn = RoundedButton(
             text="Reiniciar Jogo",
-            background_color=(0.2, 0.5, 0.8, 1),
-            disabled=True
+            bg_color=[0.2, 0.6, 0.9, 1],
+            disabled_color=[0.5, 0.7, 0.9, 0.7]  # Azul mais claro quando desabilitado
         )
+        self.reboot_jogo_btn.disabled = True
         self.reboot_jogo_btn.bind(on_press=self.reboot_vps_jogo)
         
         reboot_grid.add_widget(self.reboot_vpn_btn)
@@ -247,43 +389,33 @@ class TemerAndroidApp(App):
         self.main_layout.add_widget(reboot_grid)
         
         # ========== MENU DE DESLIGAMENTO ==========
-        power_box = BoxLayout(size_hint=(1, 0.1), spacing=10)
+        power_box = BoxLayout(size_hint=(1, 0.12), spacing=15)
         
         # Botão para menu de desligamento
-        self.power_menu_btn = Button(
+        self.power_menu_btn = RoundedButton(
             text="OPÇÕES DE DESLIGAMENTO",
-            background_color=(0.8, 0.3, 0.3, 1),
-            disabled=True
+            bg_color=[0.9, 0.4, 0.4, 1],
+            disabled_color=[0.9, 0.6, 0.6, 0.7]  # Vermelho mais claro quando desabilitado
         )
+        self.power_menu_btn.disabled = True
         self.power_menu_btn.bind(on_press=self.show_power_menu)
         power_box.add_widget(self.power_menu_btn)
         
         self.main_layout.add_widget(power_box)
-    
-    def _create_status_label(self, text, color_name):
-        """Cria um label de status padronizado"""
-        colors = {
-            "red": (0.8, 0.2, 0.2, 1),
-            "green": (0.2, 0.8, 0.2, 1),
-            "yellow": (0.9, 0.8, 0.2, 1),
-            "blue": (0.2, 0.5, 0.8, 1)
-        }
-        
-        return Label(
-            text=f"{text}: OFF",
-            color=colors.get(color_name, (0.5, 0.5, 0.5, 1)),
-            font_size='14sp',
-            halign='center'
-        )
     
     def _update_label_color(self, label, online):
         """Atualiza cor do label baseado no status"""
         if online:
             label.color = (0.2, 0.8, 0.2, 1)  # Verde
             label.text = label.text.replace(": OFF", ": ON").replace(": Desconectado", ": Conectado")
+            label._frame_color = [0.2, 0.8, 0.2, 0.3]  # Verde para o frame
         else:
-            label.color = (0.8, 0.2, 0.2, 1)  # Vermelho
+            label.color = (0.9, 0.3, 0.3, 1)  # Vermelho
             label.text = label.text.replace(": ON", ": OFF").replace(": Conectado", ": Desconectado")
+            label._frame_color = [0.9, 0.3, 0.3, 0.3]  # Vermelho para o frame
+        
+        # Atualiza o canvas do label
+        label._update_canvas()
     
     # ========== FUNÇÕES DE CONEXÃO ==========
     
@@ -354,18 +486,31 @@ class TemerAndroidApp(App):
         if connected:
             self.status_label.text = "Status: CONECTADO"
             self.status_label.color = (0.2, 0.5, 0.8, 1)  # Azul
+            
+            # Botões CONECTAR/DESCONECTAR
             self.connect_btn.disabled = True
             self.disconnect_btn.disabled = False
+            
+            # Botões de reinício
             self.reboot_vpn_btn.disabled = False
             self.reboot_jogo_btn.disabled = False
+            
+            # Botão de desligamento
             self.power_menu_btn.disabled = False
+            
         else:
             self.status_label.text = "Status: DESCONECTADO"
-            self.status_label.color = (0.8, 0.2, 0.2, 1)  # Vermelho
+            self.status_label.color = (0.9, 0.3, 0.3, 1)  # Vermelho
+            
+            # Botões CONECTAR/DESCONECTAR
             self.connect_btn.disabled = False
             self.disconnect_btn.disabled = True
+            
+            # Botões de reinício
             self.reboot_vpn_btn.disabled = True
             self.reboot_jogo_btn.disabled = True
+            
+            # Botão de desligamento
             self.power_menu_btn.disabled = True
     
     def _reset_status(self):
@@ -522,14 +667,18 @@ class TemerAndroidApp(App):
         content = BoxLayout(orientation='vertical', spacing=10, padding=20)
         
         # Título
-        title = Label(text="DESLIGAR SERVIDOR", font_size='18sp', bold=True)
+        title = Label(text="DESLIGAR SERVIDOR", 
+                     font_size='18sp', 
+                     bold=True,
+                     color=(0.3, 0.3, 0.3, 1))
         content.add_widget(title)
         
         # Botão 1: Desligar servidor e VPS
-        btn1 = Button(
+        btn1 = RoundedButton(
             text="Desligar Servidor e VPS",
-            size_hint=(1, 0.3),
-            background_color=(0.8, 0.3, 0.3, 1)
+            bg_color=[0.9, 0.4, 0.4, 1],
+            disabled_color=[0.9, 0.6, 0.6, 0.7],
+            size_hint=(1, 0.3)
         )
         btn1.bind(on_press=lambda x: self.show_poweroff_confirmation(
             "Desligar Servidor e VPS",
@@ -539,10 +688,11 @@ class TemerAndroidApp(App):
         content.add_widget(btn1)
         
         # Botão 2: Desligar apenas servidor
-        btn2 = Button(
+        btn2 = RoundedButton(
             text="Desligar Apenas Servidor",
-            size_hint=(1, 0.3),
-            background_color=(0.8, 0.5, 0.3, 1)
+            bg_color=[0.9, 0.6, 0.3, 1],
+            disabled_color=[0.9, 0.8, 0.6, 0.7],
+            size_hint=(1, 0.3)
         )
         btn2.bind(on_press=lambda x: self.show_poweroff_confirmation(
             "Desligar Apenas Servidor",
@@ -552,10 +702,11 @@ class TemerAndroidApp(App):
         content.add_widget(btn2)
         
         # Botão Cancelar
-        btn_cancel = Button(
+        btn_cancel = RoundedButton(
             text="Cancelar",
-            size_hint=(1, 0.3),
-            background_color=(0.5, 0.5, 0.5, 1)
+            bg_color=[0.6, 0.6, 0.6, 1],
+            disabled_color=[0.8, 0.8, 0.8, 0.7],
+            size_hint=(1, 0.3)
         )
         btn_cancel.bind(on_press=lambda x: self.poweroff_popup.dismiss())
         content.add_widget(btn_cancel)
@@ -564,8 +715,10 @@ class TemerAndroidApp(App):
             title='',
             content=content,
             size_hint=(0.8, 0.6),
-            auto_dismiss=True
+            auto_dismiss=True,
+            background_color=(0.95, 0.95, 0.95, 1)
         )
+        
         self.poweroff_popup.open()
     
     def show_poweroff_confirmation(self, title, message, action):
@@ -618,14 +771,20 @@ class TemerAndroidApp(App):
     def show_popup(self, title, message):
         """Mostra um popup simples"""
         content = BoxLayout(orientation='vertical', spacing=10, padding=20)
-        content.add_widget(Label(text=message, halign='center'))
+        content.add_widget(Label(text=message, 
+                                halign='center',
+                                color=(0.3, 0.3, 0.3, 1)))
         
-        btn = Button(text="OK", size_hint=(1, 0.3))
+        btn = RoundedButton(text="OK", 
+                           bg_color=[0.2, 0.5, 0.8, 1], 
+                           disabled_color=[0.5, 0.7, 0.9, 0.7],
+                           size_hint=(1, 0.3))
         
         popup = Popup(
             title=title,
             content=content,
-            size_hint=(0.8, 0.4)
+            size_hint=(0.8, 0.4),
+            background_color=(0.95, 0.95, 0.95, 1)
         )
         
         btn.bind(on_press=popup.dismiss)
@@ -635,17 +794,24 @@ class TemerAndroidApp(App):
     def show_confirmation_popup(self, title, message, confirm_callback):
         """Mostra popup de confirmação"""
         content = BoxLayout(orientation='vertical', spacing=10, padding=20)
-        content.add_widget(Label(text=message, halign='center'))
+        content.add_widget(Label(text=message, 
+                                halign='center',
+                                color=(0.3, 0.3, 0.3, 1)))
         
         btn_box = BoxLayout(size_hint=(1, 0.4), spacing=10)
         
-        btn_yes = Button(text="SIM", background_color=(0.8, 0.3, 0.3, 1))
-        btn_no = Button(text="NÃO", background_color=(0.5, 0.5, 0.5, 1))
+        btn_yes = RoundedButton(text="SIM", 
+                               bg_color=[0.9, 0.3, 0.3, 1],
+                               disabled_color=[0.9, 0.6, 0.6, 0.7])
+        btn_no = RoundedButton(text="NÃO", 
+                              bg_color=[0.6, 0.6, 0.6, 1],
+                              disabled_color=[0.8, 0.8, 0.8, 0.7])
         
         popup = Popup(
             title=title,
             content=content,
-            size_hint=(0.8, 0.5)
+            size_hint=(0.8, 0.5),
+            background_color=(0.95, 0.95, 0.95, 1)
         )
         
         def on_yes(instance):

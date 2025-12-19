@@ -1,0 +1,11 @@
+crie a pasta cliente_temer_android dentro da pasta home/vempire
+Copiar cliente_temer_android.py e build_android.sh e buildozer.spec  para a VM e renomear o cliente_temer_android para main.py
+
+abra um prompt na pasta e depois executar os codigos abaixo
+chmod +x build_android.sh
+
+# Apenas ativar venv e build
+source venv/bin/activate && buildozer android debug
+
+# Ou usar o script completo novamente
+./build_android.sh
