@@ -56,7 +56,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.20"
+    return "Beta 95.21"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -556,19 +556,41 @@ class ButtonManager:
             return False
 
     def monitorar_e_desligar(self):
-        """Monitora as variáveis de conexão e desliga o Windows se todas estiverem False"""
+        """Desliga o Windows quando as conexões selecionadas estiverem desconectadas."""
+        conexoes_obrigatorias = self._get_poweroff_required_connections()
+
+        if not conexoes_obrigatorias:
+            print("Desligamento automático cancelado: nenhuma conexão foi selecionada para monitoramento.")
+            return
+
+        nomes = ", ".join(conexoes_obrigatorias.values())
+        print(f"Aguardando desconexão de: {nomes}")
+
         while True:
-            # Verifica se todas as variáveis são False
-            if (not self.omr_vpn_conectado and 
-                not self.omr_jogo_conectado and 
-                not self.vps_vpn_conectado and 
-                not self.vps_jogo_conectado):
-                
-                print("Todas as conexões estão desativadas - desligando o sistema...")
+            if all(not getattr(self, atributo) for atributo in conexoes_obrigatorias):
+                print("Todas as conexões selecionadas estão desativadas - desligando o sistema...")
                 os.system("shutdown /s /t 1")  # Desliga o Windows em 1 segundo
                 break  # Sai do loop após enviar o comando de desligamento
             
             time.sleep(10)  # Verifica a cada 10 segundos
+
+    def _get_poweroff_required_connections(self):
+        """Carrega as conexões que precisam estar offline antes de desligar o Windows."""
+        config = configparser.ConfigParser()
+        config.read(self.config_file)
+
+        opcoes = {
+            'omr_vpn_conectado': ('require_omr_vpn_off', 'OMR VPN'),
+            'omr_jogo_conectado': ('require_omr_jogo_off', 'OMR JOGO'),
+            'vps_vpn_conectado': ('require_vps_vpn_off', 'VPS VPN'),
+            'vps_jogo_conectado': ('require_vps_jogo_off', 'VPS JOGO')
+        }
+
+        return {
+            atributo: nome
+            for atributo, (chave, nome) in opcoes.items()
+            if config.getboolean('poweroff_monitor', chave, fallback=True)
+        }
 
     def iniciar_monitoramento_auto_desligamento(self):
         """Inicia a thread de monitoramento para desligamento automático"""
@@ -7115,6 +7137,48 @@ class OMRManagerDialog:
         tk.Label(button_frame, text="Para ser usado apenas para atualizar OMR OCI").pack(side=tk.TOP, anchor='w')
         tk.Button(button_frame, text="Executar processos para OCI", command=self.copy_to_oci).pack(side=tk.TOP, anchor='w', padx=5, pady=5)
 
+        # Seleção das conexões obrigatórias para o desligamento automático
+        poweroff_monitor_frame = tk.LabelFrame(
+            button_frame,
+            text="Desligamento automático do Windows",
+            padx=5,
+            pady=5
+        )
+        poweroff_monitor_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=(18, 5))
+
+        tk.Label(
+            poweroff_monitor_frame,
+            text="Aguardar ficarem desconectados:",
+            anchor='w'
+        ).pack(side=tk.TOP, anchor='w')
+
+        self.poweroff_monitor_vars = {
+            'require_omr_vpn_off': tk.BooleanVar(value=True),
+            'require_omr_jogo_off': tk.BooleanVar(value=True),
+            'require_vps_vpn_off': tk.BooleanVar(value=True),
+            'require_vps_jogo_off': tk.BooleanVar(value=True)
+        }
+
+        for chave, texto in (
+            ('require_omr_vpn_off', 'OMR VPN'),
+            ('require_omr_jogo_off', 'OMR JOGO'),
+            ('require_vps_vpn_off', 'VPS VPN'),
+            ('require_vps_jogo_off', 'VPS JOGO')
+        ):
+            tk.Checkbutton(
+                poweroff_monitor_frame,
+                text=texto,
+                variable=self.poweroff_monitor_vars[chave]
+            ).pack(side=tk.TOP, anchor='w')
+
+        tk.Button(
+            poweroff_monitor_frame,
+            text="Salvar seleção",
+            command=self.save_poweroff_monitor_settings
+        ).pack(side=tk.TOP, anchor='w', pady=(5, 0))
+
+        self.load_poweroff_monitor_settings()
+
         # Frame para os botões e textos descritivos à direita
         button_frame_right = tk.Frame(aba1, borderwidth=1, relief=tk.RIDGE)
         button_frame_right.pack(side="top", padx=10, pady=10, anchor='e', fill=tk.BOTH)
@@ -7721,6 +7785,44 @@ class OMRManagerDialog:
 
 
 #METODOS PARA DESLIGAMENTO DO PROGRAMA PELO CLIENTE TEMER
+    def load_poweroff_monitor_settings(self):
+        """Carrega quais conexões devem estar offline antes do desligamento."""
+        try:
+            self.config.read(self.config_file)
+            for chave, variavel in self.poweroff_monitor_vars.items():
+                variavel.set(
+                    self.config.getboolean('poweroff_monitor', chave, fallback=True)
+                )
+        except (configparser.Error, ValueError) as e:
+            print(f"Erro ao carregar seleção do monitoramento de desligamento: {e}")
+
+    def save_poweroff_monitor_settings(self):
+        """Salva as conexões obrigatórias para o desligamento automático."""
+        if not any(variavel.get() for variavel in self.poweroff_monitor_vars.values()):
+            messagebox.showwarning(
+                "Seleção necessária",
+                "Marque pelo menos uma conexão para evitar o desligamento imediato do Windows."
+            )
+            return
+
+        try:
+            self.config.read(self.config_file)
+            if 'poweroff_monitor' not in self.config:
+                self.config.add_section('poweroff_monitor')
+
+            for chave, variavel in self.poweroff_monitor_vars.items():
+                self.config.set('poweroff_monitor', chave, str(variavel.get()))
+
+            with open(self.config_file, 'w') as configfile:
+                self.config.write(configfile)
+
+            messagebox.showinfo("Configuração salva", "Seleção de desligamento salva com sucesso.")
+        except Exception as e:
+            messagebox.showerror(
+                "Erro",
+                f"Não foi possível salvar a seleção de desligamento: {e}"
+            )
+
     def browse_poweroff_script(self):
         """Abre diálogo para selecionar script de desligamento"""
         file_path = filedialog.askopenfilename(
@@ -8829,7 +8931,7 @@ class about:
         button_frame.pack_propagate(False)
 
         # Adicionando imagens aos textos
-        self.add_text_with_image(button_frame, f"Versão: {get_version()} | 2024 - 2025", "icone1.png")
+        self.add_text_with_image(button_frame, f"Versão: {get_version()} | 2024 - 2026", "icone1.png")
         self.add_text_with_image(button_frame, "Edição e criação: VempirE", "icone2.png")
         self.add_text_with_image(button_frame, "Código: Mano GPT, Claudeo e Baleia Chinesa com auxilio de Fox Copilot", "icone3.png")
         self.add_text_with_image(button_frame, "Auxilio não remunerado: Mije", "pepox.png")
