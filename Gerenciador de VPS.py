@@ -56,7 +56,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.23"
+    return "Beta 95.24"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -213,7 +213,7 @@ class ButtonManager:
         
         # Criar o menu da bandeja com sua sintaxe existente
         menu = TrayMenu(
-            MenuItem('Restaurar', self.restore_window),
+            MenuItem('Restaurar', self.restore_window, default=True),
             MenuItem('Sair', self.on_close)
         )
         
@@ -222,9 +222,6 @@ class ButtonManager:
         
         # Iniciar o ícone em thread separada
         threading.Thread(target=self.tray_icon.run, daemon=True).start()
-        
-        # Configurar duplo clique
-        self.setup_double_click()
         
         # Configura o tratamento para fechar a janela
         self.master.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -623,38 +620,6 @@ class ButtonManager:
         thread.start()
 
 # FUNÇÃO PARA MINIMIZAR E RESTAURAR O PROGRAMA NO SYSTEM TRAY
-    def setup_double_click(self):
-        """Configura o duplo clique usando pywin32"""
-        def find_tray_icon():
-            # Tenta encontrar a janela do ícone
-            def enum_windows(hwnd, extra):
-                if win32gui.GetWindowText(hwnd) == "Gerenciador de VPS":
-                    extra.append(hwnd)
-            
-            hwnds = []
-            win32gui.EnumWindows(enum_windows, hwnds)
-            return hwnds[0] if hwnds else None
-        
-        def wndproc(hwnd, msg, wparam, lparam):
-            if msg == win32con.WM_LBUTTONDBLCLK:
-                self.restore_window()
-            return win32gui.CallWindowProc(original_wndproc, hwnd, msg, wparam, lparam)
-        
-        # Thread para configurar o duplo clique após o ícone ser criado
-        def setup():
-            for _ in range(10):  # Tenta por até 5 segundos
-                if hwnd := find_tray_icon():
-                    global original_wndproc
-                    original_wndproc = win32gui.SetWindowLong(
-                        hwnd,
-                        win32con.GWL_WNDPROC,
-                        wndproc
-                    )
-                    break
-                threading.Event().wait(0.5)
-        
-        threading.Thread(target=setup, daemon=True).start()
-
     def on_minimize(self, event):
         """Captura o evento de minimizar a janela."""
         if self.master.state() == "iconic":  # Verifica se a janela foi minimizada
@@ -666,9 +631,11 @@ class ButtonManager:
 
     def restore_window(self, icon=None, item=None):
         """Restaura a janela principal."""
-        self.master.deiconify()  # Restaura a janela principal
-        self.master.lift()  # Traz a janela para o topo
-        self.master.focus_force()
+        def _restore():
+            self.master.deiconify()
+            self.master.lift()
+            self.master.focus_force()
+        self.master.after(0, _restore)
             
 #FUNÇÃO RELACIONADAS A ARQUIVO .INI
     # Função para ler e criar o arquivo ini
