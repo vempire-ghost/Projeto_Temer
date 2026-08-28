@@ -53,7 +53,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 4.02"
+    return "Beta 4.03"
 
 class ClientApp:
     def __init__(self):
@@ -2049,37 +2049,40 @@ class ClientApp:
             self.root.focus_force()
         self.root.after(0, _restore)
     
-    def quit_app(self):
+    def quit_app(self, icon=None, item=None):
         """Encerra o aplicativo completamente"""
-        # Para o loop de atualização da saudação
-        self.saudacao_ativa = False
-        
-        # Salva a posição atual da janela antes de sair
-        self.save_window_position()
-        self.save_config()
-        self.notify_provider_changes = tk.BooleanVar(value=False)
+        def _quit():
+            # Para o loop de atualização da saudação
+            self.saudacao_ativa = False
 
-        # Sinaliza para todas as threads pararem
-        self.running = False
-        
-        # Desconecta se estiver conectado
-        if self.connected:
-            self.disconnect()
-        
-        # Para o ícone da bandeja se existir
-        if hasattr(self, 'tray_icon') and self.tray_icon:
-            try:
-                self.tray_icon.stop()
-            except:
-                pass
-        
-        # Destroi a janela principal (isso automaticamente cancela todos os after())
-        if hasattr(self, 'root'):
-            try:
-                self.root.quit()  # Primeiro para o mainloop
-                self.root.destroy()  # Depois destrói a janela
-            except:
-                pass
+            # Salva a posição atual da janela antes de sair
+            self.save_window_position()
+            self.save_config()
+            self.notify_provider_changes = tk.BooleanVar(value=False)
+
+            # Sinaliza para todas as threads pararem
+            self.running = False
+
+            # Desconecta se estiver conectado
+            if self.connected:
+                self.disconnect()
+
+            # Para o ícone da bandeja se existir
+            if hasattr(self, 'tray_icon') and self.tray_icon:
+                try:
+                    self.tray_icon.stop()
+                except Exception:
+                    pass
+
+            # Destroi a janela principal (isso automaticamente cancela todos os after())
+            if hasattr(self, 'root'):
+                try:
+                    self.root.quit()  # Primeiro para o mainloop
+                    self.root.destroy()  # Depois destrói a janela
+                except Exception:
+                    pass
+
+        self.root.after(0, _quit)
     
     def run(self):
         """Executa o aplicativo"""
