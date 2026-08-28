@@ -53,7 +53,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 4.01"
+    return "Beta 4.02"
 
 class ClientApp:
     def __init__(self):
@@ -1546,7 +1546,7 @@ class ClientApp:
         
         # Menu do tray icon - VOLTAR AO ORIGINAL
         menu = (
-            pystray.MenuItem("Abrir", self.restore_from_tray),
+            pystray.MenuItem("Abrir", self.restore_from_tray, default=True),
             pystray.MenuItem("Desligar Servidor e VPS", self.send_poweroff_command),
             pystray.MenuItem("Desligar Servidor APENAS", self.send_poweroff_command2),
             pystray.MenuItem("Sair", self.quit_app)
@@ -2041,10 +2041,13 @@ class ClientApp:
         """Minimiza a janela para a bandeja"""
         self.root.withdraw()
     
-    def restore_from_tray(self, item=None):
+    def restore_from_tray(self, icon=None, item=None):
         """Restaura a janela da bandeja"""
-        self.root.deiconify()
-        self.root.after(0, self.root.lift)
+        def _restore():
+            self.root.deiconify()
+            self.root.lift()
+            self.root.focus_force()
+        self.root.after(0, _restore)
     
     def quit_app(self):
         """Encerra o aplicativo completamente"""
