@@ -56,7 +56,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.21"
+    return "Beta 95.22"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -109,7 +109,7 @@ logger_proxy.addHandler(proxy_handler)
 class ButtonManager:
     def __init__(self, master):
         self.master = master
-        self.command_timeout = 5  # Timeout em segundos
+        self.command_timeout = 25  # Timeout em segundos
         self.script_finished = False  # Inicializa a variável de controle para o término do script
         self.monitor_xray = False # Variável para rastrear o estado do monitoramento do Xray JOGO
         self.botao_monitorar_xray = True  # Variável para rastrear o estado do botão monitoramento do Xray JOGO
@@ -157,6 +157,7 @@ class ButtonManager:
         # Contadores de falhas consecutivas
         self.unifique_consecutive_fails = 0
         self.claro_consecutive_fails = 0
+        self.claro_restart_in_progress = False
         self.coopera_consecutive_fails = 0
         
         # Limite de falhas consecutivas antes de reiniciar
@@ -4787,16 +4788,27 @@ class ButtonManager:
             try:
                 output = output_queue.get()  # Espera até receber o output
                 if output is None:
+                    if name == 'CLARO':
+                        logger_provedor_test.warning("CLARO: teste inconclusivo (saída vazia/timeout). Contador de falhas não incrementado.")
+                        return
                     logger_provedor_test.error(f"Erro: A saída do comando é None.")
                     self.master.after(0, lambda: self.update_interface_status(button, name, False))
                     return
 
-                if name.lower() in output.lower():
+                output_l = output.lower()
+                if name.lower() in output_l:
                     self.master.after(0, lambda: self.update_interface_status(button, name, True))
+                elif name == 'CLARO' and ('unifique' in output_l or 'coopera' in output_l):
+                    self.master.after(0, lambda: self.update_interface_status(button, name, False))
+                elif name == 'CLARO':
+                    logger_provedor_test.warning("CLARO: teste inconclusivo (provedor não identificado no retorno). Contador de falhas não incrementado.")
                 else:
                     self.master.after(0, lambda: self.update_interface_status(button, name, False))
             except Exception as e:
                 logger_provedor_test.error(f"Erro ao verificar status: {e}")
+                if name == 'CLARO':
+                    logger_provedor_test.warning("CLARO: teste inconclusivo (exceção). Contador de falhas não incrementado.")
+                    return
                 self.master.after(0, lambda: self.update_interface_status(button, name, False))
 
         # Cria e inicia a thread para processar o resultado
@@ -4832,9 +4844,10 @@ class ButtonManager:
                 self.tooltip_fail_claro.text = f"Quedas desde o início: {self.claro_fail_count}"
                 
                 # Verifica se atingiu o limite de falhas consecutivas
-                if self.claro_consecutive_fails >= self.max_consecutive_fails:
+                if self.claro_consecutive_fails >= self.max_consecutive_fails and not self.claro_restart_in_progress:
                     logger_provedor_test.warning(f"Claro offline por {self.claro_consecutive_fails} vezes consecutivas. Reiniciando conexão...")
                     # Executa o reinício em uma thread separada para não bloquear a UI
+                    self.claro_restart_in_progress = True
                     threading.Thread(target=self.restart_claro_connection, daemon=True).start()
                     
             elif name == 'COOPERA':
@@ -4896,6 +4909,7 @@ class ButtonManager:
             
             # Reseta o contador de falhas consecutivas após tentativa de reinício
             self.claro_consecutive_fails = 0
+            self.claro_restart_in_progress = False
 
     def check_status(self):
         """Verifica o status das interfaces usando as conexões SSH apropriadas."""
