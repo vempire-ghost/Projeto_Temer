@@ -56,7 +56,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.22"
+    return "Beta 95.23"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -9026,8 +9026,102 @@ class ToolTip:
     def update_text(self, text):
         self.text = text
 
+
+def install_clipboard_context_menu(root):
+    def show_context_menu(event):
+        widget = event.widget
+        widget_class = widget.winfo_class()
+        is_text = widget_class == "Text"
+
+        try:
+            has_selection = bool(widget.tag_ranges("sel")) if is_text else widget.selection_present()
+        except (AttributeError, tk.TclError):
+            has_selection = False
+
+        try:
+            editable = str(widget.cget("state")) != "disabled"
+        except tk.TclError:
+            editable = True
+
+        try:
+            widget.clipboard_get()
+            has_clipboard = True
+        except tk.TclError:
+            has_clipboard = False
+
+        def selected_text(w=widget, text_widget=is_text):
+            if text_widget:
+                return w.get("sel.first", "sel.last")
+            return w.get()[w.index("sel.first"):w.index("sel.last")]
+
+        def do_copy(w=widget):
+            try:
+                w.event_generate("<<Copy>>")
+            except tk.TclError:
+                w.clipboard_clear()
+                w.clipboard_append(selected_text())
+
+        def do_cut(w=widget):
+            try:
+                w.event_generate("<<Cut>>")
+            except tk.TclError:
+                w.clipboard_clear()
+                w.clipboard_append(selected_text())
+                w.delete("sel.first", "sel.last")
+
+        def do_paste(w=widget, text_widget=is_text):
+            try:
+                w.event_generate("<<Paste>>")
+            except tk.TclError:
+                clipboard_text = w.clipboard_get()
+                if text_widget:
+                    if w.tag_ranges("sel"):
+                        w.delete("sel.first", "sel.last")
+                    w.insert("insert", clipboard_text)
+                else:
+                    if w.selection_present():
+                        w.delete("sel.first", "sel.last")
+                    w.insert("insert", clipboard_text)
+
+        def select_all(w=widget, text_widget=is_text):
+            try:
+                if text_widget:
+                    w.tag_add("sel", "1.0", "end-1c")
+                    w.mark_set("insert", "end")
+                else:
+                    w.select_range(0, tk.END)
+                    w.icursor(tk.END)
+            except (AttributeError, tk.TclError):
+                pass
+
+        previous_menu = getattr(widget, "_clipboard_context_menu", None)
+        if previous_menu is not None:
+            previous_menu.destroy()
+
+        menu = tk.Menu(widget, tearoff=0)
+        widget._clipboard_context_menu = menu
+        menu.add_command(label="Recortar", command=do_cut,
+                         state="normal" if has_selection and editable else "disabled")
+        menu.add_command(label="Copiar", command=do_copy,
+                         state="normal" if has_selection else "disabled")
+        menu.add_command(label="Colar", command=do_paste,
+                         state="normal" if editable and has_clipboard else "disabled")
+        menu.add_separator()
+        menu.add_command(label="Selecionar tudo", command=select_all)
+
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+        return "break"
+
+    for widget_class in ("Entry", "Text", "TCombobox", "TEntry"):
+        root.bind_class(widget_class, "<Button-3>", show_context_menu, add="+")
+
+
 def main():
     root = tk.Tk()
+    install_clipboard_context_menu(root)
     root.title("Gerenciador de VPS")
     root.configure(bg="white")
 
