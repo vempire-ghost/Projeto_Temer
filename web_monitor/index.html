@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Monitoramento OMR</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header>
+    <div>
+      <p class="eyebrow">GERENCIADOR DE VPS</p>
+      <h1>Monitoramento OMR</h1>
+    </div>
+    <div id="connection" class="connection offline"><span></span> Desconectado</div>
+  </header>
+  <nav aria-label="Abas do monitoramento">
+    <button class="tab active" data-tab="providers">MTR dos Provedores</button>
+    <button class="tab" data-tab="tests">MTR, Ping e Nmap</button>
+    <button class="tab" data-tab="omr">Interfaces OMR</button>
+  </nav>
+  <main>
+    <section id="providers" class="panel active">
+      <div class="section-heading"><div><p class="eyebrow">ROTAS</p><h2>Provedores</h2></div><p>Latência, perda e quedas durante esta execução.</p></div>
+      <div id="provider-grid" class="card-grid"></div>
+    </section>
+    <section id="tests" class="panel">
+      <div class="section-heading"><div><p class="eyebrow">VPS JOGO</p><h2>Testes individuais</h2></div><p>Três testes independentes usando a conexão SSH existente.</p></div>
+      <div id="test-grid" class="card-grid tests"></div>
+    </section>
+    <section id="omr" class="panel">
+      <div class="section-heading"><div><p class="eyebrow">TRÁFEGO</p><h2>Interfaces OMR</h2></div><p>Velocidades atuais e médias acumuladas.</p></div>
+      <div id="omr-grid" class="card-grid"></div>
+    </section>
+  </main>
+  <template id="provider-template">
+    <article class="card provider-card">
+      <div class="card-head"><div><p class="label"></p><h3></h3></div><span class="status"></span></div>
+      <div class="metrics"><div><span>Latência</span><strong class="latency">--</strong></div><div><span>Perda</span><strong class="loss">--</strong></div><div><span>Quedas</span><strong class="drops">0</strong></div></div>
+      <canvas height="150"></canvas>
+      <div class="actions"><button class="start">Iniciar</button><button class="stop secondary">Parar</button></div>
+      <pre class="output">Aguardando dados...</pre>
+    </article>
+  </template>
+  <script src="/app.js"></script>
+</body>
+</html>

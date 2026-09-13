@@ -11,6 +11,9 @@
 !arquivo_que_quero_monitorar.txt
 !beta52.py
 !Gerenciador de VPS.py
+!Gerenciador de VPS.spec
+!monitoring_web.py
+!web_monitor/**
 !Compilar.bat
 !Compilar.ps1
 !LICENSE

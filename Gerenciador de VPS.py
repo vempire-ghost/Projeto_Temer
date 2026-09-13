@@ -45,6 +45,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from monitoring_web import MonitoringState, MonitoringWebServer
 
 # Corrige o diretório de trabalho para o local do executável ou script
 if getattr(sys, 'frozen', False):
@@ -56,7 +57,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 95.24"
+    return "Beta 96.00"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -140,9 +141,17 @@ class ButtonManager:
         self.hosts_file = 'hosts.json'
         self.hosts = ["", "", ""]  # Inicializa uma lista para armazenar os endereços
         self.monitoring_active = {}
+        self.monitoring_threads = {}
         self.text_areas = {}
         self.previous_states = {}  # Dicionário para armazenar o estado anterior
         self.last_modified_config_ini = 0  # Armazena a data da última modificação do arquivo
+        self.monitor_state = MonitoringState()
+        self.monitor_web_server = None
+        self.test_controls = {}
+        self.provider_controls = {}
+        self.omr_controls = {}
+        self.monitor_command_queue = queue.Queue()
+        self.master.after(100, self._processar_fila_monitoramento)
 
         self.clear_log_file(os.path.join('Logs', 'app.log'))  # Limpa o arquivo de log ao iniciar o programa
         self.clear_log_file(os.path.join('Logs', 'test_command.log'))  # Limpa o arquivo de log ao iniciar o programa
@@ -253,6 +262,7 @@ class ButtonManager:
         self.coopera_online = False # Variavel para definir estado da conexão com a internet
         self.claro_online = False # Variavel para definir estado da conexão com a internet
         self.unifique_online = False # Variavel para definir estado da conexão com a internet
+        self.chat_handler = None
         self.iniciar_servicos()  # Inicia o servidor de API
         # Carrega as configurações de backup
         self.backup_auto_var = tk.BooleanVar()
@@ -263,9 +273,6 @@ class ButtonManager:
         self.omr_jogo_conectado = False
         self.vps_vpn_conectado = False
         self.vps_jogo_conectado = False
-        # Inicializa o chat handler
-        self.chat_handler = None
-
 #FUNÇÃO PARA INICIAR SERVIDOR DE API
     def iniciar_monitor_status(self, host='0.0.0.0', port=5000):
         """
@@ -359,6 +366,9 @@ class ButtonManager:
         
         # Novo serviço de chat
         self.iniciar_servico_chat()
+
+        # Painel HTTP/WebSocket. As portas legadas 5000 e 5001 permanecem intactas.
+        self.iniciar_painel_monitoramento()
         
     def iniciar_servico_chat(self):
         """Inicia o serviço de chat"""
@@ -368,9 +378,120 @@ class ButtonManager:
             print("Serviço de chat iniciado na porta 5001")
         except Exception as e:
             print(f"Erro ao iniciar serviço de chat: {e}")
+
+    def iniciar_painel_monitoramento(self):
+        try:
+            self.monitor_web_server = MonitoringWebServer(
+                self.monitor_state, self.processar_comando_web, host='0.0.0.0', port=5005
+            )
+            self.monitor_web_server.start()
+            print("Painel de monitoramento iniciado na porta 5005")
+        except Exception as e:
+            logger_main.error(f"Erro ao iniciar painel de monitoramento: {e}")
+
+    def processar_comando_web(self, message):
+        """Valida a lista fechada de ações e as encaminha para a thread do Tkinter."""
+        if not isinstance(message, dict):
+            raise ValueError("Comando invalido")
+        action = message.get('action')
+        allowed = {
+            'open_monitor', 'test_start', 'test_stop', 'provider_start',
+            'provider_stop', 'omr_start', 'omr_stop'
+        }
+        if action not in allowed:
+            raise ValueError("Acao nao permitida")
+
+        command = {'action': action}
+        if action.startswith('test_'):
+            index = int(message.get('index', -1))
+            if index not in range(3):
+                raise ValueError("Indice de teste invalido")
+            command['index'] = index
+            if action == 'test_start':
+                method = str(message.get('method', '')).lower()
+                host = str(message.get('host', '')).strip()
+                port = str(message.get('port', '')).strip()
+                if method not in {'mtr', 'ping', 'nmap'}:
+                    raise ValueError("Metodo invalido")
+                if not re.fullmatch(r'[A-Za-z0-9.-]{1,253}', host):
+                    raise ValueError("Host invalido")
+                if method == 'nmap' and (not port.isdigit() or not 1 <= int(port) <= 65535):
+                    raise ValueError("Porta invalida")
+                command.update(method=method, host=host, port=port if method == 'nmap' else '')
+        elif action.startswith('provider_'):
+            interface = str(message.get('interface', ''))
+            if interface not in {'eth2', 'eth4', 'eth5', 'tun0'}:
+                raise ValueError("Interface invalida")
+            command['interface'] = interface
+        elif action.startswith('omr_'):
+            target = str(message.get('target', ''))
+            if target not in {'vpn', 'jogo'}:
+                raise ValueError("Destino OMR invalido")
+            command['target'] = target
+
+        self.monitor_command_queue.put(command)
+
+    def _processar_fila_monitoramento(self):
+        while True:
+            try:
+                self._executar_comando_web(self.monitor_command_queue.get_nowait())
+            except queue.Empty:
+                break
+            except Exception as e:
+                logger_main.error(f"Erro ao processar comando do painel: {e}")
+        try:
+            if self.master.winfo_exists():
+                self.master.after(100, self._processar_fila_monitoramento)
+        except tk.TclError:
+            pass
+
+    def _executar_comando_web(self, command):
+        if command['action'] == 'open_monitor':
+            self.execute_mtr_and_plot()
+            return
+        if not hasattr(self, 'mtr_window') or not self.mtr_window.winfo_exists():
+            self.suppress_monitor_auto_start = True
+            try:
+                self.execute_mtr_and_plot()
+            finally:
+                self.suppress_monitor_auto_start = False
+
+        action = command['action']
+        if action == 'test_start':
+            control = self.test_controls.get(command['index'])
+            if control:
+                control['start'](command['host'], command['method'], command['port'])
+        elif action == 'test_stop':
+            control = self.test_controls.get(command['index'])
+            if control:
+                control['stop']()
+        elif action == 'provider_start':
+            control = self.provider_controls.get(command['interface'])
+            if control:
+                control['start']()
+        elif action == 'provider_stop':
+            control = self.provider_controls.get(command['interface'])
+            if control:
+                control['stop']()
+        elif action == 'omr_start':
+            control = self.omr_controls.get(command['target'])
+            if control:
+                control['start']()
+        elif action == 'omr_stop':
+            control = self.omr_controls.get(command['target'])
+            if control:
+                control['stop']()
             
     def parar_servicos(self):
         """Para todos os serviços"""
+        for controls in (self.test_controls, self.provider_controls, self.omr_controls):
+            for control in list(controls.values()):
+                try:
+                    control['stop']()
+                except Exception as e:
+                    logger_main.error(f"Erro ao parar monitoramento: {e}")
+        if self.monitor_web_server:
+            self.monitor_web_server.stop()
         if self.chat_handler:
             self.chat_handler.stop()
         print("Todos os serviços parados")
@@ -1733,6 +1854,7 @@ class ButtonManager:
         # Adiciona dicionários para armazenar as médias
         self.interface_speeds = {}
         self.interface_measurements = {}
+        self.omr_controls = {}
 
         # Frame 1: Monitoramento VPN
         vpn_frame = tk.Frame(monitor_tab, bg="lightgray", relief=tk.RAISED, bd=2)
@@ -1764,6 +1886,23 @@ class ButtonManager:
         )
         jogo_button.pack(pady=10)
 
+        self.omr_controls = {
+            'vpn': {
+                'start': lambda: self.start_monitoring_in_frame(vpn_frame, "Trafego OMR VPN", self.ssh_vpn_client),
+                'stop': lambda: self.stop_monitoring_bmon("Trafego OMR VPN"),
+            },
+            'jogo': {
+                'start': lambda: self.start_monitoring_in_frame(jogo_frame, "Trafego OMR JOGO", self.ssh_jogo_client),
+                'stop': lambda: self.stop_monitoring_bmon("Trafego OMR JOGO"),
+            },
+        }
+
+        def parar_monitoramentos_omr():
+            self.stop_monitoring_bmon("Trafego OMR VPN")
+            self.stop_monitoring_bmon("Trafego OMR JOGO")
+
+        self.aba_close_handlers.append(parar_monitoramentos_omr)
+
         # Aguarda um pequeno delay para garantir que a interface esteja carregada
         def iniciar_automaticamente():
             # Inicia monitoramento VPN
@@ -1772,17 +1911,21 @@ class ButtonManager:
             self.start_monitoring_in_frame(jogo_frame, "Trafego OMR JOGO", self.ssh_jogo_client)
         
         # Agenda para executar após 500ms (tempo para a interface carregar)
-        main_window.after(500, iniciar_automaticamente)
+        if not getattr(self, 'suppress_monitor_auto_start', False):
+            main_window.after(500, iniciar_automaticamente)
 
     def start_monitoring_in_frame(self, parent_frame, title, ssh_client):
         """Inicia o monitoramento no frame fornecido, sem abrir uma nova janela."""
         
-        # Caso o monitoramento esteja ativo para este título, interrompe para reiniciar
-        if self.monitoring_active.get(title, False):
-            self.stop_monitoring_bmon(title)
+        # Evita duas threads concorrentes para o mesmo monitor.
+        current_thread = self.monitoring_threads.get(title)
+        if self.monitoring_active.get(title, False) or (current_thread and current_thread.is_alive()):
+            return
 
         # Reinicia a flag de monitoramento ativo para este título
         self.monitoring_active[title] = True
+        omr_key = 'vpn' if title == "Trafego OMR VPN" else 'jogo'
+        self.monitor_state.update('omr', omr_key, running=True)
         
         # Inicializa os dicionários para este título se não existirem
         if title not in self.interface_speeds:
@@ -1924,9 +2067,14 @@ class ButtonManager:
 
             except Exception as e:
                 self.update_text_area(title, f"Erro ao executar o bmon: {e}\n", overwrite=True)
+            finally:
+                self.monitoring_active[title] = False
+                self.monitor_state.update('omr', omr_key, running=False)
 
         # Executa o monitoramento do bmon em uma thread separada
-        threading.Thread(target=monitor_bmon_in_real_time, daemon=True).start()
+        monitor_thread = threading.Thread(target=monitor_bmon_in_real_time, daemon=True)
+        self.monitoring_threads[title] = monitor_thread
+        monitor_thread.start()
 
     def process_interface_speeds(self, title, line):
         """Processa as velocidades das interfaces para cálculo de médias incrementais."""
@@ -1988,6 +2136,8 @@ class ButtonManager:
     def stop_monitoring_bmon(self, title):
         """Função para parar o monitoramento de um título específico."""
         self.monitoring_active[title] = False
+        omr_key = 'vpn' if title == "Trafego OMR VPN" else 'jogo'
+        self.monitor_state.update('omr', omr_key, running=False)
         # Limpa as medições ao parar o monitoramento
         if title in self.interface_measurements:
             self.interface_measurements[title].clear()
@@ -2007,6 +2157,12 @@ class ButtonManager:
 
     def update_text_area(self, title, new_text, overwrite=False):
         """Atualiza a área de texto associada a um título específico."""
+        base_title = title.replace('_averages', '')
+        if base_title in {"Trafego OMR VPN", "Trafego OMR JOGO"}:
+            omr_key = 'vpn' if base_title.endswith('VPN') else 'jogo'
+            field = 'averages' if title.endswith('_averages') else 'output'
+            current = self.monitor_state.snapshot()['omr'][omr_key].get(field, '')
+            self.monitor_state.update('omr', omr_key, **{field: new_text if overwrite else current + new_text})
         text_area = self.text_areas.get(title)
         if text_area:
             text_area.config(state='normal')
@@ -2267,6 +2423,7 @@ class ButtonManager:
         self.executando_mtr = [False, False, False]  # Para três hosts
         self.thread_mtr = [None, None, None]
         self.metodos = ["mtr", "nmap", "ping"]  # Métodos disponíveis (adicionado ping)
+        self.test_controls = {}
 
         # Função para adicionar host à lista garantindo que não haja duplicatas
         def adicionar_host_sem_duplicata(index, novo_host):
@@ -2366,6 +2523,10 @@ class ButtonManager:
 
             # Chama toggle_porta após todas as variáveis estarem definidas
             toggle_porta()
+            self.monitor_state.update(
+                'tests', linha, method=metodo_var.get(), host=combobox_var.get(),
+                port=porta_entry.get() if metodo_var.get() == 'nmap' else ''
+            )
 
             # Botões para iniciar e parar
             botao_executar = tk.Button(frame_host, text="Iniciar", command=lambda: iniciar_teste(linha))
@@ -2547,7 +2708,7 @@ class ButtonManager:
 
             # Função para iniciar o teste
             def iniciar_teste(index):
-                if self.executando_mtr[index]:
+                if self.executando_mtr[index] or (self.thread_mtr[index] and self.thread_mtr[index].is_alive()):
                     logger_main.warning(f"Tentativa de iniciar teste de latência {index +1} já em execução")
                     return
 
@@ -2591,6 +2752,10 @@ class ButtonManager:
                     intervalo = 1
 
                 self.executando_mtr[index] = True
+                self.monitor_state.update(
+                    'tests', index, running=True, method=metodo, host=host, port=porta,
+                    output=''
+                )
 
                 def run_test():
                     while self.executando_mtr[index]:
@@ -2598,12 +2763,15 @@ class ButtonManager:
                             # Verifica conexão SSH antes de executar
                             if not (hasattr(self, 'ssh_vps_jogo_via_vpn_client') and self.ssh_vps_jogo_via_vpn_client):                         
                                 logger_main.warning("Conexão SSH perdida - aguardando reconexão")
-                                connection_drops.append(datetime.now())  # Marca o momento da queda
-                                update_graph()  # Atualiza o gráfico para mostrar a queda
+                                drop_time = datetime.now()
+                                connection_drops.append(drop_time)  # Marca o momento da queda
+                                self.monitor_state.append_drop('tests', index, drop_time.isoformat())
+                                self.master.after(0, update_graph)
                                 
                                 if not verificar_reconexao_ssh():
                                     logger_main.error("Não foi possível reconectar - parando teste")
                                     self.executando_mtr[index] = False
+                                    self.monitor_state.update('tests', index, running=False)
                                     return
                                 
                                 # Continua após reconexão bem-sucedida
@@ -2617,12 +2785,16 @@ class ButtonManager:
                             if error and "WARNING" not in error:  # Ignora warnings comuns do Nmap
                                 logger_main.error(f"Erro ao executar {metodo} no teste de latência {index +1}: {error.strip()}")
                                 self.executando_mtr[index] = False
+                                self.monitor_state.update('tests', index, running=False, output=error.strip())
                                 return
 
                             # Atualiza a área de texto
-                            area_texto.delete(1.0, tk.END)
-                            area_texto.insert(tk.END, resultado)
-                            area_texto.see(tk.END)
+                            def update_test_output(text=resultado):
+                                area_texto.delete(1.0, tk.END)
+                                area_texto.insert(tk.END, text)
+                                area_texto.see(tk.END)
+                            self.master.after(0, update_test_output)
+                            self.monitor_state.update('tests', index, output=resultado)
 
                             # Processa a latência
                             latency = extrair_latencia(resultado, metodo)
@@ -2630,7 +2802,11 @@ class ButtonManager:
                             
                             if latency is not None:
                                 latencias.append(latency)
-                                timestamps.append(datetime.now())
+                                sample_time = datetime.now()
+                                timestamps.append(sample_time)
+                                self.monitor_state.append_history(
+                                    'tests', index, {'time': sample_time.isoformat(), 'latency': latency}
+                                )
                                 logger_main.debug(f"Dados atuais - Latências: {latencias[-5:]}, Timestamps: {timestamps[-5:]}")
                             
                             # Limita os dados
@@ -2638,20 +2814,25 @@ class ButtonManager:
                                 latencias.pop(0)
                                 timestamps.pop(0)
                             
-                            update_graph()
+                            self.master.after(0, update_graph)
 
                             # Espera antes de executar novamente
                             time.sleep(intervalo)
                         
                         except Exception as e:
                             logger_main.error(f"Erro inesperado durante o teste de latência {index +1}: {str(e)}")
-                            connection_drops.append(datetime.now())  # Marca o momento da queda
-                            update_graph()  # Atualiza o gráfico para mostrar a queda
+                            drop_time = datetime.now()
+                            connection_drops.append(drop_time)  # Marca o momento da queda
+                            self.monitor_state.append_drop('tests', index, drop_time.isoformat())
+                            self.master.after(0, update_graph)
                             
                             if not verificar_reconexao_ssh():
                                 logger_main.error("fNão foi possível reconectar após erro - parando teste {index +1}")
                                 self.executando_mtr[index] = False
+                                self.monitor_state.update('tests', index, running=False)
                                 return
+
+                    self.monitor_state.update('tests', index, running=False)
 
                 self.thread_mtr[index] = threading.Thread(target=run_test)
                 self.thread_mtr[index].start()
@@ -2661,8 +2842,23 @@ class ButtonManager:
                     host = combobox_var.get()  # Obtém o host atual da combobox
                     logger_main.info(f"Parando teste para o host: {host}")
                     self.executando_mtr[index] = False
+                    self.monitor_state.update('tests', index, running=False)
                 else:
                     logger_main.warning(f"Tentativa de parar teste que não estava em execução para o host: {combobox_var.get()}")
+
+            def iniciar_teste_externo(host, metodo, porta=''):
+                combobox_var.set(host)
+                metodo_var.set(metodo)
+                if porta:
+                    porta_entry.delete(0, tk.END)
+                    porta_entry.insert(0, porta)
+                toggle_porta()
+                iniciar_teste(linha)
+
+            self.test_controls[linha] = {
+                'start': iniciar_teste_externo,
+                'stop': lambda index=linha: parar_teste(index),
+            }
 
         # Criação de três seções de teste
         for i in range(3):
@@ -2703,7 +2899,8 @@ class ButtonManager:
                     logger_main.error(f"Erro ao iniciar teste {i+1} automaticamente: {str(e)}")
         
         # Agenda a execução automática após um pequeno delay
-        main_window.after(1000, iniciar_todos_testes_automaticamente)
+        if not getattr(self, 'suppress_monitor_auto_start', False):
+            main_window.after(1000, iniciar_todos_testes_automaticamente)
 
         # Função para fechar a janela corretamente
         def aba_on_closing():
@@ -2712,6 +2909,7 @@ class ButtonManager:
                 if self.executando_mtr[i]:
                     logger_main.info(f"Parando teste de latência {i +1} devido ao fechamento da janela")
                     self.executando_mtr[i] = False
+                    self.monitor_state.update('tests', i, running=False)
 
         # Registre o handler na lista principal
         self.aba_close_handlers.append(aba_on_closing)
@@ -2822,6 +3020,13 @@ class ButtonManager:
         timestamps = {iface: [] for iface in interfaces}
         marker_times = {iface: [] for iface in interfaces}  # Armazena os momentos com IPs especiais
         marker_counts = {iface: 0 for iface in interfaces}  # Contador de quedas por interface
+        self.provider_controls = {}
+        provider_threads = {}
+        provider_stop_events = {iface: threading.Event() for iface in interfaces}
+        for interface in interfaces:
+            self.monitor_state.update(
+                'providers', interface, name=interface_names[interface], running=False
+            )
 
         # Função para gerenciar o tamanho dos dados e evitar crescimento excessivo
         def manage_data_size(interface):
@@ -2830,8 +3035,6 @@ class ButtonManager:
                 pings_data[interface] = pings_data[interface][-3600 * 24:]
                 loss_data[interface] = loss_data[interface][-3600 * 24:]
 
-        # Cria um evento para controle de parada
-        stop_event = threading.Event()
         callbacks = []  # Lista para rastrear callbacks
 
         # Função para verificar IPs especiais
@@ -2860,6 +3063,7 @@ class ButtonManager:
                     # Verifica apenas o segundo salto (roteador)
                     if hop_number == 2 and ip in special_ips.get(interface, []):
                         marker_counts[interface] += 1  # Incrementa o contador
+                        self.monitor_state.append_drop('providers', interface, datetime.now().isoformat())
                         return True  # Retorna True quando encontra IP especial
                         
             except Exception as e:
@@ -2959,6 +3163,8 @@ class ButtonManager:
             # Função para executar o MTR e coletar latências e perdas de pacotes
             def execute_mtr_and_collect(interface, line, loss_line, ax):
                 command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 -I {interface} {host}"
+                stop_event = provider_stop_events[interface]
+                self.monitor_state.update('providers', interface, running=True)
                 while not stop_event.is_set():
                     try:
                         # Verifica se a conexão SSH está ativa
@@ -2969,6 +3175,7 @@ class ButtonManager:
                             
                         stdin, stdout, stderr = self.ssh_vpn_client.exec_command(command)
                         output = stdout.read().decode()
+                        self.monitor_state.update('providers', interface, output=output)
 
                         # Verifica se há IPs especiais
                         if check_special_ips(interface, output):
@@ -2981,6 +3188,9 @@ class ButtonManager:
                         # Processa a saída do MTR
                         last_lines = output.strip().splitlines()
                         valid_lines = [line for line in last_lines if "?" not in line]
+                        latency_value = None
+                        loss_value = None
+                        sample_time = datetime.now()
 
                         if valid_lines:
                             last_line = valid_lines[-1].split()
@@ -2992,17 +3202,24 @@ class ButtonManager:
                                 try:
                                     latency = int(float(last_line[avg_index]))
                                     pings_data[interface].append(latency)
-                                    timestamps[interface].append(datetime.now())
+                                    timestamps[interface].append(sample_time)
+                                    latency_value = latency
                                 except ValueError:
                                     pings_data[interface].append(None)
-                                    timestamps[interface].append(datetime.now())
+                                    timestamps[interface].append(sample_time)
 
                             if last_line[loss_index].endswith('%'):
                                 try:
                                     loss = float(last_line[loss_index].replace('%', ''))
                                     loss_data[interface].append(loss)
+                                    loss_value = loss
                                 except ValueError:
                                     loss_data[interface].append(None)
+
+                        self.monitor_state.append_history(
+                            'providers', interface,
+                            {'time': sample_time.isoformat(), 'latency': latency_value, 'loss': loss_value}
+                        )
 
                         # Atualiza o gráfico
                         callback_id = self.master.after(0, update_graph_safe, interface, line, loss_line, ax)
@@ -3012,9 +3229,12 @@ class ButtonManager:
                         
                     except Exception as e:
                          # Adiciona a mensagem de erro no log
-                        self.master.after(0, lambda: logger_main.info(f"Erro na conexão SSH para {interface_names[interface]}: {str(e)}. Tentando novamente em 5 segundos..."))
+                        error_message = str(e)
+                        self.master.after(0, lambda error=error_message: logger_main.info(f"Erro na conexão SSH para {interface_names[interface]}: {error}. Tentando novamente em 5 segundos..."))
                         time.sleep(5)  # Espera 5 segundos antes de tentar novamente
                         continue
+
+                self.monitor_state.update('providers', interface, running=False)
 
             # Função para atualizar a área de saída de texto no thread principal
             def update_output_area(interface, output):
@@ -3025,9 +3245,30 @@ class ButtonManager:
                     output_area.insert(tk.END, f"MTR para {interface_names[interface]}:\n{output}\n")
                     output_area.config(state=tk.DISABLED)  # Desabilita edição novamente
 
-            # Cria e inicia uma thread para executar o MTR para cada interface
-            mtr_thread = threading.Thread(target=execute_mtr_and_collect, args=(interface, line, loss_line, ax))
-            mtr_thread.start()
+            def start_provider(iface=interface, graph_line=line, graph_loss_line=loss_line, graph_ax=ax):
+                current = provider_threads.get(iface)
+                if current and current.is_alive():
+                    return
+                provider_stop_events[iface].clear()
+                thread = threading.Thread(
+                    target=execute_mtr_and_collect,
+                    args=(iface, graph_line, graph_loss_line, graph_ax),
+                    daemon=True,
+                )
+                provider_threads[iface] = thread
+                thread.start()
+
+            def stop_provider(iface=interface):
+                provider_stop_events[iface].set()
+                self.monitor_state.update('providers', iface, running=False)
+
+            self.provider_controls[interface] = {'start': start_provider, 'stop': stop_provider}
+            controls_frame = tk.Frame(frame, bg='white')
+            controls_frame.pack(pady=4)
+            tk.Button(controls_frame, text="Iniciar", command=start_provider).pack(side=tk.LEFT, padx=3)
+            tk.Button(controls_frame, text="Parar", command=stop_provider).pack(side=tk.LEFT, padx=3)
+            if not getattr(self, 'suppress_monitor_auto_start', False):
+                start_provider()
 
         # Função para alternar o realinhamento automático
         def toggle_auto_realign():
@@ -3041,7 +3282,10 @@ class ButtonManager:
         # Função para fechar a janela corretamente
         def on_closing():
             try:
-                stop_event.set()  # Aciona o evento de parada para as threads
+                for event in provider_stop_events.values():
+                    event.set()
+                for interface in interfaces:
+                    self.monitor_state.update('providers', interface, running=False)
                 
                 # Chama todos os handlers registrados
                 for handler in self.aba_close_handlers:

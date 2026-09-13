@@ -1,2 +1,2 @@
-pyinstaller --onefile --noconsole --icon=.\omr-logo.ico "Gerenciador de VPS.py" 
+pyinstaller --onefile --noconsole --icon=.\omr-logo.ico --add-data "web_monitor;web_monitor" "Gerenciador de VPS.py"
 
