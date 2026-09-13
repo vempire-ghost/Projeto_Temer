@@ -22,7 +22,7 @@
   <main>
     <section id="providers" class="panel active">
       <div class="section-heading"><div><p class="eyebrow">ROTAS</p><h2>Provedores</h2></div><p>Latência, perda e quedas durante esta execução.</p></div>
-      <div id="provider-grid" class="card-grid"></div>
+      <div id="provider-grid" class="providers-grid" aria-label="Provedores monitorados"></div>
     </section>
     <section id="tests" class="panel">
       <div class="section-heading"><div><p class="eyebrow">VPS JOGO</p><h2>Testes individuais</h2></div><p>Três testes independentes usando a conexão SSH existente.</p></div>
@@ -37,9 +37,19 @@
     <article class="card provider-card">
       <div class="card-head"><div><p class="label"></p><h3></h3></div><span class="status"></span></div>
       <div class="metrics"><div><span>Latência</span><strong class="latency">--</strong></div><div><span>Perda</span><strong class="loss">--</strong></div><div><span>Quedas</span><strong class="drops">0</strong></div></div>
-      <canvas height="150"></canvas>
+      <div class="chart-panel">
+        <div class="chart-head">
+          <div class="chart-legend" aria-label="Legenda do gráfico"><span class="latency-key">Latência</span><span class="loss-key">Perda</span><span class="drop-key">Quedas</span></div>
+          <button class="chart-live" type="button" title="Voltar aos últimos 60 minutos">Tempo real</button>
+        </div>
+        <canvas height="230" aria-label="Histórico de latência, perda e quedas"></canvas>
+        <p class="chart-help">Arraste para consultar o histórico · Use a roda para zoom</p>
+      </div>
       <div class="actions"><button class="start">Iniciar</button><button class="stop secondary">Parar</button></div>
-      <pre class="output">Aguardando dados...</pre>
+      <div class="output-panel">
+        <div class="output-head"><span>Saída MTR</span><span class="output-status">Aguardando</span></div>
+        <pre class="output">Aguardando dados...</pre>
+      </div>
     </article>
   </template>
   <script src="/app.js"></script>

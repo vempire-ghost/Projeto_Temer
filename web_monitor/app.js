@@ -1,4 +1,6 @@
 const state = { providers: {}, tests: {}, omr: {} };
+const chartStates = new WeakMap();
+const HOUR = 60 * 60 * 1000;
 let ws;
 let reconnectTimer;
 
@@ -69,12 +71,14 @@ function renderProviders() {
     card.querySelector('.label').textContent = id;
     card.querySelector('h3').textContent = data.name || id;
     setStatus(card, data.running);
-    const latest = (data.history || []).at(-1) || {};
-    card.querySelector('.latency').textContent = latest.latency == null ? '--' : `${latest.latency} ms`;
-    card.querySelector('.loss').textContent = latest.loss == null ? '--' : `${latest.loss}%`;
+    const history = Array.isArray(data.history) ? data.history : [];
+    const latestLatency = latestFinite(history, 'latency');
+    const latestLoss = latestFinite(history, 'loss');
+    card.querySelector('.latency').textContent = latestLatency == null ? '--' : `${formatNumber(latestLatency)} ms`;
+    card.querySelector('.loss').textContent = latestLoss == null ? '--' : `${formatNumber(latestLoss)}%`;
     card.querySelector('.drops').textContent = (data.drops || []).length;
     card.querySelector('.output').textContent = data.output || 'Aguardando dados...';
-    drawChart(card.querySelector('canvas'), data.history || [], data.drops || []);
+    drawChart(card.querySelector('canvas'), history, data.drops || []);
   });
 }
 
@@ -87,7 +91,9 @@ function renderTests() {
       card = document.createElement('article'); card.className='card'; card.id=`test-${i}`;
       card.innerHTML = `<div class="card-head"><div><p class="label">TESTE ${i+1}</p><h3>Destino</h3></div><span class="status">Parado</span></div>
         <div class="test-form"><select class="method"><option value="mtr">MTR</option><option value="ping">Ping</option><option value="nmap">Nmap</option></select><input class="host" placeholder="Host ou IP"><input class="port" type="number" min="1" max="65535" placeholder="Porta"></div>
-        <div class="test-actions"><button class="run">Iniciar</button><button class="halt secondary">Parar</button></div><canvas height="150"></canvas><pre>Aguardando dados...</pre>`;
+        <div class="test-actions"><button class="run">Iniciar</button><button class="halt secondary">Parar</button></div>
+        <div class="chart-panel"><div class="chart-head"><div class="chart-legend"><span class="latency-key">Latência</span><span class="drop-key">Quedas</span></div><button class="chart-live" type="button">Tempo real</button></div><canvas height="230" aria-label="Histórico do teste"></canvas><p class="chart-help">Arraste para histórico · Roda para zoom</p></div>
+        <div class="output-panel"><div class="output-head"><span>Saída do teste</span><span class="output-status">Aguardando</span></div><pre>Aguardando dados...</pre></div>`;
       card.querySelector('.method').onchange = e => card.querySelector('.port').classList.toggle('hidden', e.target.value !== 'nmap');
       card.querySelector('.run').onclick = () => send({action:'test_start', index:i, method:card.querySelector('.method').value, host:card.querySelector('.host').value, port:card.querySelector('.port').value});
       card.querySelector('.halt').onclick = () => send({action:'test_stop', index:i});
@@ -110,7 +116,7 @@ function renderOmr() {
     let card = document.getElementById(`omr-${id}`);
     if (!card) {
       card=document.createElement('article'); card.className='card'; card.id=`omr-${id}`;
-      card.innerHTML=`<div class="card-head"><div><p class="label">INTERFACES</p><h3>${name}</h3></div><span class="status">Parado</span></div><div class="actions"><button class="start">Iniciar</button><button class="stop secondary">Parar</button></div><pre class="output">Aguardando dados...</pre><p class="average-title">Velocidades médias</p><pre class="averages">Aguardando dados...</pre>`;
+      card.innerHTML=`<div class="card-head"><div><p class="label">INTERFACES</p><h3>${name}</h3></div><span class="status">Parado</span></div><div class="actions"><button class="start">Iniciar</button><button class="stop secondary">Parar</button></div><div class="output-panel"><div class="output-head"><span>Leitura da interface</span><span class="output-status">Aguardando</span></div><pre class="output">Aguardando dados...</pre></div><p class="average-title">Velocidades médias</p><div class="output-panel"><div class="output-head"><span>Médias acumuladas</span></div><pre class="averages">Aguardando dados...</pre></div>`;
       card.querySelector('.start').onclick=()=>send({action:'omr_start', target:id});
       card.querySelector('.stop').onclick=()=>send({action:'omr_stop', target:id});
       grid.appendChild(card);
@@ -119,18 +125,205 @@ function renderOmr() {
   });
 }
 
-function setStatus(card, running) { const el=card.querySelector('.status'); el.textContent=running?'Executando':'Parado'; el.classList.toggle('running',!!running); }
+function setStatus(card, running) {
+  const el = card.querySelector('.status');
+  el.textContent = running ? 'Executando' : 'Parado';
+  el.classList.toggle('running', !!running);
+  const outputStatus = card.querySelector('.output-status');
+  if (outputStatus) {
+    outputStatus.textContent = running ? 'Ao vivo' : 'Aguardando';
+    outputStatus.classList.toggle('running', !!running);
+  }
+}
 function setUnlessFocused(input,value) { if(document.activeElement!==input) input.value=value; }
 
 function drawChart(canvas, history, drops) {
-  const ratio=window.devicePixelRatio||1, width=canvas.clientWidth||400, height=150;
-  if(canvas.width!==width*ratio){canvas.width=width*ratio;canvas.height=height*ratio;}
-  const ctx=canvas.getContext('2d'); ctx.setTransform(ratio,0,0,ratio,0,0); ctx.clearRect(0,0,width,height);
-  ctx.strokeStyle='#dddcd2'; ctx.lineWidth=1; [30,75,120].forEach(y=>{ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(width,y);ctx.stroke();});
-  const points=history.slice(-180), max=Math.max(120,...points.map(p=>Number(p.latency)||0));
-  ctx.strokeStyle='#087f5b';ctx.lineWidth=2;ctx.beginPath();let started=false;
-  points.forEach((p,i)=>{if(p.latency==null)return;const x=points.length<2?0:i/(points.length-1)*width,y=height-8-Math.min(Number(p.latency),max)/max*(height-16);started?ctx.lineTo(x,y):ctx.moveTo(x,y);started=true;});ctx.stroke();
-  ctx.fillStyle='#c13d32'; (drops||[]).slice(-20).forEach((_,i)=>{const x=width-8-i*7;ctx.beginPath();ctx.moveTo(x,height-3);ctx.lineTo(x-4,height-11);ctx.lineTo(x+4,height-11);ctx.fill();});
+  const points = normalizeHistory(history);
+  const dropTimes = (Array.isArray(drops) ? drops : []).map(toTimestamp).filter(Number.isFinite).sort((a, b) => a - b);
+  const chart = getChartState(canvas);
+  chart.points = points;
+  chart.drops = dropTimes;
+
+  const ratio = window.devicePixelRatio || 1;
+  const width = canvas.clientWidth || 400;
+  const height = canvas.clientHeight || 230;
+  const pixelWidth = Math.round(width * ratio);
+  const pixelHeight = Math.round(height * ratio);
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+  }
+
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  const plot = { left: 52, right: width - 14, top: 14, bottom: height - 35 };
+  const plotWidth = Math.max(1, plot.right - plot.left);
+  const plotHeight = Math.max(1, plot.bottom - plot.top);
+  chart.plotWidth = plotWidth;
+  const latestDataTime = Math.max(points.length ? points[points.length - 1].time : 0, dropTimes.length ? dropTimes[dropTimes.length - 1] : 0);
+  const liveEnd = latestDataTime && Date.now() - latestDataTime > HOUR ? latestDataTime : Date.now();
+  chart.liveEnd = liveEnd;
+  const earliest = Math.min(points.length ? points[0].time : liveEnd, dropTimes.length ? dropTimes[0] : liveEnd);
+  chart.earliest = earliest;
+  chart.maxDuration = Math.max(HOUR, liveEnd - earliest + 60000);
+  chart.duration = Math.min(chart.duration, chart.maxDuration);
+  const end = chart.viewEnd == null ? liveEnd : clampViewEnd(chart.viewEnd, chart);
+  if (chart.viewEnd != null) chart.viewEnd = end;
+  const start = end - chart.duration;
+  const visible = points.filter(point => point.time >= start && point.time <= end);
+  const largestValue = visible.reduce((maximum, point) => Math.max(
+    maximum,
+    Number.isFinite(point.latency) ? point.latency : 0,
+    Number.isFinite(point.loss) ? point.loss : 0
+  ), 0);
+  const yMax = Math.max(120, Math.ceil(largestValue * 1.15 / 10) * 10);
+  const xFor = timestamp => plot.left + (timestamp - start) / chart.duration * plotWidth;
+  const yFor = value => plot.bottom - Math.max(0, Math.min(value, yMax)) / yMax * plotHeight;
+
+  ctx.font = '10px "Segoe UI", sans-serif';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = plot.top + plotHeight * i / 4;
+    const value = Math.round(yMax * (1 - i / 4));
+    ctx.strokeStyle = '#deddd5';
+    ctx.beginPath(); ctx.moveTo(plot.left, y); ctx.lineTo(plot.right, y); ctx.stroke();
+    ctx.fillStyle = '#6b7770'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(String(value), plot.left - 7, y);
+  }
+  for (let i = 0; i <= 4; i++) {
+    const x = plot.left + plotWidth * i / 4;
+    const timestamp = start + chart.duration * i / 4;
+    ctx.strokeStyle = '#ebe9e0';
+    ctx.beginPath(); ctx.moveTo(x, plot.top); ctx.lineTo(x, plot.bottom); ctx.stroke();
+    ctx.fillStyle = '#6b7770'; ctx.textAlign = i === 0 ? 'left' : i === 4 ? 'right' : 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(formatTime(timestamp, chart.duration), x, plot.bottom + 7);
+  }
+  ctx.save();
+  ctx.translate(12, plot.top + plotHeight / 2); ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = '#536159'; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText('Latência (ms) / perda (%)', 0, 0);
+  ctx.restore();
+  ctx.fillStyle = '#536159'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText('Horário', plot.left + plotWidth / 2, height - 1);
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(plot.left, plot.top, plotWidth, plotHeight); ctx.clip();
+  drawSeries(ctx, visible, 'latency', '#087f5b', xFor, yFor);
+  ctx.setLineDash([5, 4]);
+  drawSeries(ctx, visible, 'loss', '#d97706', xFor, yFor);
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#c13d32';
+  dropTimes.filter(time => time >= start && time <= end).forEach(time => {
+    const x = xFor(time);
+    ctx.beginPath(); ctx.moveTo(x, plot.bottom - 11); ctx.lineTo(x - 5, plot.bottom - 2); ctx.lineTo(x + 5, plot.bottom - 2); ctx.closePath(); ctx.fill();
+  });
+  ctx.restore();
+
+  if (!visible.length) {
+    ctx.fillStyle = '#7a857f'; ctx.font = '12px "Segoe UI", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(points.length ? 'Sem amostras nesta janela' : 'Aguardando amostras de latência', plot.left + plotWidth / 2, plot.top + plotHeight / 2);
+  }
+  const liveButton = canvas.closest('.chart-panel')?.querySelector('.chart-live');
+  if (liveButton) liveButton.classList.toggle('following', chart.viewEnd == null);
+}
+
+function getChartState(canvas) {
+  let chart = chartStates.get(canvas);
+  if (chart) return chart;
+  chart = { duration: HOUR, viewEnd: null, points: [], drops: [], plotWidth: 1, earliest: Date.now(), liveEnd: Date.now(), maxDuration: HOUR };
+  chartStates.set(canvas, chart);
+  let dragStart = null;
+  canvas.addEventListener('pointerdown', event => {
+    dragStart = { x: event.clientX, end: chart.viewEnd == null ? chart.liveEnd : chart.viewEnd };
+    canvas.setPointerCapture(event.pointerId); canvas.classList.add('dragging');
+  });
+  canvas.addEventListener('pointermove', event => {
+    if (!dragStart) return;
+    chart.viewEnd = clampViewEnd(dragStart.end - (event.clientX - dragStart.x) / chart.plotWidth * chart.duration, chart);
+    drawChart(canvas, chart.points, chart.drops);
+  });
+  const stopDragging = () => { dragStart = null; canvas.classList.remove('dragging'); };
+  canvas.addEventListener('pointerup', stopDragging);
+  canvas.addEventListener('pointercancel', stopDragging);
+  canvas.addEventListener('wheel', event => {
+    event.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left - 52) / chart.plotWidth));
+    const oldDuration = chart.duration;
+    const oldEnd = chart.viewEnd == null ? chart.liveEnd : chart.viewEnd;
+    const anchor = oldEnd - oldDuration + ratio * oldDuration;
+    chart.duration = Math.max(60000, Math.min(chart.maxDuration, oldDuration * Math.exp(event.deltaY * 0.0015)));
+    chart.viewEnd = clampViewEnd(anchor + (1 - ratio) * chart.duration, chart);
+    drawChart(canvas, chart.points, chart.drops);
+  }, { passive: false });
+  const reset = () => { chart.duration = HOUR; chart.viewEnd = null; drawChart(canvas, chart.points, chart.drops); };
+  canvas.addEventListener('dblclick', reset);
+  canvas.closest('.chart-panel')?.querySelector('.chart-live')?.addEventListener('click', reset);
+  return chart;
+}
+
+function clampViewEnd(end, chart) {
+  const minimum = chart.earliest + chart.duration;
+  return minimum > chart.liveEnd ? chart.liveEnd : Math.max(minimum, Math.min(chart.liveEnd, end));
+}
+
+function normalizeHistory(history) {
+  if (!Array.isArray(history)) return [];
+  const now = Date.now();
+  return history.map((point, index) => {
+    const item = point && typeof point === 'object' ? point : { latency: point };
+    const parsedTime = toTimestamp(item.time ?? item.timestamp ?? item.date);
+    return {
+      time: Number.isFinite(parsedTime) ? parsedTime : now - (history.length - 1 - index) * 1000,
+      latency: finiteNumber(item.latency ?? item.ping ?? item.value),
+      loss: finiteNumber(item.loss ?? item.packet_loss)
+    };
+  }).filter(point => Number.isFinite(point.time)).sort((a, b) => a.time - b.time);
+}
+
+function drawSeries(ctx, points, field, color, xFor, yFor) {
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.beginPath();
+  let started = false;
+  let lastPoint = null;
+  points.forEach(point => {
+    const value = point[field];
+    if (!Number.isFinite(value)) { started = false; return; }
+    const x = xFor(point.time), y = yFor(value);
+    if (started) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+    lastPoint = { x, y };
+    started = true;
+  });
+  ctx.stroke();
+  if (lastPoint) {
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(lastPoint.x, lastPoint.y, 2.5, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function latestFinite(history, field) {
+  for (let index = history.length - 1; index >= 0; index--) {
+    const value = finiteNumber(history[index]?.[field]);
+    if (value != null) return value;
+  }
+  return null;
+}
+
+function finiteNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function toTimestamp(value) {
+  if (typeof value === 'number') return value < 1e12 ? value * 1000 : value;
+  if (typeof value !== 'string' || !value.trim()) return NaN;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) return numeric < 1e12 ? numeric * 1000 : numeric;
+  return Date.parse(value);
+}
+
+function formatNumber(value) { return Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 1 }); }
+function formatTime(timestamp, duration) {
+  const options = duration > 24 * HOUR ? { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' } : { hour:'2-digit', minute:'2-digit' };
+  return new Date(timestamp).toLocaleString('pt-BR', options);
 }
 
 window.addEventListener('resize', render);

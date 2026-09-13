@@ -57,7 +57,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 96.01"
+    return "Beta 96.02"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -3195,27 +3195,30 @@ class ButtonManager:
 
                         if valid_lines:
                             last_line = valid_lines[-1].split()
-                            avg_index = 6
-                            loss_index = -1
-
-                            # Captura a perda de pacotes (último elemento)
-                            if len(last_line) > avg_index:
+                            # No relatorio do MTR, as colunas apos Loss% sao
+                            # Snt, Last, Avg, Best, Wrst e StDev.
+                            loss_index = next(
+                                (i for i, value in enumerate(last_line) if value.endswith('%')),
+                                None
+                            )
+                            if loss_index is not None:
                                 try:
-                                    latency = int(float(last_line[avg_index]))
-                                    pings_data[interface].append(latency)
-                                    timestamps[interface].append(sample_time)
-                                    latency_value = latency
+                                    loss_value = float(last_line[loss_index].rstrip('%'))
                                 except ValueError:
-                                    pings_data[interface].append(None)
-                                    timestamps[interface].append(sample_time)
+                                    pass
+                                avg_index = loss_index + 3
+                                if len(last_line) > avg_index:
+                                    try:
+                                        latency_value = float(last_line[avg_index])
+                                    except ValueError:
+                                        pass
 
-                            if last_line[loss_index].endswith('%'):
-                                try:
-                                    loss = float(last_line[loss_index].replace('%', ''))
-                                    loss_data[interface].append(loss)
-                                    loss_value = loss
-                                except ValueError:
-                                    loss_data[interface].append(None)
+                        # Mantem as tres series alinhadas mesmo em respostas
+                        # incompletas ou temporariamente sem destino valido.
+                        timestamps[interface].append(sample_time)
+                        pings_data[interface].append(latency_value)
+                        loss_data[interface].append(loss_value)
+                        manage_data_size(interface)
 
                         self.monitor_state.append_history(
                             'providers', interface,
