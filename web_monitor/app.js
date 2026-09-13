@@ -1,5 +1,6 @@
 const state = { providers: {}, tests: {}, omr: {} };
 let ws;
+let reconnectTimer;
 
 document.querySelectorAll('.tab').forEach(button => button.addEventListener('click', () => {
   document.querySelectorAll('.tab,.panel').forEach(el => el.classList.remove('active'));
@@ -12,24 +13,44 @@ function send(message) {
 }
 
 function connect() {
-  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
-  ws.onopen = () => setConnection(true);
-  ws.onclose = () => { setConnection(false); setTimeout(connect, 2000); };
-  ws.onerror = () => ws.close();
+  const wsUrl = new URL('/ws', window.location.href);
+  wsUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  console.info(`[Painel] Conectando ao WebSocket ${wsUrl.href}`);
+  setConnection(false, 'Conectando...');
+  ws = new WebSocket(wsUrl);
+  ws.onopen = () => {
+    console.info('[Painel] WebSocket conectado');
+    setConnection(true);
+  };
+  ws.onclose = event => {
+    console.warn(`[Painel] WebSocket desconectado (codigo ${event.code}, motivo: ${event.reason || 'nao informado'})`);
+    setConnection(false, 'Desconectado; tentando novamente...');
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connect, 2000);
+  };
+  ws.onerror = event => {
+    console.error('[Painel] Falha na conexao WebSocket. Verifique a rota /ws e a porta 5005.', event);
+  };
   ws.onmessage = event => {
-    const message = JSON.parse(event.data);
-    if (message.type === 'state') {
-      Object.assign(state, message.data);
-      render();
+    try {
+      const message = JSON.parse(event.data);
+      if (message.type === 'state') {
+        Object.assign(state, message.data);
+        render();
+      } else if (message.type === 'error') {
+        console.warn(`[Painel] Backend recusou a mensagem: ${message.message}`);
+      }
+    } catch (error) {
+      console.error('[Painel] Mensagem WebSocket invalida recebida', error);
     }
   };
 }
 
-function setConnection(online) {
+function setConnection(online, offlineText = 'Desconectado') {
   const el = document.getElementById('connection');
   el.classList.toggle('online', online);
   el.classList.toggle('offline', !online);
-  el.lastChild.textContent = online ? ' Conectado' : ' Desconectado';
+  el.lastChild.textContent = online ? ' Conectado' : ` ${offlineText}`;
 }
 
 function render() { renderProviders(); renderTests(); renderOmr(); }

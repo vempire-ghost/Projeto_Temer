@@ -3,6 +3,7 @@ import copy
 import hashlib
 import ipaddress
 import json
+import logging
 import mimetypes
 import os
 import queue
@@ -98,16 +99,22 @@ def resource_path(relative_path):
 
 
 class _ThreadingServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    allow_reuse_address = True
+    allow_reuse_address = os.name != "nt"
     daemon_threads = True
+
+    def server_bind(self):
+        if os.name == "nt":
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 class MonitoringWebServer:
-    def __init__(self, state, command_handler, host="0.0.0.0", port=5005):
+    def __init__(self, state, command_handler, host="0.0.0.0", port=5005, logger=None):
         self.state = state
         self.command_handler = command_handler
         self.host = host
         self.port = port
+        self.logger = logger or logging.getLogger(__name__)
         self._server = None
         self._thread = None
         self._clients = {}
@@ -122,30 +129,57 @@ class MonitoringWebServer:
         owner = self
 
         class Handler(BaseHTTPRequestHandler):
+            # A resposta 101 do WebSocket deve usar HTTP/1.1. O padrao desta
+            # classe e HTTP/1.0, que navegadores rejeitam silenciosamente.
+            protocol_version = "HTTP/1.1"
+
             def do_GET(self):
-                if not owner._is_local_address(self.client_address[0]):
-                    self.send_error(403)
-                    return
-                if self.headers.get("Upgrade", "").lower() == "websocket" and self.path == "/ws":
-                    origin = self.headers.get("Origin")
-                    request_host = self.headers.get("Host", "").lower()
-                    if origin and urlsplit(origin).netloc.lower() != request_host:
+                client_address = self.client_address[0]
+                request_path = urlsplit(self.path).path
+                owner.logger.info("Painel web: conexao HTTP aceita de %s para %s", client_address, request_path)
+                try:
+                    if not owner._is_local_address(client_address):
+                        owner.logger.warning("Painel web: acesso recusado para endereco nao local %s", client_address)
                         self.send_error(403)
                         return
-                    owner._handle_websocket(self)
-                    return
-                owner._serve_static(self)
+                    if request_path == "/ws":
+                        if self.headers.get("Upgrade", "").lower() != "websocket":
+                            owner.logger.warning("Painel web: handshake WebSocket invalido de %s (Upgrade ausente)", client_address)
+                            self.send_response(426, "Upgrade Required")
+                            self.send_header("Upgrade", "websocket")
+                            self.send_header("Content-Length", "0")
+                            self.end_headers()
+                            return
+                        origin = self.headers.get("Origin")
+                        request_host = self.headers.get("Host", "").lower()
+                        if origin and urlsplit(origin).netloc.lower() != request_host:
+                            owner.logger.warning("Painel web: handshake WebSocket recusado por origem divergente de %s", client_address)
+                            self.send_error(403)
+                            return
+                        self.close_connection = True
+                        owner._handle_websocket(self)
+                        return
+                    owner._serve_static(self)
+                except (ConnectionError, OSError, TimeoutError) as exc:
+                    owner.logger.warning("Painel web: conexao HTTP encerrada por %s: %s", client_address, exc)
+                except Exception:
+                    owner.logger.exception("Painel web: erro inesperado ao atender %s", client_address)
 
             def log_message(self, fmt, *args):
                 return
 
-        self._server = _ThreadingServer((self.host, self.port), Handler)
+        try:
+            self._server = _ThreadingServer((self.host, self.port), Handler)
+        except OSError as exc:
+            self.logger.error("Painel web: falha ao vincular %s:%s: %s", self.host, self.port, exc)
+            raise
         self._running.set()
         self.state.subscribe(self.publish)
         self._thread = threading.Thread(target=self._server.serve_forever, name="monitor-http", daemon=True)
         self._publisher_thread = threading.Thread(target=self._publisher_loop, name="monitor-ws-publisher", daemon=True)
         self._thread.start()
         self._publisher_thread.start()
+        self.logger.info("Painel web: servidor HTTP/WebSocket ativo em %s:%s (rota /ws)", self.host, self.port)
 
     def stop(self):
         if not self._running.is_set():
@@ -164,6 +198,7 @@ class MonitoringWebServer:
                 client.close()
             except OSError:
                 pass
+        self.logger.info("Painel web: servidor encerrado")
 
     def publish(self, snapshot):
         try:
@@ -187,7 +222,8 @@ class MonitoringWebServer:
                 try:
                     with send_lock:
                         self._send_frame(client, payload)
-                except OSError:
+                except OSError as exc:
+                    self.logger.info("Painel web: cliente WebSocket desconectado durante envio: %s", exc)
                     disconnected.append(client)
             if disconnected:
                 with self._clients_lock:
@@ -224,9 +260,18 @@ class MonitoringWebServer:
         handler.wfile.write(content)
 
     def _handle_websocket(self, handler):
+        client_address = handler.client_address[0]
         key = handler.headers.get("Sec-WebSocket-Key")
-        if not key:
-            handler.send_error(400)
+        connection_tokens = {
+            token.strip().lower() for token in handler.headers.get("Connection", "").split(",")
+        }
+        try:
+            valid_key = len(base64.b64decode(key or "", validate=True)) == 16
+        except (ValueError, TypeError):
+            valid_key = False
+        if "upgrade" not in connection_tokens or handler.headers.get("Sec-WebSocket-Version") != "13" or not valid_key:
+            self.logger.warning("Painel web: erro de protocolo no handshake WebSocket de %s", client_address)
+            handler.send_error(400, "Handshake WebSocket invalido")
             return
         accept = base64.b64encode(hashlib.sha1((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode()).digest()).decode()
         handler.send_response(101, "Switching Protocols")
@@ -238,6 +283,7 @@ class MonitoringWebServer:
         send_lock = threading.Lock()
         with self._clients_lock:
             self._clients[client] = send_lock
+        self.logger.info("Painel web: handshake aceito; cliente WebSocket conectado de %s", client_address)
         try:
             initial = json.dumps({"type": "state", "data": self.state.snapshot()}, ensure_ascii=False)
             with send_lock:
@@ -245,6 +291,8 @@ class MonitoringWebServer:
             while self._running.is_set():
                 opcode, payload = self._read_frame(client)
                 if opcode == 8:
+                    with send_lock:
+                        self._send_frame(client, payload, opcode=8)
                     break
                 if opcode == 9:
                     with send_lock:
@@ -259,8 +307,17 @@ class MonitoringWebServer:
                     error = json.dumps({"type": "error", "message": str(exc)}, ensure_ascii=False)
                     with send_lock:
                         self._send_frame(client, error)
-        except (ConnectionError, OSError, TimeoutError, ValueError):
-            pass
+        except ValueError as exc:
+            self.logger.warning("Painel web: erro de protocolo WebSocket de %s: %s", client_address, exc)
+            try:
+                with send_lock:
+                    self._send_frame(client, struct.pack("!H", 1002), opcode=8)
+            except OSError:
+                pass
+        except (ConnectionError, OSError, TimeoutError) as exc:
+            self.logger.info("Painel web: cliente WebSocket %s desconectado: %s", client_address, exc)
+        except Exception:
+            self.logger.exception("Painel web: erro inesperado no cliente WebSocket %s", client_address)
         finally:
             with self._clients_lock:
                 self._clients.pop(client, None)
@@ -268,6 +325,7 @@ class MonitoringWebServer:
                 client.close()
             except OSError:
                 pass
+            self.logger.info("Painel web: conexao WebSocket de %s encerrada", client_address)
 
     @staticmethod
     def _read_exact(client, size):
@@ -281,8 +339,16 @@ class MonitoringWebServer:
 
     def _read_frame(self, client):
         first, second = self._read_exact(client, 2)
+        if first & 0x70:
+            raise ValueError("bits RSV nao suportados")
+        if not first & 0x80:
+            raise ValueError("frames fragmentados nao suportados")
         opcode = first & 0x0F
+        if opcode not in (1, 8, 9, 10):
+            raise ValueError("opcode nao suportado")
         masked = bool(second & 0x80)
+        if not masked:
+            raise ValueError("frame do cliente sem mascara")
         length = second & 0x7F
         if length == 126:
             length = struct.unpack("!H", self._read_exact(client, 2))[0]
@@ -290,6 +356,8 @@ class MonitoringWebServer:
             length = struct.unpack("!Q", self._read_exact(client, 8))[0]
         if length > 1_000_000:
             raise ValueError("Mensagem WebSocket muito grande")
+        if opcode >= 8 and length > 125:
+            raise ValueError("frame de controle muito grande")
         mask = self._read_exact(client, 4) if masked else None
         payload = self._read_exact(client, length)
         if mask:

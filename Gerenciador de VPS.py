@@ -57,7 +57,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 96.00"
+    return "Beta 96.01"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -382,7 +382,8 @@ class ButtonManager:
     def iniciar_painel_monitoramento(self):
         try:
             self.monitor_web_server = MonitoringWebServer(
-                self.monitor_state, self.processar_comando_web, host='0.0.0.0', port=5005
+                self.monitor_state, self.processar_comando_web, host='0.0.0.0', port=5005,
+                logger=logger_main
             )
             self.monitor_web_server.start()
             print("Painel de monitoramento iniciado na porta 5005")
