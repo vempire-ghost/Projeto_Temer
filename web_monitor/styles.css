@@ -10,7 +10,7 @@ h1,h2,h3,p { margin:0; } h1 { font-size:clamp(24px,4vw,40px); letter-spacing:-1p
 nav { display:flex; gap:4px; overflow:auto; padding:0 clamp(18px,4vw,64px); background:#fff; border-bottom:1px solid var(--line); }
 .tab { flex:0 0 auto; padding:15px 18px; color:var(--muted); background:none; border:0; border-bottom:3px solid transparent; font-weight:700; cursor:pointer; }
 .tab.active { color:var(--green); border-color:var(--green); }
-main { max-width:1600px; margin:auto; padding:28px clamp(14px,3vw,44px) 50px; }
+main { width:100%; padding:28px clamp(14px,3vw,44px) 50px; }
 .panel { display:none; } .panel.active { display:block; }
 .section-heading { display:flex; justify-content:space-between; align-items:end; gap:20px; margin-bottom:20px; }
 .section-heading>p { max-width:470px; color:var(--muted); text-align:right; }
@@ -49,10 +49,15 @@ button.secondary { color:var(--ink); background:transparent; border-color:var(--
 .output-status.running { color:#dff4a1; border-color:#bbd43a66; }
 pre { min-height:180px; max-height:290px; overflow:auto; margin:0; padding:15px 16px 18px; color:#dce9e3; background:#17231f; border-radius:0; white-space:pre-wrap; word-break:break-word; tab-size:4; font:12px/1.58 "Cascadia Mono",Consolas,"Courier New",monospace; scrollbar-color:#60736a #17231f; scrollbar-width:thin; }
 pre::-webkit-scrollbar { width:10px; height:10px; } pre::-webkit-scrollbar-track { background:#17231f; } pre::-webkit-scrollbar-thumb { background:#60736a; border:2px solid #17231f; border-radius:8px; }
-.test-form { display:grid; grid-template-columns:90px 1fr 76px; gap:7px; margin:16px 0 8px; }
-.test-form input,.test-form select { min-width:0; padding:8px; border:1px solid var(--line); border-radius:5px; background:white; }
-.test-form .host { grid-column:2/4; }.test-form .port.hidden { display:none; }
-.test-actions { display:flex; gap:8px; margin-bottom:12px; }
+.test-form { display:flex; flex-wrap:nowrap; align-items:center; gap:7px; overflow-x:auto; margin:16px 0 12px; padding-bottom:2px; }
+.test-form input,.test-form select { padding:8px; border:1px solid var(--line); border-radius:5px; background:white; }
+.test-form .method { flex:0 0 90px; }
+.test-form .host { flex:1 1 auto; min-width:150px; }
+.test-form .port { flex:0 0 76px; min-width:76px; }
+.test-form .port:invalid { border-color:var(--red); }
+.test-form .port.hidden { display:none; }
+.test-actions { display:flex; flex:0 0 auto; gap:8px; }
+.test-actions button { flex:0 0 auto; white-space:nowrap; }
 .average-title { margin:15px 0 6px; color:var(--muted); font-size:12px; font-weight:800; text-transform:uppercase; }
 @media (max-width:1050px) { .tests { grid-template-columns:1fr; } }
 @media (max-width:760px) { header,.section-heading { align-items:flex-start; } header { padding:18px; } .connection { margin-top:4px; } .section-heading { flex-direction:column; } .section-heading>p { text-align:left; } .card-grid { grid-template-columns:1fr; } .provider-card { flex-basis:calc(100vw - 38px); min-width:420px; } nav { padding:0 8px; } main { padding:20px 12px 50px; } }

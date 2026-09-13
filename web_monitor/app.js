@@ -90,23 +90,88 @@ function renderTests() {
     if (!card) {
       card = document.createElement('article'); card.className='card'; card.id=`test-${i}`;
       card.innerHTML = `<div class="card-head"><div><p class="label">TESTE ${i+1}</p><h3>Destino</h3></div><span class="status">Parado</span></div>
-        <div class="test-form"><select class="method"><option value="mtr">MTR</option><option value="ping">Ping</option><option value="nmap">Nmap</option></select><input class="host" placeholder="Host ou IP"><input class="port" type="number" min="1" max="65535" placeholder="Porta"></div>
-        <div class="test-actions"><button class="run">Iniciar</button><button class="halt secondary">Parar</button></div>
+        <div class="test-form"><select class="method" aria-label="Método"><option value="mtr">MTR</option><option value="ping">Ping</option><option value="nmap">Nmap</option></select><input class="host" list="test-hosts-${i}" placeholder="Host ou IP" aria-label="Host ou IP" required><datalist id="test-hosts-${i}"></datalist><input class="port" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="Porta" aria-label="Porta"><div class="test-actions"><button class="run">Iniciar</button><button class="halt secondary">Parar</button></div></div>
         <div class="chart-panel"><div class="chart-head"><div class="chart-legend"><span class="latency-key">Latência</span><span class="drop-key">Quedas</span></div><button class="chart-live" type="button">Tempo real</button></div><canvas height="230" aria-label="Histórico do teste"></canvas><p class="chart-help">Arraste para histórico · Roda para zoom</p></div>
         <div class="output-panel"><div class="output-head"><span>Saída do teste</span><span class="output-status">Aguardando</span></div><pre>Aguardando dados...</pre></div>`;
-      card.querySelector('.method').onchange = e => card.querySelector('.port').classList.toggle('hidden', e.target.value !== 'nmap');
-      card.querySelector('.run').onclick = () => send({action:'test_start', index:i, method:card.querySelector('.method').value, host:card.querySelector('.host').value, port:card.querySelector('.port').value});
+      card.querySelector('.method').onchange = e => {
+        card.formDirty = true;
+        card.querySelector('.port').setCustomValidity('');
+        card.querySelector('.port').classList.toggle('hidden', e.target.value !== 'nmap');
+        syncSelectedHostPort(card);
+      };
+      card.querySelector('.host').oninput = () => { card.formDirty = true; };
+      card.querySelector('.host').onchange = () => syncSelectedHostPort(card);
+      card.querySelector('.port').oninput = () => {
+        card.formDirty = true;
+        card.querySelector('.port').setCustomValidity('');
+      };
+      card.querySelector('.run').onclick = () => startTest(card, i);
       card.querySelector('.halt').onclick = () => send({action:'test_stop', index:i});
       grid.appendChild(card);
     }
+    renderHostOptions(card, data.hosts);
+    const serverForm = {
+      method: data.method || 'mtr',
+      host: data.host || '',
+      port: data.port || ''
+    };
+    if (card.pendingForm && Object.keys(serverForm).every(key => serverForm[key] === card.pendingForm[key])) {
+      card.formDirty = false;
+      card.pendingForm = null;
+    }
     setStatus(card, data.running);
-    setUnlessFocused(card.querySelector('.method'), data.method || 'mtr');
-    setUnlessFocused(card.querySelector('.host'), data.host || '');
-    setUnlessFocused(card.querySelector('.port'), data.port || '');
-    card.querySelector('.port').classList.toggle('hidden', (data.method || card.querySelector('.method').value) !== 'nmap');
+    if (!card.formDirty) {
+      setUnlessFocused(card.querySelector('.method'), serverForm.method);
+      setUnlessFocused(card.querySelector('.host'), serverForm.host);
+      setUnlessFocused(card.querySelector('.port'), serverForm.port);
+    }
+    const effectiveMethod = card.formDirty ? card.querySelector('.method').value : serverForm.method;
+    card.querySelector('.port').classList.toggle('hidden', effectiveMethod !== 'nmap');
     card.querySelector('pre').textContent = data.output || 'Aguardando dados...';
     drawChart(card.querySelector('canvas'), data.history || [], data.drops || []);
   }
+}
+
+function renderHostOptions(card, hosts) {
+  const normalized = (Array.isArray(hosts) ? hosts : []).filter(item =>
+    item && typeof item.host === 'string' && typeof item.port === 'string'
+  );
+  const fingerprint = JSON.stringify(normalized);
+  if (card.dataset.hostOptions === fingerprint) return;
+  card.dataset.hostOptions = fingerprint;
+  card.hostOptions = normalized;
+  const datalist = card.querySelector('datalist');
+  const options = normalized.map(item => {
+    const option = document.createElement('option');
+    option.value = item.host;
+    option.label = item.port ? `${item.host}:${item.port}` : item.host;
+    return option;
+  });
+  datalist.replaceChildren(...options);
+}
+
+function syncSelectedHostPort(card) {
+  if (card.querySelector('.method').value !== 'nmap') return;
+  const selected = (card.hostOptions || []).find(item => item.host === card.querySelector('.host').value.trim());
+  if (selected?.port) card.querySelector('.port').value = selected.port;
+}
+
+function startTest(card, index) {
+  const method = card.querySelector('.method').value;
+  const hostInput = card.querySelector('.host');
+  const portInput = card.querySelector('.port');
+  portInput.setCustomValidity('');
+  if (!hostInput.reportValidity()) return;
+  if (method === 'nmap') {
+    const port = portInput.value.trim();
+    if (!/^\d{1,5}$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
+      portInput.setCustomValidity('Informe uma porta entre 1 e 65535.');
+      portInput.reportValidity();
+      return;
+    }
+  }
+  card.pendingForm = {method, host:hostInput.value.trim(), port:method === 'nmap' ? portInput.value.trim() : ''};
+  send({action:'test_start', index, ...card.pendingForm});
 }
 
 function renderOmr() {

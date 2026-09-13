@@ -57,7 +57,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 96.02"
+    return "Beta 96.03"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -139,13 +139,22 @@ class ButtonManager:
         self.load_window_position()
         self.load_initial_test()  # Carregar a configuração do arquivo config.ini ao inicializar
         self.hosts_file = 'hosts.json'
-        self.hosts = ["", "", ""]  # Inicializa uma lista para armazenar os endereços
+        self.hosts = self._carregar_hosts_testes()
+        self.test_config = self._carregar_configuracao_testes()
         self.monitoring_active = {}
         self.monitoring_threads = {}
         self.text_areas = {}
         self.previous_states = {}  # Dicionário para armazenar o estado anterior
         self.last_modified_config_ini = 0  # Armazena a data da última modificação do arquivo
         self.monitor_state = MonitoringState()
+        for index in range(3):
+            options = self._serializar_hosts_teste(index)
+            selected = options[0] if options else {'host': '', 'port': ''}
+            method = self.test_config['last_methods'][index]
+            self.monitor_state.update(
+                'tests', index, method=method, host=selected['host'],
+                port=selected['port'] if method == 'nmap' else '', hosts=options
+            )
         self.monitor_web_server = None
         self.test_controls = {}
         self.provider_controls = {}
@@ -273,6 +282,54 @@ class ButtonManager:
         self.omr_jogo_conectado = False
         self.vps_vpn_conectado = False
         self.vps_jogo_conectado = False
+
+    def _carregar_hosts_testes(self):
+        """Carrega as tres listas posicionais usadas pelos comboboxes de testes."""
+        if not os.path.exists(self.hosts_file):
+            return [[] for _ in range(3)]
+        try:
+            with open(self.hosts_file, 'r') as file:
+                hosts = json.load(file)
+        except (OSError, json.JSONDecodeError) as e:
+            logger_main.warning(f"Nao foi possivel carregar o arquivo de hosts: {e}")
+            return [[] for _ in range(3)]
+        if not isinstance(hosts, list) or len(hosts) != 3:
+            logger_main.warning("Formato invalido no arquivo de hosts - inicializando com listas vazias")
+            return [[] for _ in range(3)]
+        return [
+            [entry for entry in host_list if isinstance(entry, str) and entry.strip()]
+            if isinstance(host_list, list) else []
+            for host_list in hosts
+        ]
+
+    def _carregar_configuracao_testes(self):
+        config_file = os.path.join(os.path.dirname(self.hosts_file), 'test_config.json')
+        config = {'last_methods': ['mtr', 'mtr', 'mtr']}
+        try:
+            if os.path.exists(config_file):
+                with open(config_file, 'r') as file:
+                    loaded = json.load(file)
+                methods = loaded.get('last_methods') if isinstance(loaded, dict) else None
+                if isinstance(methods, list) and len(methods) == 3:
+                    config = loaded
+                    config['last_methods'] = [
+                        method if method in {'mtr', 'ping', 'nmap'} else 'mtr'
+                        for method in methods
+                    ]
+        except (OSError, json.JSONDecodeError) as e:
+            logger_main.warning(f"Nao foi possivel carregar a configuracao dos testes: {e}")
+        return config
+
+    def _serializar_hosts_teste(self, index):
+        """Separa host e porta sem publicar qualquer outra configuracao da aplicacao."""
+        options = []
+        for entry in self.hosts[index]:
+            host, separator, port = entry.strip().rpartition(':')
+            if not separator or not port.isdigit() or not 1 <= int(port) <= 65535:
+                host, port = entry.strip(), ''
+            options.append({'host': host, 'port': port})
+        return options
+
 #FUNÇÃO PARA INICIAR SERVIDOR DE API
     def iniciar_monitor_status(self, host='0.0.0.0', port=5000):
         """
@@ -2396,29 +2453,11 @@ class ButtonManager:
     def executar_mtr(self, tab):
         main_window = tab.winfo_toplevel()
         """Executa o MTR, Nmap traceroute ou Ping e exibe os resultados na aba especificada."""
-        # Carrega os endereços dos hosts do arquivo, se existir
-        if os.path.exists(self.hosts_file):
-            with open(self.hosts_file, 'r') as f:
-                self.hosts = json.load(f)
-                # Garante que self.hosts é uma lista de listas
-                if not isinstance(self.hosts, list) or len(self.hosts) != 3:
-                    self.hosts = [[] for _ in range(3)]
-                    logger_main.warning("Formato inválido no arquivo de hosts - inicializando com listas vazias")
-                else:
-                    self.hosts = [
-                        host_list if isinstance(host_list, list) else [] for host_list in self.hosts
-                    ]
-        else:
-            logger_main.info("Arquivo de hosts não encontrado - inicializando com listas vazias")
-            self.hosts = [[] for _ in range(3)]  # Inicializa com listas vazias para três testes
+        self.hosts = self._carregar_hosts_testes()
 
         # Carrega as configurações anteriores se existirem
         config_file = os.path.join(os.path.dirname(self.hosts_file), 'test_config.json')
-        if os.path.exists(config_file):
-            with open(config_file, 'r') as f:
-                self.test_config = json.load(f)
-        else:
-            self.test_config = {'last_methods': ['mtr', 'mtr', 'mtr']}
+        self.test_config = self._carregar_configuracao_testes()
 
         # Variáveis de controle
         self.executando_mtr = [False, False, False]  # Para três hosts
@@ -2443,6 +2482,7 @@ class ButtonManager:
             # Salva no arquivo
             with open(self.hosts_file, 'w') as f:
                 json.dump(self.hosts, f)
+            self.monitor_state.update('tests', index, hosts=self._serializar_hosts_teste(index))
             
             logger_main.info(f"Host {novo_host} adicionado à lista de hosts no teste de latência {index +1} sem duplicatas")
 
@@ -2526,7 +2566,8 @@ class ButtonManager:
             toggle_porta()
             self.monitor_state.update(
                 'tests', linha, method=metodo_var.get(), host=combobox_var.get(),
-                port=porta_entry.get() if metodo_var.get() == 'nmap' else ''
+                port=porta_entry.get() if metodo_var.get() == 'nmap' else '',
+                hosts=self._serializar_hosts_teste(linha)
             )
 
             # Botões para iniciar e parar

@@ -29,7 +29,7 @@ class MonitoringState:
                 "eth5": {"name": "Coopera", "running": False, "output": "", "history": [], "drops": []},
                 "tun0": {"name": "OMR VPN", "running": False, "output": "", "history": [], "drops": []},
             },
-            "tests": {str(i): {"running": False, "method": "mtr", "host": "", "port": "",
+            "tests": {str(i): {"running": False, "method": "mtr", "host": "", "port": "", "hosts": [],
                                 "output": "", "history": [], "drops": []} for i in range(3)},
             "omr": {
                 "vpn": {"running": False, "output": "", "averages": ""},
