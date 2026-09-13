@@ -90,7 +90,7 @@ function renderTests() {
     if (!card) {
       card = document.createElement('article'); card.className='card'; card.id=`test-${i}`;
       card.innerHTML = `<div class="card-head"><div><p class="label">TESTE ${i+1}</p><h3>Destino</h3></div><span class="status">Parado</span></div>
-        <div class="test-form"><select class="method" aria-label="Método"><option value="mtr">MTR</option><option value="ping">Ping</option><option value="nmap">Nmap</option></select><input class="host" list="test-hosts-${i}" placeholder="Host ou IP" aria-label="Host ou IP" required><datalist id="test-hosts-${i}"></datalist><input class="port" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="Porta" aria-label="Porta"><div class="test-actions"><button class="run">Iniciar</button><button class="halt secondary">Parar</button></div></div>
+        <div class="test-form"><select class="method" aria-label="Método"><option value="mtr">MTR</option><option value="ping">Ping</option><option value="nmap">Nmap</option></select><div class="host-combobox"><input class="host" placeholder="Host ou IP" aria-label="Host ou IP" role="combobox" aria-autocomplete="none" aria-expanded="false" aria-controls="test-host-options-${i}" required><button class="host-toggle" type="button" aria-label="Abrir destinos salvos" aria-controls="test-host-options-${i}" aria-expanded="false">&#9662;</button><div class="host-options" id="test-host-options-${i}" role="listbox" hidden></div></div><input class="port" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" placeholder="Porta" aria-label="Porta"><div class="test-actions"><button class="run">Iniciar</button><button class="halt secondary">Parar</button></div></div>
         <div class="chart-panel"><div class="chart-head"><div class="chart-legend"><span class="latency-key">Latência</span><span class="drop-key">Quedas</span></div><button class="chart-live" type="button">Tempo real</button></div><canvas height="230" aria-label="Histórico do teste"></canvas><p class="chart-help">Arraste para histórico · Roda para zoom</p></div>
         <div class="output-panel"><div class="output-head"><span>Saída do teste</span><span class="output-status">Aguardando</span></div><pre>Aguardando dados...</pre></div>`;
       card.querySelector('.method').onchange = e => {
@@ -101,6 +101,23 @@ function renderTests() {
       };
       card.querySelector('.host').oninput = () => { card.formDirty = true; };
       card.querySelector('.host').onchange = () => syncSelectedHostPort(card);
+      card.querySelector('.host').onkeydown = event => {
+        if (event.key === 'Escape') closeHostCombobox(card);
+        if (event.altKey && event.key === 'ArrowDown') {
+          event.preventDefault();
+          openHostCombobox(card);
+        }
+      };
+      card.querySelector('.host-toggle').onclick = () => {
+        if (card.querySelector('.host-options').hidden) openHostCombobox(card);
+        else closeHostCombobox(card);
+      };
+      card.querySelector('.host-options').onkeydown = event => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        closeHostCombobox(card);
+        card.querySelector('.host').focus();
+      };
       card.querySelector('.port').oninput = () => {
         card.formDirty = true;
         card.querySelector('.port').setCustomValidity('');
@@ -109,7 +126,7 @@ function renderTests() {
       card.querySelector('.halt').onclick = () => send({action:'test_stop', index:i});
       grid.appendChild(card);
     }
-    renderHostOptions(card, data.hosts);
+    if (Array.isArray(data.hosts)) renderHostOptions(card, data.hosts);
     const serverForm = {
       method: data.method || 'mtr',
       host: data.host || '',
@@ -133,21 +150,82 @@ function renderTests() {
 }
 
 function renderHostOptions(card, hosts) {
-  const normalized = (Array.isArray(hosts) ? hosts : []).filter(item =>
-    item && typeof item.host === 'string' && typeof item.port === 'string'
-  );
+  const normalized = (Array.isArray(hosts) ? hosts : [])
+    .filter(item => item && typeof item.host === 'string')
+    .map(item => ({host: item.host, port: item.port == null ? '' : String(item.port)}));
   const fingerprint = JSON.stringify(normalized);
   if (card.dataset.hostOptions === fingerprint) return;
   card.dataset.hostOptions = fingerprint;
   card.hostOptions = normalized;
-  const datalist = card.querySelector('datalist');
+  const list = card.querySelector('.host-options');
   const options = normalized.map(item => {
-    const option = document.createElement('option');
-    option.value = item.host;
-    option.label = item.port ? `${item.host}:${item.port}` : item.host;
+    const option = document.createElement('button');
+    option.type = 'button';
+    option.className = 'host-option';
+    option.setAttribute('role', 'option');
+    option.textContent = item.port ? `${item.host}:${item.port}` : item.host;
+    option.onclick = () => selectHostOption(card, item);
     return option;
   });
-  datalist.replaceChildren(...options);
+  if (!options.length) {
+    const empty = document.createElement('span');
+    empty.className = 'host-options-empty';
+    empty.textContent = 'Nenhum destino salvo';
+    list.replaceChildren(empty);
+  } else {
+    list.replaceChildren(...options);
+  }
+  if (!list.hidden) positionHostOptions(card);
+}
+
+function openHostCombobox(card) {
+  document.querySelectorAll('.host-combobox.open').forEach(combobox => {
+    if (!card.contains(combobox)) closeHostCombobox(combobox.closest('.card'));
+  });
+  const combobox = card.querySelector('.host-combobox');
+  const list = card.querySelector('.host-options');
+  combobox.classList.add('open');
+  list.hidden = false;
+  positionHostOptions(card);
+  card.querySelector('.host').setAttribute('aria-expanded', 'true');
+  card.querySelector('.host-toggle').setAttribute('aria-expanded', 'true');
+}
+
+function positionHostOptions(card) {
+  const combobox = card.querySelector('.host-combobox');
+  const list = card.querySelector('.host-options');
+  const rect = combobox.getBoundingClientRect();
+  const spaceBelow = window.innerHeight - rect.bottom - 8;
+  const spaceAbove = rect.top - 8;
+  const desiredHeight = Math.min(220, list.scrollHeight);
+  const openAbove = spaceBelow < desiredHeight && spaceAbove > spaceBelow;
+  const availableHeight = Math.max(80, Math.min(220, openAbove ? spaceAbove - 4 : spaceBelow));
+  list.style.left = `${rect.left}px`;
+  list.style.width = `${rect.width}px`;
+  list.style.maxHeight = `${availableHeight}px`;
+  list.style.top = openAbove
+    ? `${Math.max(8, rect.top - Math.min(desiredHeight, availableHeight) - 4)}px`
+    : `${rect.bottom + 4}px`;
+}
+
+function closeHostCombobox(card) {
+  if (!card) return;
+  card.querySelector('.host-combobox')?.classList.remove('open');
+  const list = card.querySelector('.host-options');
+  if (list) list.hidden = true;
+  card.querySelector('.host')?.setAttribute('aria-expanded', 'false');
+  card.querySelector('.host-toggle')?.setAttribute('aria-expanded', 'false');
+}
+
+function selectHostOption(card, selected) {
+  card.formDirty = true;
+  card.querySelector('.host').value = selected.host;
+  if (card.querySelector('.method').value === 'nmap' && selected.port) {
+    card.querySelector('.port').value = selected.port;
+    card.querySelector('.port').setCustomValidity('');
+  }
+  closeHostCombobox(card);
+  card.querySelector('.host').focus();
 }
 
 function syncSelectedHostPort(card) {
@@ -392,4 +470,9 @@ function formatTime(timestamp, duration) {
 }
 
 window.addEventListener('resize', render);
+document.addEventListener('pointerdown', event => {
+  document.querySelectorAll('.host-combobox.open').forEach(combobox => {
+    if (!combobox.contains(event.target)) closeHostCombobox(combobox.closest('.card'));
+  });
+});
 connect();

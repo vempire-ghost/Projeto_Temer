@@ -57,7 +57,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 96.03"
+    return "Beta 96.04"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -329,6 +329,43 @@ class ButtonManager:
                 host, port = entry.strip(), ''
             options.append({'host': host, 'port': port})
         return options
+
+    def _publicar_hosts_testes(self, recarregar=False):
+        """Publica sempre as tres listas completas e posicionais de hosts."""
+        if recarregar:
+            self.hosts = self._carregar_hosts_testes()
+        for index in range(3):
+            self.monitor_state.update(
+                'tests', index, hosts=self._serializar_hosts_teste(index)
+            )
+
+    def _adicionar_host_teste(self, index, novo_host):
+        """Atualiza uma lista sem sobrescrever alteracoes recentes das demais."""
+        self.hosts = self._carregar_hosts_testes()
+        novo_host = novo_host.strip()
+        host_base, separator, port = novo_host.rpartition(':')
+        if not separator or not port.isdigit() or not 1 <= int(port) <= 65535:
+            host_base = novo_host
+
+        existentes = []
+        entrada_preservada = None
+        for entry in self.hosts[index]:
+            entry_host, entry_separator, entry_port = entry.strip().rpartition(':')
+            if not entry_separator or not entry_port.isdigit() or not 1 <= int(entry_port) <= 65535:
+                entry_host = entry.strip()
+            if entry_host == host_base:
+                if entrada_preservada is None:
+                    entrada_preservada = entry
+                continue
+            existentes.append(entry)
+
+        # MTR/Ping recebem apenas o host; nesse caso mantenha a porta ja
+        # associada no arquivo em vez de troca-la pelo host ativo sem porta.
+        entrada = novo_host if separator and port.isdigit() and 1 <= int(port) <= 65535 else entrada_preservada or novo_host
+        self.hosts[index] = [entrada, *existentes][:10]
+        with open(self.hosts_file, 'w') as file:
+            json.dump(self.hosts, file)
+        self._publicar_hosts_testes()
 
 #FUNÇÃO PARA INICIAR SERVIDOR DE API
     def iniciar_monitor_status(self, host='0.0.0.0', port=5000):
@@ -2348,10 +2385,7 @@ class ButtonManager:
                 logger_main.info(f"Iniciando ping para o host: {host} na linha {index}")
                 
                 if host and host not in self.hosts[index]:
-                    self.hosts[index].insert(0, host)  # Adiciona o novo host ao início da lista
-                    self.hosts[index] = self.hosts[index][:10]  # Limita a lista aos últimos 10 hosts
-                    with open(self.hosts_file, 'w') as f:  # Salva os hosts
-                        json.dump(self.hosts, f)
+                    self._adicionar_host_teste(index, host)
 
                     # Atualiza a lista suspensa
                     combobox_host['values'] = self.hosts[index]
@@ -2454,6 +2488,7 @@ class ButtonManager:
         main_window = tab.winfo_toplevel()
         """Executa o MTR, Nmap traceroute ou Ping e exibe os resultados na aba especificada."""
         self.hosts = self._carregar_hosts_testes()
+        self._publicar_hosts_testes()
 
         # Carrega as configurações anteriores se existirem
         config_file = os.path.join(os.path.dirname(self.hosts_file), 'test_config.json')
@@ -2467,22 +2502,7 @@ class ButtonManager:
 
         # Função para adicionar host à lista garantindo que não haja duplicatas
         def adicionar_host_sem_duplicata(index, novo_host):
-            # Extrai o IP (remove a porta se existir)
-            ip_base = novo_host.split(':')[0]
-            
-            # Remove todas as ocorrências do mesmo IP (com ou sem porta)
-            self.hosts[index] = [host for host in self.hosts[index] if host.split(':')[0] != ip_base]
-            
-            # Adiciona o novo host no início da lista
-            self.hosts[index].insert(0, novo_host)
-            
-            # Limita o tamanho da lista
-            self.hosts[index] = self.hosts[index][:10]
-            
-            # Salva no arquivo
-            with open(self.hosts_file, 'w') as f:
-                json.dump(self.hosts, f)
-            self.monitor_state.update('tests', index, hosts=self._serializar_hosts_teste(index))
+            self._adicionar_host_teste(index, novo_host)
             
             logger_main.info(f"Host {novo_host} adicionado à lista de hosts no teste de latência {index +1} sem duplicatas")
 
