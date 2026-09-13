@@ -19,10 +19,11 @@ from urllib.parse import urlsplit
 class MonitoringState:
     """Thread-safe, in-memory state shared by Tkinter and the web panel."""
 
-    def __init__(self):
+    def __init__(self, footer_text=""):
         self._lock = threading.RLock()
         self._listeners = []
         self._data = {
+            "app": {"footer_text": footer_text},
             "providers": {
                 "eth2": {"name": "Unifique", "running": False, "output": "", "history": [], "drops": []},
                 "eth4": {"name": "Claro", "running": False, "output": "", "history": [], "drops": []},
@@ -93,7 +94,32 @@ class MonitoringState:
                 pass
 
 
+def resource_paths(relative_path):
+    roots = []
+    if getattr(sys, "frozen", False):
+        roots.append(os.path.dirname(sys.executable))
+    else:
+        roots.append(os.path.dirname(os.path.abspath(__file__)))
+    roots.append(os.getcwd())
+    if hasattr(sys, "_MEIPASS"):
+        roots.append(sys._MEIPASS)
+
+    paths = []
+    seen = set()
+    for root in roots:
+        path = os.path.abspath(os.path.join(root, relative_path))
+        normalized = os.path.normcase(path)
+        if normalized not in seen:
+            paths.append(path)
+            seen.add(normalized)
+    return paths
+
+
 def resource_path(relative_path):
+    return next((path for path in resource_paths(relative_path) if os.path.isfile(path)), None)
+
+
+def bundled_resource_path(relative_path):
     root = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(root, relative_path)
 
@@ -239,16 +265,40 @@ class MonitoringWebServer:
             return False
 
     def _serve_static(self, handler):
-        files = {"/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/styles.css": "styles.css"}
-        filename = files.get(handler.path.split("?", 1)[0])
-        if not filename:
-            handler.send_error(404)
+        request_path = handler.path.split("?", 1)[0]
+        files = {
+            "/": os.path.join("web_monitor", "index.html"),
+            "/index.html": os.path.join("web_monitor", "index.html"),
+            "/app.js": os.path.join("web_monitor", "app.js"),
+            "/styles.css": os.path.join("web_monitor", "styles.css"),
+        }
+        if request_path == "/OMR_logo.png":
+            attempted_paths = resource_paths("OMR_logo.png")
+            path = resource_path("OMR_logo.png")
+        else:
+            relative_path = files.get(request_path)
+            if not relative_path:
+                handler.send_error(404)
+                return
+            path = bundled_resource_path(relative_path)
+            attempted_paths = [path]
+
+        if not path:
+            self.logger.warning(
+                "Painel web: arquivo estatico nao encontrado; caminhos tentados: %s",
+                ", ".join(attempted_paths),
+            )
+            handler.send_error(404, "Arquivo do painel nao encontrado")
             return
-        path = resource_path(os.path.join("web_monitor", filename))
         try:
             with open(path, "rb") as resource:
                 content = resource.read()
-        except OSError:
+        except OSError as exc:
+            self.logger.warning(
+                "Painel web: nao foi possivel abrir arquivo estatico %s: %s",
+                path,
+                exc,
+            )
             handler.send_error(404, "Arquivo do painel nao encontrado")
             return
         content_type = mimetypes.guess_type(path)[0] or "application/octet-stream"

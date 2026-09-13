@@ -57,7 +57,10 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 96.04"
+    return "Beta 96.05"
+
+def get_footer_text():
+    return f"Projeto Temer - ©VempirE_GhosT - Versão: {get_version()}"
 
 # Cria um mutex
 mutex = ctypes.windll.kernel32.CreateMutexW(None, wintypes.BOOL(True), "Global\\MyProgramMutex")
@@ -146,7 +149,7 @@ class ButtonManager:
         self.text_areas = {}
         self.previous_states = {}  # Dicionário para armazenar o estado anterior
         self.last_modified_config_ini = 0  # Armazena a data da última modificação do arquivo
-        self.monitor_state = MonitoringState()
+        self.monitor_state = MonitoringState(footer_text=get_footer_text())
         for index in range(3):
             options = self._serializar_hosts_teste(index)
             selected = options[0] if options else {'host': '', 'port': ''}
@@ -1702,7 +1705,7 @@ class ButtonManager:
         self.footer_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Adiciona o label de versão ao rodapé
-        self.version_label = tk.Label(self.footer_frame, text=f"Projeto Temer - ©VempirE_GhosT - Versão: {get_version()}", bg='lightgray', fg='black')
+        self.version_label = tk.Label(self.footer_frame, text=get_footer_text(), bg='lightgray', fg='black')
         self.version_label.pack(side=tk.LEFT, padx=0, pady=0)
 
 # METODO PARA UTILIZAR REINICIO DE VPS VPN E VPS JOGO NO CLIENTE TEMER.

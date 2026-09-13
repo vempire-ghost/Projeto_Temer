@@ -38,6 +38,9 @@ function connect() {
       const message = JSON.parse(event.data);
       if (message.type === 'state') {
         Object.assign(state, message.data);
+        if (message.data.app?.footer_text) {
+          document.getElementById('app-credit').textContent = message.data.app.footer_text;
+        }
         render();
       } else if (message.type === 'error') {
         console.warn(`[Painel] Backend recusou a mensagem: ${message.message}`);
