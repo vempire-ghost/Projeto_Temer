@@ -62,7 +62,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 96.09"
+    return "Beta 96.10"
 
 def get_footer_text():
     return f"Projeto Temer - ©VempirE_GhosT - Versão: {get_version()}"
@@ -6292,7 +6292,7 @@ class ButtonManager:
 
     def ping_forever_omr_vpn(self, url, update_func, interval=1):
         while self.ping_forever:
-            status, color = self.ping_omr_vpn(url)
+            status, color = self.ping_omr_vpn(self.url_to_ping_omr_vpn or url)
             update_func(status, color)
             time.sleep(interval)
 
@@ -6361,7 +6361,7 @@ class ButtonManager:
 
     def ping_forever_omr_jogo(self, url, update_func, interval=1):
         while self.ping_forever:
-            status, color = self.ping_omr_jogo(url)
+            status, color = self.ping_omr_jogo(self.url_to_ping_omr_jogo or url)
             update_func(status, color)
             time.sleep(interval)
 
@@ -6403,7 +6403,7 @@ class ButtonManager:
 
     def ping_forever_vps_vpn(self, url, update_func, interval=1):
         while self.ping_forever:
-            status, color = self.ping_vps_vpn(url)
+            status, color = self.ping_vps_vpn(self.url_to_ping_vps_vpn or url)
             update_func(status, color)
             time.sleep(interval)
 
@@ -6445,7 +6445,7 @@ class ButtonManager:
 
     def ping_forever_vps_jogo(self, url, update_func, interval=1):
         while self.ping_forever:
-            status, color = self.ping_vps_jogo(url)
+            status, color = self.ping_vps_jogo(self.url_to_ping_vps_jogo or url)
             update_func(status, color)
             time.sleep(interval)
 
@@ -8125,12 +8125,18 @@ class OMRManagerDialog:
         """Salva as configurações de backup no arquivo config.ini"""
         if not self.config.has_section('backup'):
             self.config.add_section('backup')
-            
-        self.config.set('backup', 'enabled', str(self.backup_auto_var.get()))
-        self.config.set('backup', 'folder', self.backup_folder_entry.get())
+
+        backup_enabled = self.backup_auto_var.get()
+        backup_folder = self.backup_folder_entry.get()
+        self.config.set('backup', 'enabled', str(backup_enabled))
+        self.config.set('backup', 'folder', backup_folder)
         
         with open(self.config_file, 'w') as configfile:
             self.config.write(configfile)
+
+        self.ButtonManager.backup_auto_var.set(backup_enabled)
+        self.ButtonManager.backup_folder_entry.delete(0, tk.END)
+        self.ButtonManager.backup_folder_entry.insert(0, backup_folder)
 
     def check_and_execute_backup(self):
         """Verifica se o backup automático está ativado e executa"""
@@ -8603,6 +8609,7 @@ class OMRManagerDialog:
             }
             with open("vm_config.json", 'w') as file:
                 json.dump(vm_names, file, indent=4)
+            self.ButtonManager.load_vm_names()
             messagebox.showinfo("Salvar", "Nome de VMs salvos com sucesso!")
         else:
             messagebox.showinfo("Erro", "Por favor, insira todos os nomes das VMs.")
@@ -8689,6 +8696,7 @@ class OMRManagerDialog:
         }
         with open("addresses.json", "w") as f:
             json.dump(addresses, f)
+        self.ButtonManager.load_addresses()
         # Exibir uma mensagem de sucesso
         messagebox.showinfo("Salvar", "Endereços salvos com sucesso!")
 
@@ -8738,6 +8746,8 @@ class OMRManagerDialog:
         with open(self.config_file, 'w') as configfile:
             self.config.write(configfile)
 
+        self.ButtonManager.test_provedor_url = new_url
+        self.ButtonManager.config.set('general', 'test_provedor_url', new_url)
         print(f"Novo URL salvo: {new_url}")
 
     def editar_arquivo_ajuda(self):
