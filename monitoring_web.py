@@ -4,6 +4,7 @@ import hashlib
 import ipaddress
 import json
 import logging
+import math
 import mimetypes
 import os
 import socket
@@ -12,12 +13,15 @@ import struct
 import sys
 import threading
 import time
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlsplit
 
 
 class MonitoringState:
     """Thread-safe, in-memory state shared by Tkinter and the web panel."""
+
+    HISTORY_RETENTION_SECONDS = 24 * 60 * 60
 
     def __init__(self, footer_text=""):
         self._lock = threading.RLock()
@@ -60,6 +64,86 @@ class MonitoringState:
                         if isinstance(values, list) and len(values) > history_limit:
                             item[field] = values[-history_limit:]
         return (snapshot, revision) if with_revision else snapshot
+
+    @staticmethod
+    def _timestamp(value):
+        try:
+            if isinstance(value, bool):
+                return None
+            if isinstance(value, (int, float)):
+                timestamp = float(value)
+                return timestamp if math.isfinite(timestamp) else None
+            if isinstance(value, str):
+                return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+        except (OverflowError, OSError, ValueError):
+            pass
+        return None
+
+    @classmethod
+    def _trim_history(cls, values, cutoff):
+        if not isinstance(values, list):
+            return []
+        trimmed = []
+        for point in values:
+            if not isinstance(point, dict):
+                continue
+            timestamp = cls._timestamp(point.get("time"))
+            if timestamp is None or timestamp < cutoff:
+                continue
+            trimmed.append({
+                field: copy.deepcopy(point[field])
+                for field in ("time", "latency", "loss") if field in point
+            })
+        return trimmed
+
+    @classmethod
+    def _trim_drops(cls, values, cutoff):
+        if not isinstance(values, list):
+            return []
+        trimmed = []
+        for value in values:
+            timestamp = cls._timestamp(value)
+            if timestamp is not None and timestamp >= cutoff:
+                trimmed.append(copy.deepcopy(value))
+        return trimmed
+
+    def load_history(self, data, now=None):
+        """Restore only graph data without publishing WebSocket patches."""
+        if not isinstance(data, dict):
+            return
+        cutoff = (time.time() if now is None else now) - self.HISTORY_RETENTION_SECONDS
+        changed = False
+        with self._lock:
+            for section in ("providers", "tests"):
+                source = data.get(section)
+                if not isinstance(source, dict):
+                    continue
+                for key, target in self._data[section].items():
+                    saved = source.get(key)
+                    if not isinstance(saved, dict):
+                        continue
+                    target["history"] = self._trim_history(saved.get("history"), cutoff)
+                    target["drops"] = self._trim_drops(saved.get("drops"), cutoff)
+                    changed = True
+            if changed:
+                self._revision += 1
+
+    def export_history(self, now=None):
+        """Prune and copy only the data required to restore monitoring charts."""
+        cutoff = (time.time() if now is None else now) - self.HISTORY_RETENTION_SECONDS
+        exported = {"providers": {}, "tests": {}}
+        with self._lock:
+            for section in ("providers", "tests"):
+                for key, target in self._data[section].items():
+                    history = self._trim_history(target.get("history"), cutoff)
+                    drops = self._trim_drops(target.get("drops"), cutoff)
+                    target["history"] = history
+                    target["drops"] = drops
+                    exported[section][key] = {
+                        "history": copy.deepcopy(history),
+                        "drops": copy.deepcopy(drops),
+                    }
+        return exported
 
     def _notify(self, event, listeners):
         for listener in listeners:

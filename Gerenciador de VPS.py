@@ -57,7 +57,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 96.06"
+    return "Beta 96.07"
 
 def get_footer_text():
     return f"Projeto Temer - ©VempirE_GhosT - Versão: {get_version()}"
@@ -150,6 +150,10 @@ class ButtonManager:
         self.previous_states = {}  # Dicionário para armazenar o estado anterior
         self.last_modified_config_ini = 0  # Armazena a data da última modificação do arquivo
         self.monitor_state = MonitoringState(footer_text=get_footer_text())
+        self.monitor_history_file = os.path.join(application_path, 'monitor_history.json')
+        self._monitor_history_save_lock = threading.Lock()
+        self._carregar_historico_monitoramento()
+        self.master.after(60000, self._agendar_persistencia_historico)
         for index in range(3):
             options = self._serializar_hosts_teste(index)
             selected = options[0] if options else {'host': '', 'port': ''}
@@ -285,6 +289,52 @@ class ButtonManager:
         self.omr_jogo_conectado = False
         self.vps_vpn_conectado = False
         self.vps_jogo_conectado = False
+
+    def _carregar_historico_monitoramento(self):
+        try:
+            with open(self.monitor_history_file, 'r', encoding='utf-8') as history_file:
+                data = json.load(history_file)
+            self.monitor_state.load_history(data)
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            pass
+
+    def _agendar_persistencia_historico(self):
+        try:
+            if not self.master.winfo_exists():
+                return
+        except tk.TclError:
+            return
+
+        if self._monitor_history_save_lock.acquire(blocking=False):
+            threading.Thread(
+                target=self._salvar_historico_monitoramento,
+                name='monitor-history-writer',
+                daemon=True,
+            ).start()
+
+        try:
+            if self.master.winfo_exists():
+                self.master.after(60000, self._agendar_persistencia_historico)
+        except tk.TclError:
+            pass
+
+    def _salvar_historico_monitoramento(self):
+        temporary_file = self.monitor_history_file + '.tmp'
+        try:
+            data = self.monitor_state.export_history()
+            with open(temporary_file, 'w', encoding='utf-8') as history_file:
+                json.dump(data, history_file, ensure_ascii=False, separators=(',', ':'))
+                history_file.flush()
+                os.fsync(history_file.fileno())
+            os.replace(temporary_file, self.monitor_history_file)
+        except (OSError, TypeError, ValueError) as e:
+            logger_main.warning(f'Nao foi possivel salvar o historico de monitoramento: {e}')
+            try:
+                os.remove(temporary_file)
+            except OSError:
+                pass
+        finally:
+            self._monitor_history_save_lock.release()
 
     def _carregar_hosts_testes(self):
         """Carrega as tres listas posicionais usadas pelos comboboxes de testes."""
