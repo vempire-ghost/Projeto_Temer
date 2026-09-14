@@ -48,6 +48,7 @@
 !buildozer.spec
 !build_android.sh
 !Compilar cliente_temer_android.txt
+!agents.md
 
 # Não ignorar diretórios específicos e seus conteúdos
 !diretorio_que_quero_monitorar/
