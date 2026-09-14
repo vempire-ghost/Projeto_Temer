@@ -3,6 +3,7 @@ const chartStates = new WeakMap();
 const HOUR = 60 * 60 * 1000;
 let ws;
 let reconnectTimer;
+let stateRevision = 0;
 
 document.querySelectorAll('.tab').forEach(button => button.addEventListener('click', () => {
   document.querySelectorAll('.tab,.panel').forEach(el => el.classList.remove('active'));
@@ -37,11 +38,9 @@ function connect() {
     try {
       const message = JSON.parse(event.data);
       if (message.type === 'state') {
-        Object.assign(state, message.data);
-        if (message.data.app?.footer_text) {
-          document.getElementById('app-credit').textContent = message.data.app.footer_text;
-        }
-        render();
+        applyState(message.data, message.revision);
+      } else if (message.type === 'patch') {
+        (message.patches || [message]).forEach(applyPatch);
       } else if (message.type === 'error') {
         console.warn(`[Painel] Backend recusou a mensagem: ${message.message}`);
       }
@@ -49,6 +48,48 @@ function connect() {
       console.error('[Painel] Mensagem WebSocket invalida recebida', error);
     }
   };
+}
+
+function applyState(data, revision) {
+  stateRevision = Number(revision) || 0;
+  state.app = data.app || {};
+  state.providers = data.providers || {};
+  state.tests = data.tests || {};
+  state.omr = data.omr || {};
+  if (state.app.footer_text) document.getElementById('app-credit').textContent = state.app.footer_text;
+  render();
+}
+
+function applyPatch(patch) {
+  const revision = Number(patch.revision);
+  if (!Number.isFinite(revision) || revision <= stateRevision) return;
+  const {section, key} = patch;
+  if (!section || key == null) return;
+  state[section] ||= {};
+  const target = state[section][key] ||= {};
+  Object.assign(target, patch.changes || {});
+  if (Array.isArray(patch.points)) appendUnique(target, 'history', patch.points);
+  if (Array.isArray(patch.drops)) appendUnique(target, 'drops', patch.drops);
+  stateRevision = revision;
+  renderSection(section, key);
+}
+
+function appendUnique(target, field, values) {
+  const items = target[field] ||= [];
+  values.forEach(value => {
+    const last = items[items.length - 1];
+    if (JSON.stringify(last) !== JSON.stringify(value)) items.push(value);
+  });
+  if (items.length > 86400) items.splice(0, items.length - 86400);
+}
+
+function renderSection(section, key) {
+  if (section === 'providers') renderProviders(key);
+  else if (section === 'tests') renderTests(key);
+  else if (section === 'omr') renderOmr(key);
+  else if (section === 'app' && state.app.footer_text) {
+    document.getElementById('app-credit').textContent = state.app.footer_text;
+  }
 }
 
 function setConnection(online, offlineText = 'Desconectado') {
@@ -60,9 +101,10 @@ function setConnection(online, offlineText = 'Desconectado') {
 
 function render() { renderProviders(); renderTests(); renderOmr(); }
 
-function renderProviders() {
+function renderProviders(onlyId = null) {
   const grid = document.getElementById('provider-grid');
   Object.entries(state.providers || {}).forEach(([id, data]) => {
+    if (onlyId != null && id !== String(onlyId)) return;
     let card = document.getElementById(`provider-${id}`);
     if (!card) {
       card = document.getElementById('provider-template').content.firstElementChild.cloneNode(true);
@@ -85,9 +127,10 @@ function renderProviders() {
   });
 }
 
-function renderTests() {
+function renderTests(onlyId = null) {
   const grid = document.getElementById('test-grid');
   for (let i=0; i<3; i++) {
+    if (onlyId != null && String(i) !== String(onlyId)) continue;
     const data = (state.tests || {})[String(i)] || {};
     let card = document.getElementById(`test-${i}`);
     if (!card) {
@@ -255,9 +298,10 @@ function startTest(card, index) {
   send({action:'test_start', index, ...card.pendingForm});
 }
 
-function renderOmr() {
+function renderOmr(onlyId = null) {
   const grid = document.getElementById('omr-grid');
   [['vpn','OMR VPN'],['jogo','OMR JOGO']].forEach(([id,name]) => {
+    if (onlyId != null && id !== String(onlyId)) return;
     const data = (state.omr || {})[id] || {};
     let card = document.getElementById(`omr-${id}`);
     if (!card) {

@@ -6,12 +6,12 @@ import json
 import logging
 import mimetypes
 import os
-import queue
 import socket
 import socketserver
 import struct
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlsplit
 
@@ -22,6 +22,7 @@ class MonitoringState:
     def __init__(self, footer_text=""):
         self._lock = threading.RLock()
         self._listeners = []
+        self._revision = 0
         self._data = {
             "app": {"footer_text": footer_text},
             "providers": {
@@ -47,51 +48,70 @@ class MonitoringState:
             if listener in self._listeners:
                 self._listeners.remove(listener)
 
-    def snapshot(self):
+    def snapshot(self, history_limit=None, with_revision=False):
         with self._lock:
-            return copy.deepcopy(self._data)
-
-    def update(self, section, key, **values):
-        with self._lock:
-            target = self._data[section].setdefault(str(key), {})
-            target.update(values)
             snapshot = copy.deepcopy(self._data)
-            listeners = list(self._listeners)
+            revision = self._revision
+        if history_limit is not None:
+            for section in ("providers", "tests"):
+                for item in snapshot.get(section, {}).values():
+                    for field in ("history", "drops"):
+                        values = item.get(field)
+                        if isinstance(values, list) and len(values) > history_limit:
+                            item[field] = values[-history_limit:]
+        return (snapshot, revision) if with_revision else snapshot
+
+    def _notify(self, event, listeners):
         for listener in listeners:
             try:
-                listener(snapshot)
+                listener(event)
             except Exception:
                 pass
 
+    def update(self, section, key, **values):
+        with self._lock:
+            key = str(key)
+            target = self._data[section].setdefault(key, {})
+            target.update(values)
+            self._revision += 1
+            listeners = list(self._listeners)
+            event = {
+                "section": section, "key": key, "revision": self._revision,
+                "changes": copy.deepcopy(values),
+            }
+        self._notify(event, listeners)
+
     def append_history(self, section, key, point, limit=86400):
         with self._lock:
-            target = self._data[section].setdefault(str(key), {})
+            key = str(key)
+            target = self._data[section].setdefault(key, {})
             history = target.setdefault("history", [])
             history.append(point)
             if len(history) > limit:
                 del history[:-limit]
-            snapshot = copy.deepcopy(self._data)
+            self._revision += 1
             listeners = list(self._listeners)
-        for listener in listeners:
-            try:
-                listener(snapshot)
-            except Exception:
-                pass
+            event = {
+                "section": section, "key": key, "revision": self._revision,
+                "points": [copy.deepcopy(point)],
+            }
+        self._notify(event, listeners)
 
     def append_drop(self, section, key, timestamp, limit=86400):
         with self._lock:
-            target = self._data[section].setdefault(str(key), {})
+            key = str(key)
+            target = self._data[section].setdefault(key, {})
             drops = target.setdefault("drops", [])
             drops.append(timestamp)
             if len(drops) > limit:
                 del drops[:-limit]
-            snapshot = copy.deepcopy(self._data)
+            self._revision += 1
             listeners = list(self._listeners)
-        for listener in listeners:
-            try:
-                listener(snapshot)
-            except Exception:
-                pass
+            event = {
+                "section": section, "key": key, "revision": self._revision,
+                "drops": [copy.deepcopy(timestamp)],
+            }
+        self._notify(event, listeners)
 
 
 def resource_paths(relative_path):
@@ -145,7 +165,9 @@ class MonitoringWebServer:
         self._thread = None
         self._clients = {}
         self._clients_lock = threading.Lock()
-        self._outgoing = queue.Queue(maxsize=2)
+        self._pending = {}
+        self._pending_lock = threading.Lock()
+        self._pending_ready = threading.Event()
         self._publisher_thread = None
         self._running = threading.Event()
 
@@ -226,21 +248,36 @@ class MonitoringWebServer:
                 pass
         self.logger.info("Painel web: servidor encerrado")
 
-    def publish(self, snapshot):
-        try:
-            while self._outgoing.full():
-                self._outgoing.get_nowait()
-            self._outgoing.put_nowait(snapshot)
-        except queue.Empty:
-            pass
+    def publish(self, event):
+        identity = (event["section"], event["key"])
+        with self._pending_lock:
+            pending = self._pending.setdefault(identity, {
+                "section": event["section"], "key": event["key"]
+            })
+            pending["revision"] = event["revision"]
+            if event.get("changes"):
+                pending.setdefault("changes", {}).update(event["changes"])
+            if event.get("points"):
+                pending["points"] = event["points"][-1:]
+            if event.get("drops"):
+                pending["drops"] = event["drops"][-1:]
+        self._pending_ready.set()
 
     def _publisher_loop(self):
+        publish_interval = 0.25
         while self._running.is_set():
-            try:
-                snapshot = self._outgoing.get(timeout=0.5)
-            except queue.Empty:
+            if not self._pending_ready.wait(timeout=0.5):
                 continue
-            payload = json.dumps({"type": "state", "data": snapshot}, ensure_ascii=False)
+            time.sleep(publish_interval)
+            if not self._running.is_set():
+                break
+            with self._pending_lock:
+                patches = sorted(self._pending.values(), key=lambda patch: patch["revision"])
+                self._pending.clear()
+                self._pending_ready.clear()
+            if not patches:
+                continue
+            payload = json.dumps({"type": "patch", "patches": patches}, ensure_ascii=False)
             with self._clients_lock:
                 clients = list(self._clients.items())
             disconnected = []
@@ -331,13 +368,17 @@ class MonitoringWebServer:
         handler.end_headers()
         client = handler.connection
         send_lock = threading.Lock()
-        with self._clients_lock:
-            self._clients[client] = send_lock
-        self.logger.info("Painel web: handshake aceito; cliente WebSocket conectado de %s", client_address)
         try:
-            initial = json.dumps({"type": "state", "data": self.state.snapshot()}, ensure_ascii=False)
-            with send_lock:
+            send_lock.acquire()
+            try:
+                with self._clients_lock:
+                    self._clients[client] = send_lock
+                self.logger.info("Painel web: handshake aceito; cliente WebSocket conectado de %s", client_address)
+                snapshot, revision = self.state.snapshot(history_limit=3600, with_revision=True)
+                initial = json.dumps({"type": "state", "revision": revision, "data": snapshot}, ensure_ascii=False)
                 self._send_frame(client, initial)
+            finally:
+                send_lock.release()
             while self._running.is_set():
                 opcode, payload = self._read_frame(client)
                 if opcode == 8:
