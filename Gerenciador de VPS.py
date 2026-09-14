@@ -62,7 +62,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 96.08"
+    return "Beta 96.09"
 
 def get_footer_text():
     return f"Projeto Temer - ©VempirE_GhosT - Versão: {get_version()}"
@@ -152,6 +152,7 @@ class ButtonManager:
         self.monitoring_active = {}
         self.monitoring_threads = {}
         self.text_areas = {}
+        self.monitor_window_open = False
         self.previous_states = {}  # Dicionário para armazenar o estado anterior
         self.last_modified_config_ini = 0  # Armazena a data da última modificação do arquivo
         self.monitor_state = MonitoringState(footer_text=get_footer_text())
@@ -294,6 +295,25 @@ class ButtonManager:
         self.omr_jogo_conectado = False
         self.vps_vpn_conectado = False
         self.vps_jogo_conectado = False
+
+    def _safe_widget_update(self, widget, update):
+        """Executa uma atualizacao Tk apenas enquanto o widget ainda existe."""
+        try:
+            if widget is None or not widget.winfo_exists():
+                return False
+            update()
+            return True
+        except tk.TclError:
+            return False
+
+    def _schedule_monitor_ui_update(self, callback, *args):
+        """Agenda UI do monitor somente enquanto a Toplevel estiver aberta."""
+        if not self.monitor_window_open or not hasattr(self, 'mtr_window'):
+            return None
+        try:
+            return self.master.after(0, callback, *args)
+        except (tk.TclError, RuntimeError):
+            return None
 
     def _carregar_historico_monitoramento(self):
         try:
@@ -2317,13 +2337,21 @@ class ButtonManager:
             current = self.monitor_state.snapshot()['omr'][omr_key].get(field, '')
             self.monitor_state.update('omr', omr_key, **{field: new_text if overwrite else current + new_text})
         text_area = self.text_areas.get(title)
-        if text_area:
-            text_area.config(state='normal')
-            if overwrite:
-                text_area.delete(1.0, tk.END)
-            text_area.insert(tk.END, new_text)
-            text_area.see(tk.END)
-            text_area.config(state='disabled')
+        if not text_area or not self.monitor_window_open:
+            return
+
+        def update():
+            def write_text():
+                text_area.config(state='normal')
+                if overwrite:
+                    text_area.delete(1.0, tk.END)
+                text_area.insert(tk.END, new_text)
+                text_area.see(tk.END)
+                text_area.config(state='disabled')
+
+            self._safe_widget_update(text_area, write_text)
+
+        self._schedule_monitor_ui_update(update)
 
 # METODO PARA PING NO VPS **METODO DEPRECIADO**
     def executar_ping(self, tab):
@@ -2399,6 +2427,8 @@ class ButtonManager:
 
             # Função para atualizar o gráfico
             def update_graph():
+                if not self._safe_widget_update(canvas.get_tk_widget(), lambda: None):
+                    return
                 now = datetime.now()
                 time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
 
@@ -2422,7 +2452,7 @@ class ButtonManager:
                 else:
                     line.set_data([], [])  # Limpa os dados se não houver dados filtrados
 
-                canvas.draw()  # Atualiza o canvas
+                self._safe_widget_update(canvas.get_tk_widget(), canvas.draw)
 
             # Função para iniciar o Ping
             def iniciar_ping(index):
@@ -2697,6 +2727,8 @@ class ButtonManager:
 
             # Função para atualizar o gráfico
             def update_graph():
+                if not self._safe_widget_update(canvas.get_tk_widget(), lambda: None):
+                    return
                 now = datetime.now()
                 time_window_start = now - timedelta(minutes=60)
                 
@@ -2730,10 +2762,10 @@ class ButtonManager:
                         if drop_times:
                             ax.scatter(drop_times, [0]*len(drop_times), marker='^', color='black', s=100, label='Queda de conexão')
                     
-                    canvas.draw()
+                    self._safe_widget_update(canvas.get_tk_widget(), canvas.draw)
                 else:
                     line.set_data([], [])
-                    canvas.draw()
+                    self._safe_widget_update(canvas.get_tk_widget(), canvas.draw)
 
             update_graph()
 
@@ -2907,7 +2939,7 @@ class ButtonManager:
                                 drop_time = datetime.now()
                                 connection_drops.append(drop_time)  # Marca o momento da queda
                                 self.monitor_state.append_drop('tests', index, drop_time.isoformat())
-                                self.master.after(0, update_graph)
+                                self._schedule_monitor_ui_update(update_graph)
                                 
                                 if not verificar_reconexao_ssh():
                                     logger_main.error("Não foi possível reconectar - parando teste")
@@ -2931,10 +2963,14 @@ class ButtonManager:
 
                             # Atualiza a área de texto
                             def update_test_output(text=resultado):
-                                area_texto.delete(1.0, tk.END)
-                                area_texto.insert(tk.END, text)
-                                area_texto.see(tk.END)
-                            self.master.after(0, update_test_output)
+                                def write_output():
+                                    area_texto.delete(1.0, tk.END)
+                                    area_texto.insert(tk.END, text)
+                                    area_texto.see(tk.END)
+
+                                self._safe_widget_update(area_texto, write_output)
+
+                            self._schedule_monitor_ui_update(update_test_output)
                             self.monitor_state.update('tests', index, output=resultado)
 
                             # Processa a latência
@@ -2955,7 +2991,7 @@ class ButtonManager:
                                 latencias.pop(0)
                                 timestamps.pop(0)
                             
-                            self.master.after(0, update_graph)
+                            self._schedule_monitor_ui_update(update_graph)
 
                             # Espera antes de executar novamente
                             time.sleep(intervalo)
@@ -2965,7 +3001,7 @@ class ButtonManager:
                             drop_time = datetime.now()
                             connection_drops.append(drop_time)  # Marca o momento da queda
                             self.monitor_state.append_drop('tests', index, drop_time.isoformat())
-                            self.master.after(0, update_graph)
+                            self._schedule_monitor_ui_update(update_graph)
                             
                             if not verificar_reconexao_ssh():
                                 logger_main.error("fNão foi possível reconectar após erro - parando teste {index +1}")
@@ -3079,6 +3115,7 @@ class ButtonManager:
 
         # Cria a janela principal com fundo branco
         self.mtr_window = tk.Toplevel(self.master)  # Armazena a referência como atributo da classe
+        self.monitor_window_open = True
         self.mtr_window.title("Saídas do MTR e Gráficos de Latência")
         self.mtr_window.configure(bg='white')  # Define o fundo branco
 
@@ -3231,6 +3268,9 @@ class ButtonManager:
 
         # Função para atualizar o gráfico de forma thread-safe usando 'after'
         def update_graph_safe(interface, line, loss_line, ax):
+            canvas_widget = ax.figure.canvas.get_tk_widget()
+            if not self._safe_widget_update(canvas_widget, lambda: None):
+                return
             now = datetime.now()
 
             # Verifica se há dados disponíveis
@@ -3278,7 +3318,7 @@ class ButtonManager:
                 ax.autoscale_view(scalex=True, scaley=True)
 
             ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))
-            ax.figure.canvas.draw()
+            self._safe_widget_update(canvas_widget, ax.figure.canvas.draw)
 
         for idx, interface in enumerate(interfaces):
             # Cria um quadro para cada interface dentro do frame rolável
@@ -3335,7 +3375,9 @@ class ButtonManager:
                     try:
                         # Verifica se a conexão SSH está ativa
                         if not hasattr(self, 'ssh_vpn_client') or self.ssh_vpn_client is None:
-                            self.master.after(0, lambda: logger_main.info(f"SSH desconectado para {interface_names[interface]}. Aguardando reconexão..."))
+                            self._schedule_monitor_ui_update(
+                                lambda: logger_main.info(f"SSH desconectado para {interface_names[interface]}. Aguardando reconexão...")
+                            )
                             time.sleep(5)  # Espera 5 segundos antes de tentar novamente
                             continue
                             
@@ -3348,8 +3390,11 @@ class ButtonManager:
                             marker_times[interface].append(datetime.now())
 
                         # Atualiza a área de texto
-                        callback_id = self.master.after(0, lambda i=interface, o=output: update_output_area(i, o))
-                        callbacks.append(callback_id)
+                        callback_id = self._schedule_monitor_ui_update(
+                            lambda i=interface, o=output: update_output_area(i, o)
+                        )
+                        if callback_id is not None:
+                            callbacks.append(callback_id)
 
                         # Processa a saída do MTR
                         last_lines = output.strip().splitlines()
@@ -3391,15 +3436,22 @@ class ButtonManager:
                         )
 
                         # Atualiza o gráfico
-                        callback_id = self.master.after(0, update_graph_safe, interface, line, loss_line, ax)
-                        callbacks.append(callback_id)
+                        callback_id = self._schedule_monitor_ui_update(
+                            update_graph_safe, interface, line, loss_line, ax
+                        )
+                        if callback_id is not None:
+                            callbacks.append(callback_id)
 
                         time.sleep(1)
                         
                     except Exception as e:
                          # Adiciona a mensagem de erro no log
                         error_message = str(e)
-                        self.master.after(0, lambda error=error_message: logger_main.info(f"Erro na conexão SSH para {interface_names[interface]}: {error}. Tentando novamente em 5 segundos..."))
+                        self._schedule_monitor_ui_update(
+                            lambda error=error_message: logger_main.info(
+                                f"Erro na conexão SSH para {interface_names[interface]}: {error}. Tentando novamente em 5 segundos..."
+                            )
+                        )
                         time.sleep(5)  # Espera 5 segundos antes de tentar novamente
                         continue
 
@@ -3408,11 +3460,13 @@ class ButtonManager:
             # Função para atualizar a área de saída de texto no thread principal
             def update_output_area(interface, output):
                 output_area = outputs[interface]  # Garante que a área correta será atualizada
-                if output_area.winfo_exists():  # Verifica se o widget ainda existe antes de atualizar
+                def write_output():
                     output_area.config(state=tk.NORMAL)  # Habilita edição temporariamente
                     output_area.delete(1.0, tk.END)  # Limpa a área de texto
                     output_area.insert(tk.END, f"MTR para {interface_names[interface]}:\n{output}\n")
                     output_area.config(state=tk.DISABLED)  # Desabilita edição novamente
+
+                self._safe_widget_update(output_area, write_output)
 
             def start_provider(iface=interface, graph_line=line, graph_loss_line=loss_line, graph_ax=ax):
                 current = provider_threads.get(iface)
@@ -3451,6 +3505,7 @@ class ButtonManager:
         # Função para fechar a janela corretamente
         def on_closing():
             try:
+                self.monitor_window_open = False
                 for event in provider_stop_events.values():
                     event.set()
                 for interface in interfaces:
@@ -3465,12 +3520,21 @@ class ButtonManager:
                 
                 # Cancela todos os callbacks pendentes
                 for callback_id in callbacks:
-                    self.master.after_cancel(callback_id)
+                    try:
+                        self.master.after_cancel(callback_id)
+                    except tk.TclError:
+                        pass
             finally:
                 self.restore_window()
                 if hasattr(self, 'mtr_window'):
-                    self.mtr_window.destroy()
+                    try:
+                        self.mtr_window.destroy()
+                    except tk.TclError:
+                        pass
                     del self.mtr_window
+                for title in ("Trafego OMR VPN", "Trafego OMR JOGO"):
+                    self.text_areas.pop(title, None)
+                    self.text_areas.pop(f"{title}_averages", None)
 
         self.mtr_window.protocol("WM_DELETE_WINDOW", on_closing)
 
