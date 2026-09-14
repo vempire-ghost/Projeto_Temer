@@ -45,7 +45,12 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from monitoring_web import MonitoringState, MonitoringWebServer
+from monitoring_web import (
+    MonitoringState,
+    MonitoringWebServer,
+    parse_local_datetime,
+    series_with_time_gaps,
+)
 
 # Corrige o diretório de trabalho para o local do executável ou script
 if getattr(sys, 'frozen', False):
@@ -57,7 +62,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 96.07"
+    return "Beta 96.08"
 
 def get_footer_text():
     return f"Projeto Temer - ©VempirE_GhosT - Versão: {get_version()}"
@@ -2676,17 +2681,36 @@ class ButtonManager:
             timestamps = []
             connection_drops = []  # Armazena os momentos em que a conexão caiu
 
+            saved_test = self.monitor_state.snapshot().get('tests', {}).get(str(linha), {})
+            for point in saved_test.get('history', []):
+                if not isinstance(point, dict) or 'latency' not in point:
+                    continue
+                timestamp = parse_local_datetime(point.get('time'))
+                if timestamp is not None:
+                    timestamps.append(timestamp)
+                    latencias.append(point['latency'])
+            connection_drops.extend(
+                timestamp for timestamp in
+                (parse_local_datetime(value) for value in saved_test.get('drops', []))
+                if timestamp is not None
+            )
+
             # Função para atualizar o gráfico
             def update_graph():
                 now = datetime.now()
                 time_window_start = now - timedelta(minutes=60)
                 
-                # Converter timestamps para formato numérico que o matplotlib entende
-                timestamps_num = [mdates.date2num(t) for t in timestamps if t >= time_window_start]
-                latencias_filtered = latencias[-len(timestamps_num):]
+                filtered = [
+                    (timestamp, latency) for timestamp, latency in zip(timestamps, latencias)
+                    if timestamp >= time_window_start
+                ]
+                timestamps_filtered = [timestamp for timestamp, _ in filtered]
+                latencias_filtered = [latency for _, latency in filtered]
+                plot_times, plot_latencies = series_with_time_gaps(timestamps_filtered, latencias_filtered)
+                timestamps_num = [mdates.date2num(timestamp) for timestamp in plot_times]
                 
-                if timestamps_num and latencias_filtered:
-                    line.set_data(timestamps_num, latencias_filtered)
+                if timestamps_num and plot_latencies:
+                    line.set_data(timestamps_num, plot_latencies)
                     ax.set_xlim([mdates.date2num(time_window_start), mdates.date2num(now)])
                     ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
                     fig.autofmt_xdate()
@@ -2710,6 +2734,8 @@ class ButtonManager:
                 else:
                     line.set_data([], [])
                     canvas.draw()
+
+            update_graph()
 
             # Função para extrair latência do resultado
             def extrair_latencia(resultado, metodo):
@@ -3138,7 +3164,24 @@ class ButtonManager:
         self.provider_controls = {}
         provider_threads = {}
         provider_stop_events = {iface: threading.Event() for iface in interfaces}
+        saved_providers = self.monitor_state.snapshot().get('providers', {})
         for interface in interfaces:
+            saved_provider = saved_providers.get(interface, {})
+            for point in saved_provider.get('history', []):
+                if not isinstance(point, dict):
+                    continue
+                timestamp = parse_local_datetime(point.get('time'))
+                if timestamp is None:
+                    continue
+                timestamps[interface].append(timestamp)
+                pings_data[interface].append(point.get('latency'))
+                loss_data[interface].append(point.get('loss'))
+            marker_times[interface].extend(
+                timestamp for timestamp in
+                (parse_local_datetime(value) for value in saved_provider.get('drops', []))
+                if timestamp is not None
+            )
+            marker_counts[interface] = len(marker_times[interface])
             self.monitor_state.update(
                 'providers', interface, name=interface_names[interface], running=False
             )
@@ -3192,12 +3235,18 @@ class ButtonManager:
 
             # Verifica se há dados disponíveis
             if timestamps[interface] and pings_data[interface]:
-                line.set_data(timestamps[interface], pings_data[interface])
+                plot_times, plot_pings = series_with_time_gaps(
+                    timestamps[interface], pings_data[interface]
+                )
+                line.set_data(plot_times, plot_pings)
             else:
                 line.set_data([], [])
 
             if timestamps[interface] and loss_data[interface]:
-                loss_line.set_data(timestamps[interface], loss_data[interface])
+                plot_times, plot_loss = series_with_time_gaps(
+                    timestamps[interface], loss_data[interface]
+                )
+                loss_line.set_data(plot_times, plot_loss)
             else:
                 loss_line.set_data([], [])
 
@@ -3274,6 +3323,8 @@ class ButtonManager:
 
             # Adiciona funcionalidade de zoom e pan
             self.add_zoom_pan(canvas, ax)
+
+            update_graph_safe(interface, line, loss_line, ax)
 
             # Função para executar o MTR e coletar latências e perdas de pacotes
             def execute_mtr_and_collect(interface, line, loss_line, ax):

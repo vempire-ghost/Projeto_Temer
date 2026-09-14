@@ -18,6 +18,37 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlsplit
 
 
+GRAPH_GAP_SECONDS = 30
+
+
+def parse_local_datetime(value):
+    """Parse an ISO timestamp into a local, timezone-naive datetime."""
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone().replace(tzinfo=None)
+    return parsed
+
+
+def series_with_time_gaps(timestamps, values, gap_seconds=GRAPH_GAP_SECONDS):
+    """Return plotting data with NaNs separating samples across long gaps."""
+    plot_times = []
+    plot_values = []
+    previous_time = None
+    for timestamp, value in zip(timestamps, values):
+        if previous_time is not None and (timestamp - previous_time).total_seconds() > gap_seconds:
+            plot_times.append(timestamp)
+            plot_values.append(float('nan'))
+        plot_times.append(timestamp)
+        plot_values.append(value)
+        previous_time = timestamp
+    return plot_times, plot_values
+
+
 class MonitoringState:
     """Thread-safe, in-memory state shared by Tkinter and the web panel."""
 

@@ -1,6 +1,7 @@
 const state = { providers: {}, tests: {}, omr: {} };
 const chartStates = new WeakMap();
 const HOUR = 60 * 60 * 1000;
+const GRAPH_GAP_MS = 30 * 1000;
 let ws;
 let reconnectTimer;
 let stateRevision = 0;
@@ -474,12 +475,14 @@ function drawSeries(ctx, points, field, color, xFor, yFor) {
   ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.beginPath();
   let started = false;
   let lastPoint = null;
+  let lastTime = null;
   points.forEach(point => {
     const value = point[field];
-    if (!Number.isFinite(value)) { started = false; return; }
+    if (!Number.isFinite(value)) { started = false; lastTime = null; return; }
     const x = xFor(point.time), y = yFor(value);
-    if (started) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+    if (started && point.time - lastTime <= GRAPH_GAP_MS) ctx.lineTo(x, y); else ctx.moveTo(x, y);
     lastPoint = { x, y };
+    lastTime = point.time;
     started = true;
   });
   ctx.stroke();
