@@ -1,10 +1,14 @@
-const state = { providers: {}, tests: {}, omr: {} };
+const state = { app: {}, providers: {}, tests: {}, omr: {} };
 const chartStates = new WeakMap();
 const HOUR = 60 * 60 * 1000;
 const GRAPH_GAP_MS = 30 * 1000;
 let ws;
 let reconnectTimer;
 let stateRevision = 0;
+let appStatusAvailable = false;
+let pendingPowerCommand = null;
+let powerRequestSequence = 0;
+let modalReturnFocus = null;
 
 document.querySelectorAll('.tab').forEach(button => button.addEventListener('click', () => {
   document.querySelectorAll('.tab,.panel').forEach(el => el.classList.remove('active'));
@@ -44,6 +48,8 @@ function connect() {
         (message.patches || [message]).forEach(applyPatch);
       } else if (message.type === 'error') {
         console.warn(`[Painel] Backend recusou a mensagem: ${message.message}`);
+      } else if (message.type === 'command_result') {
+        handleCommandResult(message);
       }
     } catch (error) {
       console.error('[Painel] Mensagem WebSocket invalida recebida', error);
@@ -54,6 +60,7 @@ function connect() {
 function applyState(data, revision) {
   stateRevision = Number(revision) || 0;
   state.app = data.app || {};
+  appStatusAvailable = !!state.app.status;
   state.providers = data.providers || {};
   state.tests = data.tests || {};
   state.omr = data.omr || {};
@@ -66,6 +73,13 @@ function applyPatch(patch) {
   if (!Number.isFinite(revision) || revision <= stateRevision) return;
   const {section, key} = patch;
   if (!section || key == null) return;
+  if (section === 'app') {
+    Object.assign(state.app, patch.changes || {});
+    if (Object.prototype.hasOwnProperty.call(patch.changes || {}, 'status')) appStatusAvailable = true;
+    stateRevision = revision;
+    renderApp();
+    return;
+  }
   state[section] ||= {};
   const target = state[section][key] ||= {};
   Object.assign(target, patch.changes || {});
@@ -88,19 +102,132 @@ function renderSection(section, key) {
   if (section === 'providers') renderProviders(key);
   else if (section === 'tests') renderTests(key);
   else if (section === 'omr') renderOmr(key);
-  else if (section === 'app' && state.app.footer_text) {
-    document.getElementById('app-credit').textContent = state.app.footer_text;
-  }
 }
 
 function setConnection(online, offlineText = 'Desconectado') {
   const el = document.getElementById('connection');
   el.classList.toggle('online', online);
   el.classList.toggle('offline', !online);
-  el.lastChild.textContent = online ? ' Conectado' : ` ${offlineText}`;
+  el.querySelector('em').textContent = online ? 'Conectado' : offlineText;
+  if (!online) {
+    appStatusAvailable = false;
+    renderApp();
+  }
 }
 
-function render() { renderProviders(); renderTests(); renderOmr(); }
+function render() { renderApp(); renderProviders(); renderTests(); renderOmr(); }
+
+function renderApp() {
+  if (state.app.footer_text) document.getElementById('app-credit').textContent = state.app.footer_text;
+  const status = appStatusAvailable ? state.app.status || {} : {};
+  const labels = {
+    server_status: ['Operacional', 'Indisponível'],
+    coopera_online: ['Online', 'Offline'],
+    claro_online: ['Online', 'Offline'],
+    unifique_online: ['Online', 'Offline'],
+    vps_vpn_conectado: ['Conectado', 'Desconectado'],
+    vps_jogo_conectado: ['Conectado', 'Desconectado']
+  };
+  Object.entries(labels).forEach(([key, texts]) => {
+    const chip = document.querySelector(`[data-status="${key}"]`);
+    const online = status[key] === true;
+    chip.classList.toggle('online', online);
+    chip.classList.toggle('offline', !online);
+    const serverName = key === 'server_status' && online && status.servidor_conectado;
+    chip.querySelector('small').textContent = serverName ? `${texts[0]} · ${serverName}` : texts[online ? 0 : 1];
+  });
+}
+
+const powerModal = document.getElementById('power-modal');
+const powerConfirm = document.getElementById('power-confirm');
+const powerCancel = document.getElementById('power-cancel');
+
+document.querySelectorAll('[data-power-action]').forEach(button => {
+  button.addEventListener('click', () => openPowerModal(button.dataset.powerAction, button));
+});
+
+function openPowerModal(action, trigger) {
+  if (pendingPowerCommand) return;
+  const serverAndVps = action === 'poweroff';
+  pendingPowerCommand = { action, trigger, sent: false };
+  modalReturnFocus = trigger;
+  document.getElementById('power-modal-message').textContent = serverAndVps
+    ? 'Esta ação desligará o servidor e as VPS. O desligamento não pode ser desfeito.'
+    : 'Esta ação desligará apenas o servidor. As VPS permanecerão ligadas e o desligamento não pode ser desfeito.';
+  powerModal.hidden = false;
+  document.body.classList.add('modal-open');
+  powerCancel.focus();
+}
+
+function closePowerModal() {
+  if (pendingPowerCommand?.sent) return;
+  powerModal.hidden = true;
+  document.body.classList.remove('modal-open');
+  pendingPowerCommand = null;
+  modalReturnFocus?.focus();
+  modalReturnFocus = null;
+}
+
+powerCancel.addEventListener('click', closePowerModal);
+powerModal.querySelector('[data-modal-close]').addEventListener('click', closePowerModal);
+powerConfirm.addEventListener('click', () => {
+  if (!pendingPowerCommand || pendingPowerCommand.sent) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    showCommandFeedback(false, 'Painel desconectado. O comando não foi enviado.');
+    closePowerModal();
+    return;
+  }
+  const requestId = `power-${Date.now()}-${++powerRequestSequence}`;
+  pendingPowerCommand.sent = true;
+  pendingPowerCommand.requestId = requestId;
+  pendingPowerCommand.trigger.disabled = true;
+  powerConfirm.disabled = true;
+  powerConfirm.textContent = 'Executando...';
+  send({ action: pendingPowerCommand.action, request_id: requestId });
+  pendingPowerCommand.timeout = setTimeout(() => finishPowerCommand(false, 'Sem resposta do backend. Verifique o Gerenciador.'), 30000);
+});
+
+function handleCommandResult(message) {
+  if (!pendingPowerCommand || message.request_id !== pendingPowerCommand.requestId) return;
+  finishPowerCommand(message.success === true, message.message || (message.success ? 'Comando aceito.' : 'Falha ao executar o comando.'));
+}
+
+function finishPowerCommand(success, message) {
+  if (!pendingPowerCommand) return;
+  clearTimeout(pendingPowerCommand.timeout);
+  pendingPowerCommand.trigger.disabled = false;
+  powerConfirm.disabled = false;
+  powerConfirm.textContent = 'Confirmar desligamento';
+  powerModal.hidden = true;
+  document.body.classList.remove('modal-open');
+  pendingPowerCommand = null;
+  modalReturnFocus?.focus();
+  modalReturnFocus = null;
+  showCommandFeedback(success, message);
+}
+
+function showCommandFeedback(success, message) {
+  const feedback = document.getElementById('command-feedback');
+  feedback.textContent = message;
+  feedback.classList.toggle('success', success);
+  feedback.classList.toggle('error', !success);
+  feedback.hidden = false;
+  clearTimeout(feedback.hideTimer);
+  feedback.hideTimer = setTimeout(() => { feedback.hidden = true; }, 8000);
+}
+
+document.addEventListener('keydown', event => {
+  if (powerModal.hidden) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closePowerModal();
+  } else if (event.key === 'Tab') {
+    const focusable = [powerCancel, powerConfirm].filter(button => !button.disabled);
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  }
+});
 
 function renderProviders(onlyId = null) {
   const grid = document.getElementById('provider-grid');

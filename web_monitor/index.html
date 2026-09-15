@@ -16,7 +16,29 @@
         <p id="app-credit" class="app-credit">Projeto Temer - ©VempirE_GhosT - Versão: ...</p>
       </div>
     </div>
-    <div id="connection" class="connection offline"><span></span> Desconectado</div>
+    <div class="header-tools">
+      <div class="status-area" aria-label="Status da infraestrutura">
+        <div class="status-heading">
+          <span>Status atual</span>
+          <div id="connection" class="connection offline" title="Conexão deste painel com o Gerenciador"><span></span><b>Painel</b> <em>Desconectado</em></div>
+        </div>
+        <div class="status-chips">
+          <div class="status-chip offline" data-status="server_status"><span></span><div><b>Servidor</b><small>Indisponível</small></div></div>
+          <div class="status-chip offline" data-status="vps_vpn_conectado"><span></span><div><b>VPS VPN</b><small>Desconectado</small></div></div>
+          <div class="status-chip offline" data-status="vps_jogo_conectado"><span></span><div><b>VPS Jogo</b><small>Desconectado</small></div></div>
+          <div class="status-chip offline" data-status="unifique_online"><span></span><div><b>Unifique</b><small>Offline</small></div></div>
+          <div class="status-chip offline" data-status="claro_online"><span></span><div><b>Claro</b><small>Offline</small></div></div>
+          <div class="status-chip offline" data-status="coopera_online"><span></span><div><b>Coopera</b><small>Offline</small></div></div>
+        </div>
+      </div>
+      <details class="power-menu">
+        <summary>Opções de desligamento</summary>
+        <div class="power-actions">
+          <button type="button" class="danger" data-power-action="poweroff">Desligar servidor e VPS</button>
+          <button type="button" class="danger" data-power-action="poweroff2">Desligar apenas servidor</button>
+        </div>
+      </details>
+    </div>
   </header>
   <nav aria-label="Abas do monitoramento">
     <button class="tab active" data-tab="providers">MTR dos Provedores</button>
@@ -37,6 +59,19 @@
       <div id="omr-grid" class="card-grid"></div>
     </section>
   </main>
+  <div id="power-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-modal-close></div>
+    <section class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="power-modal-title" aria-describedby="power-modal-message">
+      <p class="eyebrow">AÇÃO DE ALTO IMPACTO</p>
+      <h2 id="power-modal-title">Confirmar desligamento</h2>
+      <p id="power-modal-message"></p>
+      <div class="modal-actions">
+        <button id="power-cancel" type="button" class="secondary">Cancelar</button>
+        <button id="power-confirm" type="button" class="danger">Confirmar desligamento</button>
+      </div>
+    </section>
+  </div>
+  <div id="command-feedback" class="command-feedback" role="status" aria-live="polite" hidden></div>
   <template id="provider-template">
     <article class="card provider-card">
       <div class="card-head"><div><p class="label"></p><h3></h3></div><span class="status"></span></div>

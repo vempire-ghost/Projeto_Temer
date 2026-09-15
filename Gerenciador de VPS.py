@@ -62,7 +62,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 96.10"
+    return "Beta 96.11"
 
 def get_footer_text():
     return f"Projeto Temer - ©VempirE_GhosT - Versão: {get_version()}"
@@ -174,6 +174,8 @@ class ButtonManager:
         self.omr_controls = {}
         self.monitor_command_queue = queue.Queue()
         self.master.after(100, self._processar_fila_monitoramento)
+        self._last_web_status = None
+        self.master.after(1000, self._atualizar_status_web)
 
         self.clear_log_file(os.path.join('Logs', 'app.log'))  # Limpa o arquivo de log ao iniciar o programa
         self.clear_log_file(os.path.join('Logs', 'test_command.log'))  # Limpa o arquivo de log ao iniciar o programa
@@ -562,19 +564,42 @@ class ButtonManager:
         except Exception as e:
             logger_main.error(f"Erro ao iniciar painel de monitoramento: {e}")
 
-    def processar_comando_web(self, message):
+    def _atualizar_status_web(self):
+        """Publica no painel os mesmos estados consultados pelo Cliente Temer."""
+        try:
+            status = {
+                'server_status': bool(getattr(self, 'servidor_conectado', False)),
+                'servidor_conectado': self.get_servidor_conectado(),
+                'coopera_online': bool(getattr(self, 'coopera_online', False)),
+                'claro_online': bool(getattr(self, 'claro_online', False)),
+                'unifique_online': bool(getattr(self, 'unifique_online', False)),
+                'vps_vpn_conectado': bool(getattr(self, 'vps_vpn_conectado', False)),
+                'vps_jogo_conectado': bool(getattr(self, 'vps_jogo_conectado', False)),
+            }
+            if status != self._last_web_status:
+                self._last_web_status = status
+                self.monitor_state.update_app(status=status)
+        except Exception as e:
+            logger_main.warning(f"Erro ao atualizar status do painel web: {e}")
+        try:
+            if self.master.winfo_exists():
+                self.master.after(1500, self._atualizar_status_web)
+        except tk.TclError:
+            pass
+
+    def processar_comando_web(self, message, respond=None):
         """Valida a lista fechada de ações e as encaminha para a thread do Tkinter."""
         if not isinstance(message, dict):
             raise ValueError("Comando invalido")
         action = message.get('action')
         allowed = {
             'open_monitor', 'test_start', 'test_stop', 'provider_start',
-            'provider_stop', 'omr_start', 'omr_stop'
+            'provider_stop', 'omr_start', 'omr_stop', 'poweroff', 'poweroff2'
         }
         if action not in allowed:
             raise ValueError("Acao nao permitida")
 
-        command = {'action': action}
+        command = {'action': action, 'respond': respond}
         if action.startswith('test_'):
             index = int(message.get('index', -1))
             if index not in range(3):
@@ -607,11 +632,22 @@ class ButtonManager:
     def _processar_fila_monitoramento(self):
         while True:
             try:
-                self._executar_comando_web(self.monitor_command_queue.get_nowait())
+                command = self.monitor_command_queue.get_nowait()
             except queue.Empty:
                 break
+            respond = command.pop('respond', None)
+            try:
+                success = self._executar_comando_web(command)
+                if respond:
+                    respond({
+                        'success': success is not False,
+                        'action': command['action'],
+                        'message': 'Comando aceito para execucao.' if success is not False else 'O comando nao pode ser iniciado.',
+                    })
             except Exception as e:
                 logger_main.error(f"Erro ao processar comando do painel: {e}")
+                if respond:
+                    respond({'success': False, 'action': command['action'], 'message': str(e)})
         try:
             if self.master.winfo_exists():
                 self.master.after(100, self._processar_fila_monitoramento)
@@ -619,9 +655,14 @@ class ButtonManager:
             pass
 
     def _executar_comando_web(self, command):
-        if command['action'] == 'open_monitor':
+        action = command['action']
+        if action == 'poweroff':
+            return self._execute_poweroff_script()
+        if action == 'poweroff2':
+            return self._execute_poweroff_script2()
+        if action == 'open_monitor':
             self.execute_mtr_and_plot()
-            return
+            return True
         if not hasattr(self, 'mtr_window') or not self.mtr_window.winfo_exists():
             self.suppress_monitor_auto_start = True
             try:
@@ -629,7 +670,6 @@ class ButtonManager:
             finally:
                 self.suppress_monitor_auto_start = False
 
-        action = command['action']
         if action == 'test_start':
             control = self.test_controls.get(command['index'])
             if control:

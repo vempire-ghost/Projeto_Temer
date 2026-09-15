@@ -59,7 +59,18 @@ class MonitoringState:
         self._listeners = []
         self._revision = 0
         self._data = {
-            "app": {"footer_text": footer_text},
+            "app": {
+                "footer_text": footer_text,
+                "status": {
+                    "server_status": False,
+                    "servidor_conectado": None,
+                    "coopera_online": False,
+                    "claro_online": False,
+                    "unifique_online": False,
+                    "vps_vpn_conectado": False,
+                    "vps_jogo_conectado": False,
+                },
+            },
             "providers": {
                 "eth2": {"name": "Unifique", "running": False, "output": "", "history": [], "drops": []},
                 "eth4": {"name": "Claro", "running": False, "output": "", "history": [], "drops": []},
@@ -192,6 +203,18 @@ class MonitoringState:
             listeners = list(self._listeners)
             event = {
                 "section": section, "key": key, "revision": self._revision,
+                "changes": copy.deepcopy(values),
+            }
+        self._notify(event, listeners)
+
+    def update_app(self, **values):
+        """Update top-level application metadata and publish a compatible patch."""
+        with self._lock:
+            self._data["app"].update(values)
+            self._revision += 1
+            listeners = list(self._listeners)
+            event = {
+                "section": "app", "key": "app", "revision": self._revision,
                 "changes": copy.deepcopy(values),
             }
         self._notify(event, listeners)
@@ -506,11 +529,29 @@ class MonitoringWebServer:
                     continue
                 if opcode != 1:
                     continue
+                request_id = None
                 try:
                     message = json.loads(payload.decode("utf-8"))
-                    self.command_handler(message)
+                    request_id = message.get("request_id") if isinstance(message, dict) else None
+
+                    def respond(result, response_request_id=request_id):
+                        response = dict(result) if isinstance(result, dict) else {"success": bool(result)}
+                        response["type"] = "command_result"
+                        if response_request_id is not None:
+                            response["request_id"] = response_request_id
+                        encoded = json.dumps(response, ensure_ascii=False)
+                        try:
+                            with send_lock:
+                                self._send_frame(client, encoded)
+                        except (ConnectionError, OSError):
+                            pass
+
+                    self.command_handler(message, respond)
                 except (UnicodeDecodeError, json.JSONDecodeError, ValueError, TypeError) as exc:
-                    error = json.dumps({"type": "error", "message": str(exc)}, ensure_ascii=False)
+                    error_data = {"type": "error", "message": str(exc)}
+                    if request_id is not None:
+                        error_data.update(type="command_result", request_id=request_id, success=False)
+                    error = json.dumps(error_data, ensure_ascii=False)
                     with send_lock:
                         self._send_frame(client, error)
         except ValueError as exc:
