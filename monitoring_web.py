@@ -125,6 +125,8 @@ class MonitoringState:
                     "available": False,
                     "cpu_percent": None,
                     "temperature_c": None,
+                    "temperature_source_available": False,
+                    "temperature_error": None,
                     "processes": [],
                     "error": None,
                 },

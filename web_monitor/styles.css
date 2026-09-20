@@ -25,6 +25,9 @@ h1,h2,h3,p { margin:0; } h1 { font-size:clamp(24px,4vw,40px); letter-spacing:-1p
 .computer-summary>span { color:#aebdb6; font-weight:800; letter-spacing:.7px; text-transform:uppercase; }
 .computer-summary i { width:3px; height:3px; background:var(--lime); border-radius:50%; }
 .computer-summary.unavailable b { color:#b9c5c0; font-weight:500; }
+.temperature-summary-trigger { padding:1px 3px; color:inherit; background:transparent; border:0; border-radius:4px; font:inherit; cursor:pointer; }
+.temperature-summary-trigger:hover,.temperature-summary-trigger:focus-visible { background:#ffffff14; outline:2px solid #bbd43a80; outline-offset:2px; }
+.temperature-summary-trigger.unavailable b { color:#ffd5d1; text-decoration:underline; text-decoration-style:dotted; text-underline-offset:3px; }
 .power-menu { position:relative; flex:0 0 auto; }
 .power-menu summary { padding:7px 9px; color:#ffd5d1; border:1px solid #ffffff38; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; list-style:none; }
 .power-menu summary::-webkit-details-marker { display:none; }
@@ -100,6 +103,11 @@ pre::-webkit-scrollbar { width:10px; height:10px; } pre::-webkit-scrollbar-track
 .computer-metric { border-top:4px solid var(--lime); }
 .computer-metric strong { display:block; margin:12px 0 3px; font-size:clamp(28px,5vw,44px); letter-spacing:-1px; }
 .computer-metric small { color:var(--muted); }
+.temperature-card-trigger { display:block; width:100%; padding:0; color:inherit; background:transparent; border:0; border-radius:6px; text-align:left; cursor:pointer; }
+.temperature-card-trigger strong { width:max-content; max-width:100%; }
+.temperature-card-trigger:hover strong,.temperature-card-trigger:focus-visible strong { color:var(--green); }
+.temperature-card-trigger:focus-visible { outline:3px solid #087f5b38; outline-offset:5px; }
+.temperature-card-trigger.unavailable strong { color:var(--red); font-size:clamp(25px,4vw,36px); }
 .process-card { max-width:900px; }
 .process-table-wrap { overflow-x:auto; margin-top:17px; }
 .process-card table { width:100%; border-collapse:collapse; }
@@ -114,6 +122,13 @@ pre::-webkit-scrollbar { width:10px; height:10px; } pre::-webkit-scrollbar-track
 .modal-backdrop { position:absolute; inset:0; background:#07130ec4; }
 .modal-dialog { position:relative; width:min(460px,100%); padding:24px; background:var(--card); border-top:5px solid var(--red); border-radius:9px; box-shadow:0 24px 70px #0008; }
 .modal-dialog .eyebrow { color:var(--red); } .modal-dialog h2 { margin-bottom:10px; } .modal-dialog>p:last-of-type { color:var(--muted); }
+.temperature-modal-dialog { width:min(540px,100%); border-top-color:var(--green); }
+.temperature-modal-dialog .eyebrow { color:var(--green); }
+.temperature-modal-dialog ol { margin:16px 0; padding-left:22px; color:var(--muted); }
+.temperature-modal-dialog li+li { margin-top:7px; }
+.temperature-modal-dialog a { color:var(--green); font-weight:700; overflow-wrap:anywhere; }
+.temperature-modal-dialog code { padding:1px 4px; background:#ecebe3; border-radius:3px; font-size:.92em; }
+.temperature-address { overflow-wrap:anywhere; }
 .modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:22px; }
 .modal-actions button.secondary { background:transparent; }
 .modal-open { overflow:hidden; }
@@ -121,4 +136,4 @@ pre::-webkit-scrollbar { width:10px; height:10px; } pre::-webkit-scrollbar-track
 .command-feedback.success { background:var(--green); } .command-feedback.error { background:var(--red); }
 @media (max-width:1050px) { .tests { grid-template-columns:1fr; } }
 @media (max-width:1050px) { header { align-items:flex-start; flex-wrap:wrap; } .header-tools { width:100%; max-width:none; } .status-area { flex:1; } }
-@media (max-width:760px) { header,.section-heading { align-items:flex-start; } header { padding:18px; } .brand-logo { width:44px; } .header-tools { align-items:stretch; flex-direction:column; } .status-chips { grid-template-columns:repeat(2,minmax(0,1fr)); } .computer-summary { justify-content:flex-start; flex-wrap:wrap; } .power-menu summary { text-align:center; } .power-actions { position:static; width:100%; margin-top:6px; box-shadow:none; } .section-heading { flex-direction:column; } .section-heading>p { text-align:left; } .card-grid,.computer-metrics { grid-template-columns:1fr; } .provider-card { flex-basis:calc(100vw - 38px); min-width:420px; } nav { padding:0 8px; } main { padding:20px 12px 50px; } .modal-actions { flex-direction:column-reverse; } }
+@media (max-width:760px) { header,.section-heading { align-items:flex-start; } header { padding:18px; } .brand-logo { width:44px; } .header-tools { align-items:stretch; flex-direction:column; } .status-chips { grid-template-columns:repeat(2,minmax(0,1fr)); } .computer-summary { justify-content:flex-start; flex-wrap:wrap; } .power-menu summary { text-align:center; } .power-actions { position:static; width:100%; margin-top:6px; box-shadow:none; } .section-heading { flex-direction:column; } .section-heading>p { text-align:left; } .card-grid,.computer-metrics { grid-template-columns:1fr; } .provider-card { flex-basis:calc(100vw - 38px); min-width:420px; } nav { padding:0 8px; } main { padding:20px 12px 50px; } .modal-dialog { max-height:calc(100vh - 24px); overflow-y:auto; padding:20px; } .modal-actions { flex-direction:column-reverse; } }

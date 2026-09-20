@@ -29,6 +29,8 @@ import win32gui
 import glob
 import difflib
 import math
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 try:
     import psutil
 except ImportError:
@@ -59,6 +61,15 @@ from monitoring_web import (
     series_with_time_gaps,
 )
 
+LIBRE_HARDWARE_MONITOR_BASE_URL = 'http://127.0.0.1:8085'
+LIBRE_HARDWARE_MONITOR_DATA_URLS = (
+    f'{LIBRE_HARDWARE_MONITOR_BASE_URL}/data.json',
+)
+LIBRE_HARDWARE_MONITOR_DOWNLOAD_URL = (
+    'https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases'
+)
+LIBRE_HARDWARE_MONITOR_HTTP_TIMEOUT = 0.6
+
 # Corrige o diretório de trabalho para o local do executável ou script
 if getattr(sys, 'frozen', False):
     application_path = os.path.dirname(sys.executable)
@@ -69,7 +80,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 96.14"
+    return "Beta 96.15"
 
 def get_footer_text():
     return f"Projeto Temer - ©VempirE_GhosT - Versão: {get_version()}"
@@ -180,6 +191,7 @@ class ButtonManager:
         self.monitor_web_server = None
         self._computer_monitor_stop = threading.Event()
         self._computer_monitor_thread = None
+        self._temperature_monitor_status = None
         self.test_controls = {}
         self.provider_controls = {}
         self.omr_controls = {}
@@ -673,7 +685,8 @@ class ButtonManager:
         if psutil is None:
             self.monitor_state.update(
                 'computer', 'local', available=False, cpu_percent=None,
-                temperature_c=None, processes=[],
+                temperature_c=None, temperature_source_available=False,
+                temperature_error='A coleta local requer o psutil.', processes=[],
                 error='psutil nao esta disponivel neste ambiente.'
             )
             self._computer_monitor_stop.wait()
@@ -714,17 +727,23 @@ class ButtonManager:
                         continue
 
                 processes.sort(key=lambda item: item['cpu_percent'], reverse=True)
-                temperature = self._ler_temperatura_cpu()
+                temperature, temperature_available, temperature_error = (
+                    self._ler_temperatura_cpu()
+                )
                 self.monitor_state.update(
                     'computer', 'local', available=True,
                     cpu_percent=round(max(0.0, min(float(cpu_percent), 100.0)), 1),
-                    temperature_c=temperature, processes=processes[:5], error=None
+                    temperature_c=temperature,
+                    temperature_source_available=temperature_available,
+                    temperature_error=temperature_error,
+                    processes=processes[:5], error=None
                 )
             except Exception as e:
                 logger_main.warning(f"Erro ao coletar dados do computador local: {e}")
                 self.monitor_state.update(
                     'computer', 'local', available=False, cpu_percent=None,
-                    temperature_c=None, processes=[],
+                    temperature_c=None, temperature_source_available=False,
+                    temperature_error='A coleta local foi interrompida.', processes=[],
                     error='Nao foi possivel coletar os dados do computador.'
                 )
 
@@ -732,28 +751,109 @@ class ButtonManager:
             self._computer_monitor_stop.wait(remaining)
 
     def _ler_temperatura_cpu(self):
-        sensors_temperatures = getattr(psutil, 'sensors_temperatures', None)
-        if not callable(sensors_temperatures):
-            return None
-        try:
-            sensors = sensors_temperatures() or {}
-        except Exception:
-            return None
+        last_error = None
+        for url in LIBRE_HARDWARE_MONITOR_DATA_URLS:
+            try:
+                request = Request(url, headers={'Accept': 'application/json'})
+                with urlopen(request, timeout=LIBRE_HARDWARE_MONITOR_HTTP_TIMEOUT) as response:
+                    charset = response.headers.get_content_charset() or 'utf-8'
+                    data = json.loads(response.read().decode(charset))
+                temperature = self._extrair_temperatura_cpu_lhm(data)
+                if temperature is None:
+                    error = 'O LibreHardwareMonitor respondeu, mas não forneceu uma temperatura de CPU válida.'
+                    self._registrar_estado_temperatura('sem_sensor', error)
+                    return None, True, error
+                self._registrar_estado_temperatura('disponivel')
+                return temperature, True, None
+            except (HTTPError, URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError) as e:
+                last_error = e
 
-        temperatures = []
-        cpu_terms = ('cpu', 'core', 'package', 'tdie', 'tctl', 'k10temp', 'zenpower')
-        for group, readings in sensors.items():
-            for reading in readings:
-                label = getattr(reading, 'label', '') or ''
-                if not any(term in f'{group} {label}'.lower() for term in cpu_terms):
-                    continue
+        error = (
+            'O LibreHardwareMonitor não está em execução ou não respondeu em '
+            f'{LIBRE_HARDWARE_MONITOR_BASE_URL}.'
+        )
+        self._registrar_estado_temperatura('indisponivel', error, last_error)
+        return None, False, error
+
+    def _registrar_estado_temperatura(self, status, message=None, exception=None):
+        if status == self._temperature_monitor_status:
+            return
+        self._temperature_monitor_status = status
+        if status == 'disponivel':
+            logger_main.info(
+                f'Temperatura via LibreHardwareMonitor HTTP disponivel em '
+                f'{LIBRE_HARDWARE_MONITOR_BASE_URL}.'
+            )
+        else:
+            detail = f' Detalhe: {exception}' if exception else ''
+            logger_main.warning(f'{message}{detail}')
+
+    @staticmethod
+    def _extrair_temperatura_cpu_lhm(data):
+        priorities = ('package', 'ccd #0', 'cores (max)', 'tctl', 'tdie', 'cpu', 'core')
+        cpu_terms = ('amd ryzen', 'processor', 'cpu', 'intel core')
+        excluded_terms = ('gpu', 'graphics', 'storage', 'disk', 'drive')
+        board_terms = ('motherboard', 'mainboard')
+        candidates = []
+
+        def parse_temperature(value):
+            if value is None or isinstance(value, bool):
+                return None
+            if isinstance(value, (int, float)):
+                number = float(value)
+            else:
+                text = str(value).strip()
+                if not text or text.lower() in ('none', 'null', 'nan', '--'):
+                    return None
+                match = re.search(r'[-+]?\d+(?:[.,]\d+)?', text)
+                if not match:
+                    return None
                 try:
-                    value = float(reading.current)
-                except (AttributeError, TypeError, ValueError):
-                    continue
-                if math.isfinite(value) and -20 <= value <= 150:
-                    temperatures.append(value)
-        return round(max(temperatures), 1) if temperatures else None
+                    number = float(match.group(0).replace(',', '.'))
+                except ValueError:
+                    return None
+            return number if math.isfinite(number) and 0 < number <= 150 else None
+
+        def walk(node, ancestors=()):
+            if isinstance(node, list):
+                for child in node:
+                    walk(child, ancestors)
+                return
+            if not isinstance(node, dict):
+                return
+
+            text = str(node.get('Text') or '').strip()
+            node_type = str(node.get('Type') or '').strip()
+            current = f'{text} {node_type}'.strip().lower()
+            context = ' '.join((*ancestors, current))
+            value = parse_temperature(node.get('Value'))
+            is_temperature = 'temperature' in node_type.lower()
+            if value is not None and (is_temperature or '°c' in str(node.get('Value')).lower()):
+                sensor_name = text.lower()
+                priority = next(
+                    (index for index, term in enumerate(priorities) if term in sensor_name),
+                    len(priorities),
+                )
+                cpu_branch = any(term in context for term in cpu_terms)
+                excluded = any(term in context for term in excluded_terms)
+                motherboard = any(term in context for term in board_terms)
+                is_soc = 'soc' in sensor_name or 'so c' in sensor_name
+                if not excluded and cpu_branch:
+                    if motherboard:
+                        category = 3
+                    else:
+                        category = 0 if priority < len(priorities) and not is_soc else 2
+                    ryzen_priority = 0 if 'amd ryzen' in context else 1
+                    candidates.append((category, priority, ryzen_priority, -value, value))
+                elif not excluded and priority < len(priorities) and not is_soc:
+                    category = 3 if motherboard else 1
+                    candidates.append((category, priority, 1, -value, value))
+
+            next_ancestors = (*ancestors, current) if current else ancestors
+            walk(node.get('Children') or (), next_ancestors)
+
+        walk(data)
+        return round(min(candidates)[4], 1) if candidates else None
 
     def _atualizar_status_web(self):
         """Publica no painel os mesmos estados consultados pelo Cliente Temer."""

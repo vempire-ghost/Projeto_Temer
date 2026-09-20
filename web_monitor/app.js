@@ -9,6 +9,7 @@ let appStatusAvailable = false;
 let pendingPowerCommand = null;
 let powerRequestSequence = 0;
 let modalReturnFocus = null;
+let temperatureModalReturnFocus = null;
 let panelConnected = false;
 
 document.querySelectorAll('.tab').forEach(button => button.addEventListener('click', () => {
@@ -146,6 +147,12 @@ function renderApp() {
 const powerModal = document.getElementById('power-modal');
 const powerConfirm = document.getElementById('power-confirm');
 const powerCancel = document.getElementById('power-cancel');
+const temperatureModal = document.getElementById('temperature-modal');
+const temperatureModalClose = document.getElementById('temperature-modal-close');
+const temperatureTriggers = [
+  document.getElementById('temperature-summary-trigger'),
+  document.getElementById('temperature-card-trigger')
+];
 
 document.querySelectorAll('[data-power-action]').forEach(button => {
   button.addEventListener('click', () => openPowerModal(button.dataset.powerAction, button));
@@ -175,6 +182,35 @@ function closePowerModal() {
 
 powerCancel.addEventListener('click', closePowerModal);
 powerModal.querySelector('[data-modal-close]').addEventListener('click', closePowerModal);
+temperatureTriggers.forEach(trigger => trigger.addEventListener('click', () => openTemperatureModal(trigger)));
+temperatureModalClose.addEventListener('click', closeTemperatureModal);
+temperatureModal.querySelector('[data-temperature-modal-close]').addEventListener('click', closeTemperatureModal);
+
+function openTemperatureModal(trigger) {
+  const data = (state.computer || {}).local || {};
+  const sourceAvailable = panelConnected && data.temperature_source_available === true;
+  const hasTemperature = sourceAvailable && finiteNumber(data.temperature_c) != null;
+  const status = document.getElementById('temperature-modal-status');
+  if (hasTemperature) {
+    status.textContent = 'O LibreHardwareMonitor está respondendo e fornecendo a temperatura da CPU.';
+  } else if (sourceAvailable) {
+    status.textContent = data.temperature_error || 'O servidor respondeu, mas não forneceu uma temperatura de CPU válida.';
+  } else {
+    status.textContent = data.temperature_error || 'O LibreHardwareMonitor não está em execução ou não respondeu.';
+  }
+  temperatureModalReturnFocus = trigger;
+  temperatureModal.hidden = false;
+  document.body.classList.add('modal-open');
+  temperatureModalClose.focus();
+}
+
+function closeTemperatureModal() {
+  temperatureModal.hidden = true;
+  document.body.classList.remove('modal-open');
+  temperatureModalReturnFocus?.focus();
+  temperatureModalReturnFocus = null;
+}
+
 powerConfirm.addEventListener('click', () => {
   if (!pendingPowerCommand || pendingPowerCommand.sent) return;
   if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -222,6 +258,18 @@ function showCommandFeedback(success, message) {
 }
 
 document.addEventListener('keydown', event => {
+  if (!temperatureModal.hidden) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeTemperatureModal();
+    } else if (event.key === 'Tab') {
+      const focusable = [...temperatureModal.querySelectorAll('a[href],button:not(:disabled)')];
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+    return;
+  }
   if (powerModal.hidden) return;
   if (event.key === 'Escape') {
     event.preventDefault();
@@ -453,16 +501,23 @@ function renderComputer() {
   const available = panelConnected && data.available === true;
   const cpu = available ? finiteNumber(data.cpu_percent) : null;
   const temperature = available ? finiteNumber(data.temperature_c) : null;
+  const temperatureSourceAvailable = panelConnected && data.temperature_source_available === true;
   const summary = document.getElementById('computer-summary');
   summary.querySelectorAll('b')[0].textContent = cpu == null ? 'CPU indisponível' : `CPU ${formatNumber(cpu)}%`;
   summary.querySelectorAll('b')[1].textContent = temperature == null ? 'Temperatura indisponível' : `${formatNumber(temperature)} °C`;
   summary.classList.toggle('unavailable', !available);
+  temperatureTriggers.forEach(trigger => {
+    trigger.classList.toggle('unavailable', temperature == null);
+    trigger.title = temperatureSourceAvailable
+      ? 'Informações da leitura pelo LibreHardwareMonitor'
+      : 'Como ativar a leitura pelo LibreHardwareMonitor';
+  });
 
   document.getElementById('computer-cpu').textContent = cpu == null ? 'Indisponível' : `${formatNumber(cpu)}%`;
   document.getElementById('computer-temperature').textContent = temperature == null ? 'Indisponível' : `${formatNumber(temperature)} °C`;
   document.getElementById('computer-temperature-help').textContent = temperature == null
-    ? 'O sensor não foi disponibilizado pelo sistema.'
-    : 'Maior leitura de temperatura da CPU.';
+    ? (data.temperature_error || 'LibreHardwareMonitor não respondeu.')
+    : 'Leitura fornecida pelo LibreHardwareMonitor.';
 
   const body = document.getElementById('computer-processes');
   const processes = available && Array.isArray(data.processes) ? data.processes.slice(0, 5) : [];

@@ -31,7 +31,7 @@
           <div class="status-chip offline" data-status="coopera_online"><span></span><div><b>Coopera</b><small>Offline</small></div></div>
         </div>
         <div id="computer-summary" class="computer-summary" aria-label="Resumo do computador local">
-          <span>Computador</span><b>CPU --</b><i></i><b>Temperatura indisponível</b>
+          <span>Computador</span><b>CPU --</b><i></i><button id="temperature-summary-trigger" class="temperature-summary-trigger" type="button"><b>Temperatura indisponível</b></button>
         </div>
       </div>
       <details class="power-menu">
@@ -66,7 +66,7 @@
       <div class="section-heading"><div><p class="eyebrow">MÁQUINA LOCAL</p><h2>Computador</h2></div><p>Uso atual do computador onde o Gerenciador está em execução.</p></div>
       <div class="computer-metrics">
         <article class="card computer-metric"><p class="label">CPU TOTAL</p><strong id="computer-cpu">--</strong><small>Uso no momento da amostra</small></article>
-        <article class="card computer-metric"><p class="label">TEMPERATURA DA CPU</p><strong id="computer-temperature">Indisponível</strong><small id="computer-temperature-help">O sensor não foi disponibilizado pelo sistema.</small></article>
+        <article class="card computer-metric temperature-metric"><p class="label">TEMPERATURA DA CPU</p><button id="temperature-card-trigger" class="temperature-card-trigger" type="button"><strong id="computer-temperature">Indisponível</strong><small id="computer-temperature-help">LibreHardwareMonitor não respondeu.</small></button></article>
       </div>
       <article class="card process-card">
         <div class="card-head"><div><p class="label">PROCESSOS</p><h3>Maiores usos de CPU</h3></div><span class="status running">Ao vivo</span></div>
@@ -86,6 +86,24 @@
       <div class="modal-actions">
         <button id="power-cancel" type="button" class="secondary">Cancelar</button>
         <button id="power-confirm" type="button" class="danger">Confirmar desligamento</button>
+      </div>
+    </section>
+  </div>
+  <div id="temperature-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-temperature-modal-close></div>
+    <section class="modal-dialog temperature-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="temperature-modal-title" aria-describedby="temperature-modal-status temperature-modal-steps">
+      <p class="eyebrow">SENSOR DA CPU</p>
+      <h2 id="temperature-modal-title">LibreHardwareMonitor</h2>
+      <p id="temperature-modal-status">O LibreHardwareMonitor não está em execução ou não respondeu.</p>
+      <ol id="temperature-modal-steps">
+        <li>Baixe pela <a href="https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases" target="_blank" rel="noopener noreferrer">página oficial de versões</a>.</li>
+        <li>Extraia o pacote baixado.</li>
+        <li>Execute <code>LibreHardwareMonitor.exe</code>, preferencialmente como administrador.</li>
+        <li>Mantenha o servidor web ativo na porta <code>8085</code>.</li>
+      </ol>
+      <p class="temperature-address">Endereço esperado: <code>http://127.0.0.1:8085</code></p>
+      <div class="modal-actions">
+        <button id="temperature-modal-close" type="button" class="secondary">Fechar</button>
       </div>
     </section>
   </div>
