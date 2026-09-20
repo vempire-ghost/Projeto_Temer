@@ -28,6 +28,7 @@ import win32con
 import win32gui
 import glob
 import difflib
+from bisect import bisect_left, bisect_right
 from datetime import datetime
 from ctypes import wintypes
 from pystray import Icon, MenuItem, Menu as TrayMenu
@@ -62,7 +63,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 96.11"
+    return "Beta 96.12"
 
 def get_footer_text():
     return f"Projeto Temer - ©VempirE_GhosT - Versão: {get_version()}"
@@ -153,6 +154,8 @@ class ButtonManager:
         self.monitoring_threads = {}
         self.text_areas = {}
         self.monitor_window_open = False
+        self._pending_monitor_ui = {}
+        self._pending_monitor_ui_lock = threading.Lock()
         self.previous_states = {}  # Dicionário para armazenar o estado anterior
         self.last_modified_config_ini = 0  # Armazena a data da última modificação do arquivo
         self.monitor_state = MonitoringState(footer_text=get_footer_text())
@@ -308,14 +311,95 @@ class ButtonManager:
         except tk.TclError:
             return False
 
-    def _schedule_monitor_ui_update(self, callback, *args):
+    def _schedule_monitor_ui_update(self, callback, *args, key=None):
         """Agenda UI do monitor somente enquanto a Toplevel estiver aberta."""
         if not self.monitor_window_open or not hasattr(self, 'mtr_window'):
             return None
-        try:
-            return self.master.after(0, callback, *args)
-        except (tk.TclError, RuntimeError):
-            return None
+
+        if key is None:
+            try:
+                return self.master.after(0, callback, *args)
+            except (tk.TclError, RuntimeError):
+                return None
+
+        def schedule_flush(pending):
+            try:
+                after_id = self.master.after(0, flush)
+            except (tk.TclError, RuntimeError):
+                with self._pending_monitor_ui_lock:
+                    current = self._pending_monitor_ui.get(key)
+                    if current is pending:
+                        self._pending_monitor_ui.pop(key, None)
+                return None
+
+            with self._pending_monitor_ui_lock:
+                current = self._pending_monitor_ui.get(key)
+                if current is pending:
+                    current['scheduling'] = False
+                    if not current['running']:
+                        current['after_id'] = after_id
+            return after_id
+
+        def flush():
+            with self._pending_monitor_ui_lock:
+                pending = self._pending_monitor_ui.get(key)
+                if pending is None:
+                    return
+                if pending['running']:
+                    pending['dirty'] = True
+                    return
+                pending['running'] = True
+                pending['scheduling'] = False
+                pending['after_id'] = None
+                pending['dirty'] = False
+                current_callback = pending['callback']
+                current_args = pending['args']
+
+            try:
+                current_callback(*current_args)
+            finally:
+                reschedule = False
+                with self._pending_monitor_ui_lock:
+                    current = self._pending_monitor_ui.get(key)
+                    if current is pending:
+                        current['running'] = False
+                        if current['dirty'] and self.monitor_window_open:
+                            current['dirty'] = False
+                            current['scheduling'] = True
+                            reschedule = True
+                        else:
+                            self._pending_monitor_ui.pop(key, None)
+
+                if reschedule:
+                    schedule_flush(pending)
+
+        schedule_now = False
+        with self._pending_monitor_ui_lock:
+            pending = self._pending_monitor_ui.get(key)
+            if pending is None:
+                pending = {
+                    'after_id': None,
+                    'dirty': False,
+                    'running': False,
+                    'scheduling': True,
+                    'callback': callback,
+                    'args': args,
+                }
+                self._pending_monitor_ui[key] = pending
+                schedule_now = True
+            else:
+                pending['callback'] = callback
+                pending['args'] = args
+                pending['dirty'] = True
+                if (pending['after_id'] is not None or pending['running']
+                        or pending['scheduling']):
+                    return pending['after_id']
+                pending['scheduling'] = True
+                schedule_now = True
+
+        if schedule_now:
+            return schedule_flush(pending)
+        return None
 
     def _carregar_historico_monitoramento(self):
         try:
@@ -2391,7 +2475,7 @@ class ButtonManager:
 
             self._safe_widget_update(text_area, write_text)
 
-        self._schedule_monitor_ui_update(update)
+        self._schedule_monitor_ui_update(update, key=f'omr:{title}')
 
 # METODO PARA PING NO VPS **METODO DEPRECIADO**
     def executar_ping(self, tab):
@@ -2612,7 +2696,7 @@ class ButtonManager:
         main_window.protocol("WM_DELETE_WINDOW", on_closing)
 
 # METODO PARA MTR, PING E NMAP NO VPS
-    def executar_mtr(self, tab):
+    def executar_mtr(self, tab, monitor_figures):
         main_window = tab.winfo_toplevel()
         """Executa o MTR, Nmap traceroute ou Ping e exibe os resultados na aba especificada."""
         self.hosts = self._carregar_hosts_testes()
@@ -2731,11 +2815,15 @@ class ButtonManager:
 
             # Configuração do gráfico
             fig, ax = plt.subplots(figsize=(6, 4))
+            monitor_figures.append(fig)
             line, = ax.plot([], [], label='Latência (ms)', color='blue')
+            drop_line, = ax.plot([], [], 'k^', markersize=10, label='Queda de conexão')
             ax.set_title(f"Latência {linha + 1}")
             ax.set_ylabel("Latência (ms)")
             ax.set_xlabel("Tempo")
             ax.set_ylim(0, 100)
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+            plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
             ax.legend(loc='upper right')
 
             # Adiciona linhas horizontais
@@ -2780,32 +2868,24 @@ class ButtonManager:
                 latencias_filtered = [latency for _, latency in filtered]
                 plot_times, plot_latencies = series_with_time_gaps(timestamps_filtered, latencias_filtered)
                 timestamps_num = [mdates.date2num(timestamp) for timestamp in plot_times]
-                
+                drop_times = [
+                    mdates.date2num(timestamp) for timestamp in connection_drops
+                    if timestamp >= time_window_start
+                ]
+
+                line.set_data(timestamps_num, plot_latencies)
+                drop_line.set_data(drop_times, [0] * len(drop_times))
+                ax.set_xlim([mdates.date2num(time_window_start), mdates.date2num(now)])
+
                 if timestamps_num and plot_latencies:
-                    line.set_data(timestamps_num, plot_latencies)
-                    ax.set_xlim([mdates.date2num(time_window_start), mdates.date2num(now)])
-                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-                    fig.autofmt_xdate()
-                    
                     # Ajuste dinâmico do eixo Y
                     max_latency = max(latencias_filtered) if latencias_filtered else 100
                     upper_limit = max(120, max_latency * 1.2)
                     ax.set_ylim(0, min(upper_limit, 300))
-                    
-                    # Limpa marcadores antigos
-                    for marker in ax.collections:
-                        marker.remove()
-                    
-                    # Adiciona marcadores para quedas de conexão
-                    if connection_drops:
-                        drop_times = [mdates.date2num(t) for t in connection_drops if t >= time_window_start]
-                        if drop_times:
-                            ax.scatter(drop_times, [0]*len(drop_times), marker='^', color='black', s=100, label='Queda de conexão')
-                    
-                    self._safe_widget_update(canvas.get_tk_widget(), canvas.draw)
                 else:
-                    line.set_data([], [])
-                    self._safe_widget_update(canvas.get_tk_widget(), canvas.draw)
+                    ax.set_ylim(0, 120)
+
+                self._safe_widget_update(canvas.get_tk_widget(), canvas.draw)
 
             update_graph()
 
@@ -2979,7 +3059,7 @@ class ButtonManager:
                                 drop_time = datetime.now()
                                 connection_drops.append(drop_time)  # Marca o momento da queda
                                 self.monitor_state.append_drop('tests', index, drop_time.isoformat())
-                                self._schedule_monitor_ui_update(update_graph)
+                                self._schedule_monitor_ui_update(update_graph, key=f'test:{index}')
                                 
                                 if not verificar_reconexao_ssh():
                                     logger_main.error("Não foi possível reconectar - parando teste")
@@ -3010,8 +3090,10 @@ class ButtonManager:
 
                                 self._safe_widget_update(area_texto, write_output)
 
-                            self._schedule_monitor_ui_update(update_test_output)
                             self.monitor_state.update('tests', index, output=resultado)
+                            self._schedule_monitor_ui_update(
+                                update_test_output, key=f'output-test:{index}'
+                            )
 
                             # Processa a latência
                             latency = extrair_latencia(resultado, metodo)
@@ -3031,7 +3113,7 @@ class ButtonManager:
                                 latencias.pop(0)
                                 timestamps.pop(0)
                             
-                            self._schedule_monitor_ui_update(update_graph)
+                            self._schedule_monitor_ui_update(update_graph, key=f'test:{index}')
 
                             # Espera antes de executar novamente
                             time.sleep(intervalo)
@@ -3041,7 +3123,7 @@ class ButtonManager:
                             drop_time = datetime.now()
                             connection_drops.append(drop_time)  # Marca o momento da queda
                             self.monitor_state.append_drop('tests', index, drop_time.isoformat())
-                            self._schedule_monitor_ui_update(update_graph)
+                            self._schedule_monitor_ui_update(update_graph, key=f'test:{index}')
                             
                             if not verificar_reconexao_ssh():
                                 logger_main.error("fNão foi possível reconectar após erro - parando teste {index +1}")
@@ -3185,6 +3267,7 @@ class ButtonManager:
 
         # Cria o notebook (abas)
         self.aba_close_handlers = []  # Lista para armazenar os handlers de fechamento
+        monitor_figures = []
         notebook = ttk.Notebook(self.mtr_window)  # Alterado para self.mtr_window
         notebook.pack(fill='both', expand=True)
 
@@ -3219,7 +3302,7 @@ class ButtonManager:
         # Aba 2: MTR VPS JOGO
         empty_tab = tk.Frame(notebook, bg='lightgray')
         notebook.add(empty_tab, text='MTR, PING e NMAP no VPS JOGO')
-        self.executar_mtr(empty_tab)
+        self.executar_mtr(empty_tab, monitor_figures)
 
         # Aba 3: PING VPS JOGO
         #empty_tab = tk.Frame(notebook, bg='lightgray')
@@ -3238,6 +3321,7 @@ class ButtonManager:
         timestamps = {iface: [] for iface in interfaces}
         marker_times = {iface: [] for iface in interfaces}  # Armazena os momentos com IPs especiais
         marker_counts = {iface: 0 for iface in interfaces}  # Contador de quedas por interface
+        displayed_marker_counts = {}
         self.provider_controls = {}
         provider_threads = {}
         provider_stop_events = {iface: threading.Event() for iface in interfaces}
@@ -3269,8 +3353,6 @@ class ButtonManager:
                 timestamps[interface] = timestamps[interface][-3600 * 24:]
                 pings_data[interface] = pings_data[interface][-3600 * 24:]
                 loss_data[interface] = loss_data[interface][-3600 * 24:]
-
-        callbacks = []  # Lista para rastrear callbacks
 
         # Função para verificar IPs especiais
         def check_special_ips(interface, output):
@@ -3307,57 +3389,90 @@ class ButtonManager:
             return False  # Retorna False quando não encontra IP especial
 
         # Função para atualizar o gráfico de forma thread-safe usando 'after'
-        def update_graph_safe(interface, line, loss_line, ax):
+        def update_graph_safe(interface, line, loss_line, drop_line, ax):
             canvas_widget = ax.figure.canvas.get_tk_widget()
             if not self._safe_widget_update(canvas_widget, lambda: None):
                 return
             now = datetime.now()
 
+            if self.auto_realign:
+                visible_end = now
+                visible_start = now - timedelta(minutes=60)
+            else:
+                def x_limit_to_datetime(value):
+                    if isinstance(value, datetime):
+                        return value.replace(tzinfo=None)
+
+                    numeric_value = float(value)
+                    if numeric_value > 1e8:
+                        return datetime.fromtimestamp(numeric_value)
+                    if not -719162 <= numeric_value <= 2932896:
+                        raise ValueError("Limite do eixo X fora do intervalo de datas")
+                    return mdates.num2date(numeric_value).replace(tzinfo=None)
+
+                try:
+                    x_min, x_max = ax.get_xlim()
+                    visible_start = x_limit_to_datetime(x_min)
+                    visible_end = x_limit_to_datetime(x_max)
+                except (OSError, OverflowError, TypeError, ValueError):
+                    visible_end = now
+                    visible_start = now - timedelta(minutes=60)
+
+            if visible_start > visible_end:
+                visible_start, visible_end = visible_end, visible_start
+            start_index = bisect_left(timestamps[interface], visible_start)
+            end_index = bisect_right(timestamps[interface], visible_end)
+            visible_times = timestamps[interface][start_index:end_index]
+            visible_pings = pings_data[interface][start_index:end_index]
+            visible_loss = loss_data[interface][start_index:end_index]
+
             # Verifica se há dados disponíveis
-            if timestamps[interface] and pings_data[interface]:
+            if visible_times:
                 plot_times, plot_pings = series_with_time_gaps(
-                    timestamps[interface], pings_data[interface]
+                    visible_times, visible_pings
                 )
-                line.set_data(plot_times, plot_pings)
+                line.set_data(
+                    [mdates.date2num(timestamp) for timestamp in plot_times],
+                    plot_pings
+                )
             else:
                 line.set_data([], [])
 
-            if timestamps[interface] and loss_data[interface]:
+            if visible_times:
                 plot_times, plot_loss = series_with_time_gaps(
-                    timestamps[interface], loss_data[interface]
+                    visible_times, visible_loss
                 )
-                loss_line.set_data(plot_times, plot_loss)
+                loss_line.set_data(
+                    [mdates.date2num(timestamp) for timestamp in plot_times],
+                    plot_loss
+                )
             else:
                 loss_line.set_data([], [])
 
-            # Limpa marcadores antigos
-            for artist in list(ax.lines):  # Usa list() para criar cópia segura
-                if hasattr(artist, 'get_marker') and artist.get_marker() == '^':
-                    artist.remove()
+            marker_start = bisect_left(marker_times[interface], visible_start)
+            marker_end = bisect_right(marker_times[interface], visible_end)
+            visible_markers = marker_times[interface][marker_start:marker_end]
+            drop_line.set_data(
+                [mdates.date2num(timestamp) for timestamp in visible_markers],
+                [0] * len(visible_markers)
+            )
 
-            # Adiciona novos marcadores
-            for marker_time in marker_times[interface]:
-                ax.plot(marker_time, 0, 'k^', markersize=7, clip_on=False, zorder=10)
-
-            # Linha de base para os marcadores
-            ax.axhline(y=0, color='gray', linewidth=0.5, alpha=0.3)
-
-            # Atualiza a legenda com o contador atualizado
-            ax.legend([line, marker_line], 
-                      [f'{interface_names[interface]} Latência', 
-                       f'Quedas de Conexão ({marker_counts[interface]})'],
-                      loc='upper right')
-
-            # Realinha o gráfico automaticamente apenas se a flag estiver ativada
             if self.auto_realign:
-                time_window_start = now - timedelta(minutes=60)  # Últimos 60 minutos
-                ax.set_xlim([time_window_start, now])
-                # Restaura os limites originais do eixo Y
+                ax.set_xlim(
+                    mdates.date2num(visible_start),
+                    mdates.date2num(visible_end)
+                )
                 ax.set_ylim(0, 300)
-                # Remove qualquer zoom/pan aplicado (reseta a view)
-                ax.autoscale_view(scalex=True, scaley=True)
 
-            ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))
+            if displayed_marker_counts.get(interface) != marker_counts[interface]:
+                ax.legend(
+                    [line, drop_line],
+                    [f'{interface_names[interface]} Latência',
+                     f'Quedas de Conexão ({marker_counts[interface]})'],
+                    loc='upper right'
+                )
+                displayed_marker_counts[interface] = marker_counts[interface]
+
             self._safe_widget_update(canvas_widget, ax.figure.canvas.draw)
 
         for idx, interface in enumerate(interfaces):
@@ -3373,41 +3488,53 @@ class ButtonManager:
 
             # Cria a janela com o subplot para a interface
             fig, ax = plt.subplots(figsize=(6, 4))
+            monitor_figures.append(fig)
             fig.canvas.manager.set_window_title(f'Monitoramento de Latência - {interface_names[interface]}')
 
             # Inicializa as linhas do gráfico
             line, = ax.plot([], [], label=f'{interface_names[interface]} Latência', color='blue')
             loss_line, = ax.plot([], [], label='Perda de Pacotes (%)', color='red')  # Linha para perda de pacotes
 
-            # Cria uma linha fantasma apenas para a legenda dos marcadores
-            marker_line = ax.plot([], [], 'k^', markersize=8, label='Quedas de Conexão')[0]
+            drop_line, = ax.plot(
+                [], [], 'k^', markersize=7, clip_on=False, zorder=10,
+                label='Quedas de Conexão'
+            )
 
             ax.set_title(f"Latência e Quedas de Conexão para {interface_names[interface]}")
             ax.set_ylabel("Latência (ms) / Quedas de Conexão")
             ax.set_ylim(0, 300)
 
             # Atualiza a legenda para mostrar apenas a latência e os marcadores com contador
-            ax.legend([line, marker_line], 
+            ax.legend([line, drop_line],
                       [f'{interface_names[interface]} Latência', 
                        f'Quedas de Conexão ({marker_counts[interface]})'],
                       loc='upper right')
+            displayed_marker_counts[interface] = marker_counts[interface]
 
             # Adiciona linhas horizontais pretas nas alturas de 100 e 200 ms, sem labels
+            ax.axhline(y=0, color='gray', linewidth=0.5, alpha=0.3)
             ax.axhline(y=100, color='black', linestyle='--', linewidth=0.5)  # Linha para 100 ms, mais fina
             ax.axhline(y=200, color='black', linestyle='--', linewidth=0.5)  # Linha para 200 ms, mais fina
+            initial_end = datetime.now()
+            initial_start = initial_end - timedelta(minutes=60)
+            ax.xaxis_date()
+            ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))
+            ax.set_xlim(
+                mdates.date2num(initial_start),
+                mdates.date2num(initial_end)
+            )
 
             # Adiciona o gráfico à interface Tkinter
             canvas = FigureCanvasTkAgg(fig, master=frame)
-            canvas.draw()
             canvas.get_tk_widget().pack(pady=(5, 0), anchor='w', fill='both')  # Alinhando os gráficos à esquerda
 
             # Adiciona funcionalidade de zoom e pan
             self.add_zoom_pan(canvas, ax)
 
-            update_graph_safe(interface, line, loss_line, ax)
+            update_graph_safe(interface, line, loss_line, drop_line, ax)
 
             # Função para executar o MTR e coletar latências e perdas de pacotes
-            def execute_mtr_and_collect(interface, line, loss_line, ax):
+            def execute_mtr_and_collect(interface, line, loss_line, drop_line, ax):
                 command = f"TERM=xterm mtr -n --report --report-cycles 1 --interval 1 -I {interface} {host}"
                 stop_event = provider_stop_events[interface]
                 self.monitor_state.update('providers', interface, running=True)
@@ -3430,11 +3557,10 @@ class ButtonManager:
                             marker_times[interface].append(datetime.now())
 
                         # Atualiza a área de texto
-                        callback_id = self._schedule_monitor_ui_update(
-                            lambda i=interface, o=output: update_output_area(i, o)
+                        self._schedule_monitor_ui_update(
+                            lambda i=interface, o=output: update_output_area(i, o),
+                            key=f'output:{interface}'
                         )
-                        if callback_id is not None:
-                            callbacks.append(callback_id)
 
                         # Processa a saída do MTR
                         last_lines = output.strip().splitlines()
@@ -3476,11 +3602,10 @@ class ButtonManager:
                         )
 
                         # Atualiza o gráfico
-                        callback_id = self._schedule_monitor_ui_update(
-                            update_graph_safe, interface, line, loss_line, ax
+                        self._schedule_monitor_ui_update(
+                            update_graph_safe, interface, line, loss_line, drop_line, ax,
+                            key=f'provider:{interface}'
                         )
-                        if callback_id is not None:
-                            callbacks.append(callback_id)
 
                         time.sleep(1)
                         
@@ -3508,14 +3633,15 @@ class ButtonManager:
 
                 self._safe_widget_update(output_area, write_output)
 
-            def start_provider(iface=interface, graph_line=line, graph_loss_line=loss_line, graph_ax=ax):
+            def start_provider(iface=interface, graph_line=line, graph_loss_line=loss_line,
+                               graph_drop_line=drop_line, graph_ax=ax):
                 current = provider_threads.get(iface)
                 if current and current.is_alive():
                     return
                 provider_stop_events[iface].clear()
                 thread = threading.Thread(
                     target=execute_mtr_and_collect,
-                    args=(iface, graph_line, graph_loss_line, graph_ax),
+                    args=(iface, graph_line, graph_loss_line, graph_drop_line, graph_ax),
                     daemon=True,
                 )
                 provider_threads[iface] = thread
@@ -3558,12 +3684,19 @@ class ButtonManager:
                     except Exception as e:
                         print(f"Erro ao executar handler de fechamento: {e}")
                 
-                # Cancela todos os callbacks pendentes
-                for callback_id in callbacks:
+                with self._pending_monitor_ui_lock:
+                    pending_callbacks = [
+                        pending['after_id'] for pending in self._pending_monitor_ui.values()
+                        if pending['after_id'] is not None
+                    ]
+                    self._pending_monitor_ui.clear()
+                for callback_id in pending_callbacks:
                     try:
                         self.master.after_cancel(callback_id)
                     except tk.TclError:
                         pass
+                for fig in monitor_figures:
+                    plt.close(fig)
             finally:
                 self.restore_window()
                 if hasattr(self, 'mtr_window'):
