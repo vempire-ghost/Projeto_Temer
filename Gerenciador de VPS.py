@@ -28,6 +28,7 @@ import win32con
 import win32gui
 import glob
 import difflib
+import math
 from bisect import bisect_left, bisect_right
 from datetime import datetime
 from ctypes import wintypes
@@ -49,6 +50,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from monitoring_web import (
     MonitoringState,
     MonitoringWebServer,
+    downsample_minmax,
     parse_local_datetime,
     series_with_time_gaps,
 )
@@ -63,7 +65,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 96.12"
+    return "Beta 96.13"
 
 def get_footer_text():
     return f"Projeto Temer - ©VempirE_GhosT - Versão: {get_version()}"
@@ -883,9 +885,14 @@ class ButtonManager:
                     continue
                     
                 for file in files:
+                    if file.endswith('.tmp'):
+                        continue
                     file_path = os.path.join(root, file)
                     arcname = os.path.relpath(file_path, start=parent_dir)
-                    zipf.write(file_path, arcname)
+                    try:
+                        zipf.write(file_path, arcname)
+                    except (FileNotFoundError, OSError):
+                        continue
         
         # Mantém apenas os últimos 5 backups
         backup_files = glob.glob(os.path.join(backup_folder, "backup_omr_*.zip"))
@@ -2458,8 +2465,12 @@ class ButtonManager:
         if base_title in {"Trafego OMR VPN", "Trafego OMR JOGO"}:
             omr_key = 'vpn' if base_title.endswith('VPN') else 'jogo'
             field = 'averages' if title.endswith('_averages') else 'output'
-            current = self.monitor_state.snapshot()['omr'][omr_key].get(field, '')
-            self.monitor_state.update('omr', omr_key, **{field: new_text if overwrite else current + new_text})
+            if overwrite:
+                value = new_text
+            else:
+                current = self.monitor_state.get_field('omr', omr_key, field, '')
+                value = current + new_text
+            self.monitor_state.update('omr', omr_key, **{field: value})
         text_area = self.text_areas.get(title)
         if not text_area or not self.monitor_window_open:
             return
@@ -2652,9 +2663,9 @@ class ButtonManager:
                                 timestamps.append(datetime.now())
 
                             # Limitar dados e atualizar gráfico
-                            while len(latencias) > 3600:
-                                latencias.pop(0)
-                                timestamps.pop(0)
+                            if len(latencias) > 3600 + 300:
+                                latencias[:] = latencias[-3600:]
+                                timestamps[:] = timestamps[-3600:]
                                 
                             update_graph()
                             time.sleep(1)
@@ -2866,7 +2877,12 @@ class ButtonManager:
                 ]
                 timestamps_filtered = [timestamp for timestamp, _ in filtered]
                 latencias_filtered = [latency for _, latency in filtered]
-                plot_times, plot_latencies = series_with_time_gaps(timestamps_filtered, latencias_filtered)
+                plot_source_times, plot_source_latencies = downsample_minmax(
+                    timestamps_filtered, latencias_filtered, max_points=800
+                )
+                plot_times, plot_latencies = series_with_time_gaps(
+                    plot_source_times, plot_source_latencies
+                )
                 timestamps_num = [mdates.date2num(timestamp) for timestamp in plot_times]
                 drop_times = [
                     mdates.date2num(timestamp) for timestamp in connection_drops
@@ -3109,9 +3125,9 @@ class ButtonManager:
                                 logger_main.debug(f"Dados atuais - Latências: {latencias[-5:]}, Timestamps: {timestamps[-5:]}")
                             
                             # Limita os dados
-                            while len(latencias) > 3600:
-                                latencias.pop(0)
-                                timestamps.pop(0)
+                            if len(latencias) > 3600 + 300:
+                                latencias[:] = latencias[-3600:]
+                                timestamps[:] = timestamps[-3600:]
                             
                             self._schedule_monitor_ui_update(update_graph, key=f'test:{index}')
 
@@ -3349,10 +3365,11 @@ class ButtonManager:
 
         # Função para gerenciar o tamanho dos dados e evitar crescimento excessivo
         def manage_data_size(interface):
-            if len(timestamps[interface]) > 3600 * 24:  # Limite de 24 horas de dados
-                timestamps[interface] = timestamps[interface][-3600 * 24:]
-                pings_data[interface] = pings_data[interface][-3600 * 24:]
-                loss_data[interface] = loss_data[interface][-3600 * 24:]
+            cap = 3600 * 24
+            if len(timestamps[interface]) > cap + 600:
+                timestamps[interface] = timestamps[interface][-cap:]
+                pings_data[interface] = pings_data[interface][-cap:]
+                loss_data[interface] = loss_data[interface][-cap:]
 
         # Função para verificar IPs especiais
         def check_special_ips(interface, output):
@@ -3428,8 +3445,11 @@ class ButtonManager:
 
             # Verifica se há dados disponíveis
             if visible_times:
+                ping_times, visible_pings = downsample_minmax(
+                    visible_times, visible_pings, max_points=800
+                )
                 plot_times, plot_pings = series_with_time_gaps(
-                    visible_times, visible_pings
+                    ping_times, visible_pings
                 )
                 line.set_data(
                     [mdates.date2num(timestamp) for timestamp in plot_times],
@@ -3439,8 +3459,11 @@ class ButtonManager:
                 line.set_data([], [])
 
             if visible_times:
+                loss_times, visible_loss = downsample_minmax(
+                    visible_times, visible_loss, max_points=800
+                )
                 plot_times, plot_loss = series_with_time_gaps(
-                    visible_times, visible_loss
+                    loss_times, visible_loss
                 )
                 loss_line.set_data(
                     [mdates.date2num(timestamp) for timestamp in plot_times],
@@ -8394,9 +8417,14 @@ class OMRManagerDialog:
                     continue
                     
                 for file in files:
+                    if file.endswith('.tmp'):
+                        continue
                     file_path = os.path.join(root, file)
                     arcname = os.path.relpath(file_path, start=parent_dir)
-                    zipf.write(file_path, arcname)
+                    try:
+                        zipf.write(file_path, arcname)
+                    except (FileNotFoundError, OSError):
+                        continue
         
         # Mantém apenas os últimos 5 backups
         backup_files = glob.glob(os.path.join(backup_folder, "backup_omr_*.zip"))

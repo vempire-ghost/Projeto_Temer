@@ -49,6 +49,43 @@ def series_with_time_gaps(timestamps, values, gap_seconds=GRAPH_GAP_SECONDS):
     return plot_times, plot_values
 
 
+def downsample_minmax(timestamps, values, max_points=800):
+    """Reduz uma série preservando os extremos de cada faixa de índices."""
+    size = min(len(timestamps), len(values))
+    aligned_times = timestamps[:size]
+    aligned_values = values[:size]
+    if size <= max_points:
+        return aligned_times, aligned_values
+
+    bucket_count = max(1, max_points // 2)
+    sampled_times = []
+    sampled_values = []
+    for bucket in range(bucket_count):
+        start = bucket * size // bucket_count
+        end = (bucket + 1) * size // bucket_count
+        finite = []
+        for index in range(start, end):
+            try:
+                numeric_value = float(aligned_values[index])
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(numeric_value):
+                finite.append((index, numeric_value))
+
+        if finite:
+            min_index = min(finite, key=lambda item: item[1])[0]
+            max_index = max(finite, key=lambda item: item[1])[0]
+            selected = sorted({min_index, max_index})
+        else:
+            selected = sorted({start, end - 1})
+
+        for index in selected:
+            sampled_times.append(aligned_times[index])
+            sampled_values.append(aligned_values[index])
+
+    return sampled_times, sampled_values
+
+
 class MonitoringState:
     """Thread-safe, in-memory state shared by Tkinter and the web panel."""
 
@@ -106,6 +143,12 @@ class MonitoringState:
                         if isinstance(values, list) and len(values) > history_limit:
                             item[field] = values[-history_limit:]
         return (snapshot, revision) if with_revision else snapshot
+
+    def get_field(self, section, key, field, default=''):
+        with self._lock:
+            return copy.deepcopy(
+                self._data.get(section, {}).get(str(key), {}).get(field, default)
+            )
 
     @staticmethod
     def _timestamp(value):
@@ -225,7 +268,7 @@ class MonitoringState:
             target = self._data[section].setdefault(key, {})
             history = target.setdefault("history", [])
             history.append(point)
-            if len(history) > limit:
+            if len(history) > limit + 600:
                 del history[:-limit]
             self._revision += 1
             listeners = list(self._listeners)
@@ -241,7 +284,7 @@ class MonitoringState:
             target = self._data[section].setdefault(key, {})
             drops = target.setdefault("drops", [])
             drops.append(timestamp)
-            if len(drops) > limit:
+            if len(drops) > limit + 600:
                 del drops[:-limit]
             self._revision += 1
             listeners = list(self._listeners)
