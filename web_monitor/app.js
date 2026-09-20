@@ -1,4 +1,4 @@
-const state = { app: {}, providers: {}, tests: {}, omr: {} };
+const state = { app: {}, providers: {}, tests: {}, omr: {}, computer: {} };
 const chartStates = new WeakMap();
 const HOUR = 60 * 60 * 1000;
 const GRAPH_GAP_MS = 30 * 1000;
@@ -9,6 +9,7 @@ let appStatusAvailable = false;
 let pendingPowerCommand = null;
 let powerRequestSequence = 0;
 let modalReturnFocus = null;
+let panelConnected = false;
 
 document.querySelectorAll('.tab').forEach(button => button.addEventListener('click', () => {
   document.querySelectorAll('.tab,.panel').forEach(el => el.classList.remove('active'));
@@ -64,6 +65,7 @@ function applyState(data, revision) {
   state.providers = data.providers || {};
   state.tests = data.tests || {};
   state.omr = data.omr || {};
+  state.computer = data.computer || {};
   if (state.app.footer_text) document.getElementById('app-credit').textContent = state.app.footer_text;
   render();
 }
@@ -102,9 +104,11 @@ function renderSection(section, key) {
   if (section === 'providers') renderProviders(key);
   else if (section === 'tests') renderTests(key);
   else if (section === 'omr') renderOmr(key);
+  else if (section === 'computer') renderComputer();
 }
 
 function setConnection(online, offlineText = 'Desconectado') {
+  panelConnected = online;
   const el = document.getElementById('connection');
   el.classList.toggle('online', online);
   el.classList.toggle('offline', !online);
@@ -112,10 +116,11 @@ function setConnection(online, offlineText = 'Desconectado') {
   if (!online) {
     appStatusAvailable = false;
     renderApp();
+    renderComputer();
   }
 }
 
-function render() { renderApp(); renderProviders(); renderTests(); renderOmr(); }
+function render() { renderApp(); renderProviders(); renderTests(); renderOmr(); renderComputer(); }
 
 function renderApp() {
   if (state.app.footer_text) document.getElementById('app-credit').textContent = state.app.footer_text;
@@ -441,6 +446,51 @@ function renderOmr(onlyId = null) {
     }
     setStatus(card,data.running); card.querySelector('.output').textContent=data.output||'Aguardando dados...'; card.querySelector('.averages').textContent=data.averages||'Aguardando dados...';
   });
+}
+
+function renderComputer() {
+  const data = (state.computer || {}).local || {};
+  const available = panelConnected && data.available === true;
+  const cpu = available ? finiteNumber(data.cpu_percent) : null;
+  const temperature = available ? finiteNumber(data.temperature_c) : null;
+  const summary = document.getElementById('computer-summary');
+  summary.querySelectorAll('b')[0].textContent = cpu == null ? 'CPU indisponível' : `CPU ${formatNumber(cpu)}%`;
+  summary.querySelectorAll('b')[1].textContent = temperature == null ? 'Temperatura indisponível' : `${formatNumber(temperature)} °C`;
+  summary.classList.toggle('unavailable', !available);
+
+  document.getElementById('computer-cpu').textContent = cpu == null ? 'Indisponível' : `${formatNumber(cpu)}%`;
+  document.getElementById('computer-temperature').textContent = temperature == null ? 'Indisponível' : `${formatNumber(temperature)} °C`;
+  document.getElementById('computer-temperature-help').textContent = temperature == null
+    ? 'O sensor não foi disponibilizado pelo sistema.'
+    : 'Maior leitura de temperatura da CPU.';
+
+  const body = document.getElementById('computer-processes');
+  const processes = available && Array.isArray(data.processes) ? data.processes.slice(0, 5) : [];
+  if (!processes.length) {
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 2;
+    cell.className = 'empty';
+    cell.textContent = available ? 'Nenhum processo disponível nesta amostra.' : 'Monitoramento indisponível.';
+    row.appendChild(cell);
+    body.replaceChildren(row);
+  } else {
+    body.replaceChildren(...processes.map(process => {
+      const row = document.createElement('tr');
+      const name = document.createElement('td');
+      const usage = document.createElement('td');
+      name.textContent = process.name || 'Nome indisponível';
+      const value = finiteNumber(process.cpu_percent);
+      usage.textContent = value == null ? '--' : `${formatNumber(value)}%`;
+      row.append(name, usage);
+      return row;
+    }));
+  }
+
+  const error = document.getElementById('computer-error');
+  const message = !panelConnected ? 'Painel desconectado do Gerenciador.' : data.error;
+  error.textContent = message || '';
+  error.hidden = !message;
 }
 
 function setStatus(card, running) {

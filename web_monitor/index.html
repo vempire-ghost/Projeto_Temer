@@ -30,6 +30,9 @@
           <div class="status-chip offline" data-status="claro_online"><span></span><div><b>Claro</b><small>Offline</small></div></div>
           <div class="status-chip offline" data-status="coopera_online"><span></span><div><b>Coopera</b><small>Offline</small></div></div>
         </div>
+        <div id="computer-summary" class="computer-summary" aria-label="Resumo do computador local">
+          <span>Computador</span><b>CPU --</b><i></i><b>Temperatura indisponível</b>
+        </div>
       </div>
       <details class="power-menu">
         <summary>Opções de desligamento</summary>
@@ -44,6 +47,7 @@
     <button class="tab active" data-tab="providers">MTR dos Provedores</button>
     <button class="tab" data-tab="tests">MTR, Ping e Nmap</button>
     <button class="tab" data-tab="omr">Interfaces OMR</button>
+    <button class="tab" data-tab="computer">Computador</button>
   </nav>
   <main>
     <section id="providers" class="panel active">
@@ -57,6 +61,20 @@
     <section id="omr" class="panel">
       <div class="section-heading"><div><p class="eyebrow">TRÁFEGO</p><h2>Interfaces OMR</h2></div><p>Velocidades atuais e médias acumuladas.</p></div>
       <div id="omr-grid" class="card-grid"></div>
+    </section>
+    <section id="computer" class="panel">
+      <div class="section-heading"><div><p class="eyebrow">MÁQUINA LOCAL</p><h2>Computador</h2></div><p>Uso atual do computador onde o Gerenciador está em execução.</p></div>
+      <div class="computer-metrics">
+        <article class="card computer-metric"><p class="label">CPU TOTAL</p><strong id="computer-cpu">--</strong><small>Uso no momento da amostra</small></article>
+        <article class="card computer-metric"><p class="label">TEMPERATURA DA CPU</p><strong id="computer-temperature">Indisponível</strong><small id="computer-temperature-help">O sensor não foi disponibilizado pelo sistema.</small></article>
+      </div>
+      <article class="card process-card">
+        <div class="card-head"><div><p class="label">PROCESSOS</p><h3>Maiores usos de CPU</h3></div><span class="status running">Ao vivo</span></div>
+        <div class="process-table-wrap">
+          <table><thead><tr><th>Processo</th><th>CPU</th></tr></thead><tbody id="computer-processes"><tr><td colspan="2" class="empty">Aguardando amostra...</td></tr></tbody></table>
+        </div>
+        <p id="computer-error" class="computer-error" hidden></p>
+      </article>
     </section>
   </main>
   <div id="power-modal" class="modal" hidden>

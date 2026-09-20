@@ -120,6 +120,15 @@ class MonitoringState:
                 "vpn": {"running": False, "output": "", "averages": ""},
                 "jogo": {"running": False, "output": "", "averages": ""},
             },
+            "computer": {
+                "local": {
+                    "available": False,
+                    "cpu_percent": None,
+                    "temperature_c": None,
+                    "processes": [],
+                    "error": None,
+                },
+            },
         }
 
     def subscribe(self, listener):

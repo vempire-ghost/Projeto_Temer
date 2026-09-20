@@ -29,6 +29,10 @@ import win32gui
 import glob
 import difflib
 import math
+try:
+    import psutil
+except ImportError:
+    psutil = None
 from bisect import bisect_left, bisect_right
 from datetime import datetime
 from ctypes import wintypes
@@ -65,7 +69,7 @@ os.chdir(application_path)
 
 # Função para retornar a versão
 def get_version():
-    return "Beta 96.13"
+    return "Beta 96.14"
 
 def get_footer_text():
     return f"Projeto Temer - ©VempirE_GhosT - Versão: {get_version()}"
@@ -174,6 +178,8 @@ class ButtonManager:
                 port=selected['port'] if method == 'nmap' else '', hosts=options
             )
         self.monitor_web_server = None
+        self._computer_monitor_stop = threading.Event()
+        self._computer_monitor_thread = None
         self.test_controls = {}
         self.provider_controls = {}
         self.omr_controls = {}
@@ -646,9 +652,108 @@ class ButtonManager:
                 logger=logger_main
             )
             self.monitor_web_server.start()
+            self._iniciar_monitoramento_computador()
             print("Painel de monitoramento iniciado na porta 5005")
         except Exception as e:
             logger_main.error(f"Erro ao iniciar painel de monitoramento: {e}")
+
+    def _iniciar_monitoramento_computador(self):
+        """Inicia uma unica thread para amostrar os recursos do computador local."""
+        if self._computer_monitor_thread and self._computer_monitor_thread.is_alive():
+            return
+        self._computer_monitor_stop.clear()
+        self._computer_monitor_thread = threading.Thread(
+            target=self._coletar_computador,
+            name='monitor-computador',
+            daemon=True,
+        )
+        self._computer_monitor_thread.start()
+
+    def _coletar_computador(self):
+        if psutil is None:
+            self.monitor_state.update(
+                'computer', 'local', available=False, cpu_percent=None,
+                temperature_c=None, processes=[],
+                error='psutil nao esta disponivel neste ambiente.'
+            )
+            self._computer_monitor_stop.wait()
+            return
+
+        logical_cpus = max(1, psutil.cpu_count(logical=True) or 1)
+        while not self._computer_monitor_stop.is_set():
+            cycle_started = time.monotonic()
+            try:
+                psutil.cpu_percent(interval=None)
+                sampled_processes = []
+                for process in psutil.process_iter(['pid', 'name']):
+                    try:
+                        process.cpu_percent(interval=None)
+                        sampled_processes.append(process)
+                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                        continue
+
+                if self._computer_monitor_stop.wait(0.75):
+                    break
+
+                cpu_percent = psutil.cpu_percent(interval=None)
+                if not math.isfinite(cpu_percent) or cpu_percent < 0:
+                    raise ValueError('Percentual total de CPU invalido')
+                processes = []
+                for process in sampled_processes:
+                    try:
+                        value = process.cpu_percent(interval=None) / logical_cpus
+                        if not math.isfinite(value) or value < 0:
+                            continue
+                        process_name = process.name()
+                        name = process_name.strip() if process_name else ''
+                        processes.append({
+                            'name': name or f'Processo PID {process.pid}',
+                            'cpu_percent': round(min(value, 100.0), 1),
+                        })
+                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                        continue
+
+                processes.sort(key=lambda item: item['cpu_percent'], reverse=True)
+                temperature = self._ler_temperatura_cpu()
+                self.monitor_state.update(
+                    'computer', 'local', available=True,
+                    cpu_percent=round(max(0.0, min(float(cpu_percent), 100.0)), 1),
+                    temperature_c=temperature, processes=processes[:5], error=None
+                )
+            except Exception as e:
+                logger_main.warning(f"Erro ao coletar dados do computador local: {e}")
+                self.monitor_state.update(
+                    'computer', 'local', available=False, cpu_percent=None,
+                    temperature_c=None, processes=[],
+                    error='Nao foi possivel coletar os dados do computador.'
+                )
+
+            remaining = max(0, 1.5 - (time.monotonic() - cycle_started))
+            self._computer_monitor_stop.wait(remaining)
+
+    def _ler_temperatura_cpu(self):
+        sensors_temperatures = getattr(psutil, 'sensors_temperatures', None)
+        if not callable(sensors_temperatures):
+            return None
+        try:
+            sensors = sensors_temperatures() or {}
+        except Exception:
+            return None
+
+        temperatures = []
+        cpu_terms = ('cpu', 'core', 'package', 'tdie', 'tctl', 'k10temp', 'zenpower')
+        for group, readings in sensors.items():
+            for reading in readings:
+                label = getattr(reading, 'label', '') or ''
+                if not any(term in f'{group} {label}'.lower() for term in cpu_terms):
+                    continue
+                try:
+                    value = float(reading.current)
+                except (AttributeError, TypeError, ValueError):
+                    continue
+                if math.isfinite(value) and -20 <= value <= 150:
+                    temperatures.append(value)
+        return round(max(temperatures), 1) if temperatures else None
 
     def _atualizar_status_web(self):
         """Publica no painel os mesmos estados consultados pelo Cliente Temer."""
@@ -783,6 +888,9 @@ class ButtonManager:
             
     def parar_servicos(self):
         """Para todos os serviços"""
+        self._computer_monitor_stop.set()
+        if self._computer_monitor_thread and self._computer_monitor_thread.is_alive():
+            self._computer_monitor_thread.join(timeout=2)
         for controls in (self.test_controls, self.provider_controls, self.omr_controls):
             for control in list(controls.values()):
                 try:
